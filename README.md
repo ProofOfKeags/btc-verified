@@ -1,5 +1,7 @@
 # btc-verified
 
+[![CI](https://github.com/ProofOfKeags/btc-verified/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ProofOfKeags/btc-verified/actions/workflows/ci.yml?query=branch%3Amaster)
+
 Small verified Bitcoin protocol components in Lean 4.
 
 This repository is an early public artifact for Bitcoin protocol verification:
