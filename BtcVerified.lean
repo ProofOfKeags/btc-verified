@@ -1,1 +1,2 @@
 import BtcVerified.CompactSize
+import BtcVerified.BitVM.BitCommitment
