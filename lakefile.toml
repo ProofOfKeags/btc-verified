@@ -1,0 +1,10 @@
+name = "btc-verified"
+version = "0.1.0"
+defaultTargets = ["BtcVerified"]
+
+[[lean_lib]]
+name = "BtcVerified"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
