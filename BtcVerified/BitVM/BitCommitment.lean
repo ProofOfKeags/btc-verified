@@ -111,13 +111,10 @@ theorem equivocation_implies_collision
   exact ⟨collisionFromEquivocation hash equivocation⟩
 
 /-- Collision resistance says there are no collision witnesses for this hash. -/
-def CollisionResistant (hash : Bit → Nonce → Digest) : Prop := Collision hash → False
+def collisionResistant (hash : Bit → Nonce → Digest) : Prop := Collision hash → False
 
-/--
-  Binding says that any two valid openings for the same commitment must reveal
-  the same bit.
--/
-def Binding (hash : Bit → Nonce → Digest) : Prop :=
+/-- `binding` says that any two valid openings reveal the same bit. -/
+def binding (hash : Bit → Nonce → Digest) : Prop :=
   ∀ (c : Commitment Digest) (left right : ValidOpening hash c),
     left.opening.bit = right.opening.bit
 
@@ -129,8 +126,8 @@ def Binding (hash : Bit → Nonce → Digest) : Prop :=
 -/
 theorem collision_resistant_hashes_are_binding
     (hash : Bit → Nonce → Digest)
-    (hcr : CollisionResistant hash) :
-    Binding hash := by
+    (hcr : collisionResistant hash) :
+    binding hash := by
     intro c left right
     by_cases same_bits : left.opening.bit = right.opening.bit
     · exact same_bits
