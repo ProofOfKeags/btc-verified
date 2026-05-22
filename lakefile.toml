@@ -1,6 +1,10 @@
 name = "btc-verified"
 version = "0.1.0"
 defaultTargets = ["BtcVerified"]
+lintDriver = "batteries/runLinter"
+
+[leanOptions]
+weak.linter.mathlibStandardSet = true
 
 [[lean_lib]]
 name = "BtcVerified"
