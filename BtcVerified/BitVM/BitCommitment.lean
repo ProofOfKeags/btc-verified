@@ -115,8 +115,8 @@ structure Collision (hash : Bit → Nonce → Digest) where
   The two openings are distinct because they reveal different bits, and their
   digests are equal because both verify against the same commitment.
 -/
-def collisionFromEquivocation
-    (hash : Bit → Nonce → Digest)
+def Equivocation.toCollision
+    {hash : Bit → Nonce → Digest}
     (equivocation : Equivocation hash) :
     Collision hash :=
   let ⟨_commitment, left, right, bits_distinct⟩ := equivocation
@@ -124,6 +124,13 @@ def collisionFromEquivocation
     right := right.opening
     distinct := openings_with_distinct_bits_are_distinct left.opening right.opening bits_distinct
     same_digest := by rw [left.valid, right.valid] }
+
+/-- The collision witness extracted from an equivocation; see `Equivocation.toCollision`. -/
+def Collision.ofEquivocation
+    {hash : Bit → Nonce → Digest}
+    (equivocation : Equivocation hash) :
+    Collision hash :=
+  equivocation.toCollision
 
 /--
   `CollisionResistance` says that the bundled commitment function admits no
@@ -141,8 +148,7 @@ theorem equivocation_refutes_collision_resistance
     ¬ CollisionResistance hash := by
   intro resistance
   apply resistance
-  apply collisionFromEquivocation
-  exact equivocation
+  exact equivocation.toCollision
 
 /--
   `NonEquivocation` says that the bundled commitment function admits no
@@ -159,7 +165,7 @@ theorem collision_resistance_gives_non_equivocation
     CollisionResistance hash → NonEquivocation hash := by
   intros resistance equivocation
   apply resistance
-  exact collisionFromEquivocation hash equivocation
+  exact equivocation.toCollision
 
 /-- `Binding` says that any two valid openings reveal the same bit. -/
 def Binding (hash : Bit → Nonce → Digest) : Prop :=
