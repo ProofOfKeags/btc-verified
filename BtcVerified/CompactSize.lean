@@ -1,6 +1,7 @@
 import Std.Tactic.BVDecide
 import Mathlib.Tactic.SplitIfs
 import BtcVerified.Serialize.Codec
+import BtcVerified.Serialize.WidthCast
 /-!
   # Bitcoin CompactSize encoding
 
@@ -36,18 +37,6 @@ namespace BtcVerified.CompactSize
 
 open BtcVerified.Serialize
 
-private theorem to_uint8_to_uint64_eq_of_lt {n : UInt64} (h : n < 2^8) :
-    n.toUInt8.toUInt64 = n := by
-  simpa using UInt64.mod_eq_of_lt h
-
-private theorem to_uint16_to_uint64_eq_of_lt {n : UInt64} (h : n < 2^16) :
-    n.toUInt16.toUInt64 = n := by
-  simpa using UInt64.mod_eq_of_lt h
-
-private theorem to_uint32_to_uint64_eq_of_lt {n : UInt64} (h : n < 2^32) :
-    n.toUInt32.toUInt64 = n := by
-  simpa using UInt64.mod_eq_of_lt h
-
 private theorem uint16_to_uint64_lt_two_pow_16 (n : UInt16) : n.toUInt64 < 2^16 := by
   simpa [UInt64.lt_iff_toNat_lt] using UInt16.toNat_lt n
 
@@ -57,7 +46,8 @@ private theorem uint32_to_uint64_lt_two_pow_32 (n : UInt32) : n.toUInt64 < 2^32 
 private theorem not_to_uint16_lt_253 {n : UInt64}
     (h253 : 253 ≤ n) (h16 : n < 2^16) : 0xFD ≤ n.toUInt16 := by
   apply UInt16.toUInt64_le.mp
-  simpa [to_uint16_to_uint64_eq_of_lt h16] using h253
+  have e : n.toUInt16.toUInt64 = n := by narrow_widen h16
+  simpa [e] using h253
 
 private theorem not_to_uint32_lt_two_pow_16 {n : UInt64}
     (h16 : ¬ n < 2^16) (h32 : n < 2^32) :
@@ -65,7 +55,8 @@ private theorem not_to_uint32_lt_two_pow_16 {n : UInt64}
   intro h
   exact h16 (by
     have h64 := UInt32.toUInt64_lt.mpr h
-    simpa [to_uint32_to_uint64_eq_of_lt h32] using h64)
+    have e : n.toUInt32.toUInt64 = n := by narrow_widen h32
+    simpa [e] using h64)
 
 /--
   Canonically encodes a `UInt64` as Bitcoin CompactSize bytes.
@@ -122,14 +113,15 @@ theorem decode_encode (n : UInt64) (xs : List UInt8) : decode (encode n ++ xs) =
   unfold encode
   split_ifs with h1 h2 h3
   · have hb : n.toUInt8 < (0xFD : UInt8) := by bv_decide
-    have hv : n.toUInt8.toUInt64 = n := to_uint8_to_uint64_eq_of_lt (UInt64.lt_trans h1 (by decide))
+    have hv : n.toUInt8.toUInt64 = n := by
+      narrow_widen (show n < 2 ^ 8 from UInt64.lt_trans h1 (by decide))
     simp [decode, hb, hv]
   · have hge : ¬ n.toUInt16 < (0xFD : UInt16) :=
       UInt16.not_lt.mpr (not_to_uint16_lt_253 (UInt64.not_lt.mp h1) h2)
-    have hv : n.toUInt16.toUInt64 = n := to_uint16_to_uint64_eq_of_lt h2
+    have hv : n.toUInt16.toUInt64 = n := by narrow_widen h2
     simp [decode, Codec.decode_encode, hge, hv]
   · have hge : ¬ n.toUInt32 < (2 ^ 16 : UInt32) := not_to_uint32_lt_two_pow_16 h2 h3
-    have hv : n.toUInt32.toUInt64 = n := to_uint32_to_uint64_eq_of_lt h3
+    have hv : n.toUInt32.toUInt64 = n := by narrow_widen h3
     simp [decode, Codec.decode_encode, hge, hv]
   · have hge : ¬ n < (2 ^ 32 : UInt64) := h3
     simp [decode, Codec.decode_encode, hge]
