@@ -59,7 +59,7 @@ def commit
   hash bit nonce
 
 /-- An opening verifies when recomputing the commitment yields the same digest. -/
-def verifies
+def Verifies
     (hash : Bit → Nonce → Digest)
     (c : Commitment Digest)
     (opening : Opening Nonce) :
@@ -71,7 +71,7 @@ theorem commitment_verifies_against_original_opening
     (hash : Bit → Nonce → Digest)
     (bit : Bit)
     (nonce : Nonce) :
-    verifies hash (commit hash bit nonce) ⟨bit, nonce⟩ := by
+    Verifies hash (commit hash bit nonce) ⟨bit, nonce⟩ := by
   rfl
 
 /-- A valid opening packages an opening together with its verification proof. -/
@@ -79,7 +79,7 @@ structure ValidOpening (hash : Bit → Nonce → Digest) (c : Commitment Digest)
   /-- The concrete opening being validated. -/
   opening : Opening Nonce
   /-- Evidence that the opening recomputes to the target commitment. -/
-  valid : verifies hash c opening
+  valid : Verifies hash c opening
 
 /--
   Equivocation means one commitment has two valid openings whose revealed bits
@@ -126,10 +126,10 @@ def collisionFromEquivocation
     same_digest := by rw [left.valid, right.valid] }
 
 /--
-  `collisionResistance` says that the bundled commitment function admits no
+  `CollisionResistance` says that the bundled commitment function admits no
   collision witnesses.
 -/
-def collisionResistance (hash : Bit → Nonce → Digest) : Prop := Collision hash → False
+def CollisionResistance (hash : Bit → Nonce → Digest) : Prop := Collision hash → False
 
 /--
   Any equivocation refutes collision resistance, because the equivocation can
@@ -138,17 +138,17 @@ def collisionResistance (hash : Bit → Nonce → Digest) : Prop := Collision ha
 theorem equivocation_refutes_collision_resistance
     (hash : Bit → Nonce → Digest)
     (equivocation : Equivocation hash) :
-    ¬ collisionResistance hash := by
+    ¬ CollisionResistance hash := by
   intro resistance
   apply resistance
   apply collisionFromEquivocation
   exact equivocation
 
 /--
-  `nonEquivocation` says that the bundled commitment function admits no
+  `NonEquivocation` says that the bundled commitment function admits no
   equivocation witnesses.
 -/
-def nonEquivocation (hash : Bit → Nonce → Digest) : Prop := Equivocation hash → False
+def NonEquivocation (hash : Bit → Nonce → Digest) : Prop := Equivocation hash → False
 
 /--
   Collision resistance gives non-equivocation: an equivocation witness would
@@ -156,13 +156,13 @@ def nonEquivocation (hash : Bit → Nonce → Digest) : Prop := Equivocation has
 -/
 theorem collision_resistance_gives_non_equivocation
     (hash : Bit → Nonce → Digest) :
-    collisionResistance hash → nonEquivocation hash := by
+    CollisionResistance hash → NonEquivocation hash := by
   intros resistance equivocation
   apply resistance
   exact collisionFromEquivocation hash equivocation
 
-/-- `binding` says that any two valid openings reveal the same bit. -/
-def binding (hash : Bit → Nonce → Digest) : Prop :=
+/-- `Binding` says that any two valid openings reveal the same bit. -/
+def Binding (hash : Bit → Nonce → Digest) : Prop :=
   ∀ (c : Commitment Digest) (left right : ValidOpening hash c),
     left.opening.bit = right.opening.bit
 
@@ -172,8 +172,8 @@ def binding (hash : Bit → Nonce → Digest) : Prop :=
 -/
 theorem non_equivocation_makes_commitments_binding
     (hash : Bit → Nonce → Digest)
-    (hashForbidsEquivocation : nonEquivocation hash) :
-    binding hash := by
+    (hashForbidsEquivocation : NonEquivocation hash) :
+    Binding hash := by
   intros commitment left right
   by_cases same_bits : left.opening.bit = right.opening.bit
   · exact same_bits
@@ -190,8 +190,8 @@ theorem non_equivocation_makes_commitments_binding
 -/
 theorem collision_resistance_makes_commitments_binding
     (hash : Bit → Nonce → Digest)
-    (resistance : collisionResistance hash) :
-    binding hash := by
+    (resistance : CollisionResistance hash) :
+    Binding hash := by
   apply non_equivocation_makes_commitments_binding hash
   apply collision_resistance_gives_non_equivocation hash
   exact resistance
