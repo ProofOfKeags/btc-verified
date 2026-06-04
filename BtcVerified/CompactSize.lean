@@ -1,14 +1,13 @@
 import Std.Tactic.BVDecide
 import Mathlib.Tactic.SplitIfs
-import Mathlib.Tactic.ApplyAt
-import Batteries.Tactic.Init
+import BtcVerified.Serialize.Codec
 /-!
   # Bitcoin CompactSize encoding
 
   This module formalizes Bitcoin's CompactSize variable-length integer
-  encoding over `UInt64`. CompactSize appears throughout Bitcoin
-  serialization, so this is a small but useful first leaf in a larger verified
-  Bitcoin protocol library.
+  encoding over `UInt64`. CompactSize is the count prefix used throughout
+  Bitcoin serialization (number of inputs, outputs, transactions, …), so it is
+  a small but load-bearing leaf.
 
   The encoder chooses one of four canonical forms:
 
@@ -16,6 +15,11 @@ import Batteries.Tactic.Init
   * `n < 2^16`: marker `0xFD` followed by a little-endian `UInt16`
   * `n < 2^32`: marker `0xFE` followed by a little-endian `UInt32`
   * otherwise: marker `0xFF` followed by a little-endian `UInt64`
+
+  The fixed-width payloads are not open-coded here: they are the little-endian
+  `Codec` instances from `BtcVerified.Serialize`, so this leaf sits on the same
+  byte-level serialization spine as the rest of the block model and only adds
+  CompactSize's own concern — marker dispatch and shortest-form (minimality).
 
   The decoder rejects non-canonical encodings, so values must appear in the
   shortest applicable form. The main checked claims are:
@@ -30,120 +34,7 @@ import Batteries.Tactic.Init
 
 namespace BtcVerified.CompactSize
 
-/-- Encodes a `UInt16` in the two little-endian bytes used by CompactSize. -/
-def encodeU16LE (n : UInt16) : List UInt8 := [n.toUInt8, (n >>> 8).toUInt8]
-
-/-- Decodes two little-endian bytes into a `UInt16`. -/
-def decodeU16LE (b0 b1 : UInt8) : UInt16 := (b1.toUInt16 <<< 8) + b0.toUInt16
-
-/-- Decoding two bytes and encoding the result returns the original bytes. -/
-theorem encode_decode_u16_le (b0 b1 : UInt8) : encodeU16LE (decodeU16LE b0 b1) = [b0, b1] := by
-  simp [encodeU16LE, decodeU16LE]
-  bv_decide
-
-/-- Encoding and decoding a `UInt16` little-endian word returns the word. -/
-theorem decode_encode_u16_le (w : UInt16) :
-    decodeU16LE w.toUInt8 (w >>> 8).toUInt8 = w := by
-  simp [decodeU16LE]
-  bv_decide
-
-/-- Encodes a `UInt32` as two little-endian `UInt16` chunks. -/
-def encodeU32LE (n : UInt32) : List UInt8 :=
-  encodeU16LE n.toUInt16 ++ encodeU16LE (n >>> 16).toUInt16
-
-/-- Decodes two little-endian `UInt16` chunks into a `UInt32`. -/
-def decodeU32LE (w0 w1 : UInt16) : UInt32 := (w1.toUInt32 <<< 16) + w0.toUInt32
-
-/-- Decoding two chunks and encoding the result returns the original chunks. -/
-theorem encode_decode_u32_le (w0 w1 : UInt16) :
-    encodeU32LE (decodeU32LE w0 w1) = encodeU16LE w0 ++ encodeU16LE w1 := by
-  simp [encodeU32LE, decodeU32LE, encodeU16LE]
-  bv_decide
-
-/-- Encoding and decoding a `UInt32` little-endian word returns the word. -/
-theorem decode_encode_u32_le (d : UInt32) :
-    decodeU32LE d.toUInt16 (d >>> 16).toUInt16 = d := by
-  simp [decodeU32LE]
-  bv_decide
-
-/-- Encodes a `UInt64` as two little-endian `UInt32` chunks. -/
-def encodeU64LE (n : UInt64) : List UInt8 :=
-  encodeU32LE n.toUInt32 ++ encodeU32LE (n >>> 32).toUInt32
-
-/-- Decodes two little-endian `UInt32` chunks into a `UInt64`. -/
-def decodeU64LE (d0 d1 : UInt32) : UInt64 := (d1.toUInt64 <<< 32) + d0.toUInt64
-
-/-- Decoding two chunks and encoding the result returns the original chunks. -/
-theorem encode_decode_u64_le (d0 d1 : UInt32) :
-    encodeU64LE (decodeU64LE d0 d1) = encodeU32LE d0 ++ encodeU32LE d1 := by
-  simp [decodeU64LE, encodeU64LE, encodeU32LE, encodeU16LE]
-  bv_decide
-
-/-- Encoding and decoding a `UInt64` little-endian word returns the word. -/
-theorem decode_encode_u64_le (q : UInt64) :
-    decodeU64LE q.toUInt32 (q >>> 32).toUInt32 = q := by
-  simp [decodeU64LE]
-  bv_decide
-
-/--
-  Canonically encodes a `UInt64` as Bitcoin CompactSize bytes.
-
-  The branch conditions implement the shortest-form rule: marker bytes are used
-  only when the value cannot fit in a shorter CompactSize form.
--/
-def encode (n : UInt64) : List UInt8 :=
-  if n < 253 then
-    [n.toUInt8]
-  else if n < 2^16 then
-    0xFD :: encodeU16LE n.toUInt16
-  else if n < 2^32 then
-    0xFE :: encodeU32LE n.toUInt32
-  else
-    0xFF :: encodeU64LE n
-
-/--
-  Decodes a CompactSize value from the front of a byte list.
-
-  On success, the result contains the decoded value and the unconsumed tail.
-  Non-canonical forms and incomplete inputs return `none`.
--/
-def decode (bs : List UInt8) : Option (UInt64 × List UInt8) :=
-  match bs with
-  | [] => none
-  | h :: t =>
-    if h < 0xFD then
-      some (h.toUInt64, t)
-    else if h == 0xFD then
-      match t with
-      | b0 :: b1 :: rest =>
-        let n := decodeU16LE b0 b1
-        if n < 0xFD then none
-        else some (n.toUInt64, rest)
-      | _ => none
-    else if h == 0xFE then
-      match t with
-      | b0 :: b1 :: b2 :: b3 :: rest =>
-        let w0 := decodeU16LE b0 b1
-        let w1 := decodeU16LE b2 b3
-        let dw := decodeU32LE w0 w1
-        if dw < 2^16 then none
-        else some (dw.toUInt64, rest)
-      | _ => none
-    else if h == 0xFF then
-      match t with
-      | b0 :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: rest =>
-        let w0 := decodeU16LE b0 b1
-        let w1 := decodeU16LE b2 b3
-        let w2 := decodeU16LE b4 b5
-        let w3 := decodeU16LE b6 b7
-        let d0 := decodeU32LE w0 w1
-        let d1 := decodeU32LE w2 w3
-        let qw := decodeU64LE d0 d1
-        if qw < 2^32 then none
-        else some (qw, rest)
-      | _ => none
-    else
-      none
+open BtcVerified.Serialize
 
 private theorem to_uint8_to_uint64_eq_of_lt {n : UInt64} (h : n < 2^8) :
     n.toUInt8.toUInt64 = n := by
@@ -177,52 +68,81 @@ private theorem not_to_uint32_lt_two_pow_16 {n : UInt64}
     simpa [to_uint32_to_uint64_eq_of_lt h32] using h64)
 
 /--
+  Canonically encodes a `UInt64` as Bitcoin CompactSize bytes.
+
+  The branch conditions implement the shortest-form rule: marker bytes are used
+  only when the value cannot fit in a shorter CompactSize form. The fixed-width
+  payloads are the little-endian `Codec` encodings from `BtcVerified.Serialize`.
+-/
+def encode (n : UInt64) : List UInt8 :=
+  if n < 253 then
+    [n.toUInt8]
+  else if n < 2 ^ 16 then
+    0xFD :: Codec.encode n.toUInt16
+  else if n < 2 ^ 32 then
+    0xFE :: Codec.encode n.toUInt32
+  else
+    0xFF :: Codec.encode n
+
+/--
+  Decodes a CompactSize value from the front of a byte list.
+
+  On success, the result contains the decoded value and the unconsumed tail.
+  Non-canonical forms (a value encoded in a longer-than-necessary marker) and
+  incomplete inputs return `none`.
+-/
+def decode (bs : List UInt8) : Option (UInt64 × List UInt8) :=
+  match bs with
+  | [] => none
+  | h :: t =>
+    if h < 0xFD then
+      some (h.toUInt64, t)
+    else if h = 0xFD then
+      match Codec.decode (α := UInt16) t with
+      | none => none
+      | some (w, rest) => if w < 0xFD then none else some (w.toUInt64, rest)
+    else if h = 0xFE then
+      match Codec.decode (α := UInt32) t with
+      | none => none
+      | some (w, rest) => if w < 2 ^ 16 then none else some (w.toUInt64, rest)
+    else if h = 0xFF then
+      match Codec.decode (α := UInt64) t with
+      | none => none
+      | some (w, rest) => if w < 2 ^ 32 then none else some (w, rest)
+    else
+      none
+
+/--
   Round-trip correctness for canonical encodings.
 
   Encoding `n` and appending arbitrary trailing bytes always decodes back to
   `n`, leaving exactly those trailing bytes as the unconsumed tail.
 -/
 theorem decode_encode (n : UInt64) (xs : List UInt8) : decode (encode n ++ xs) = some (n, xs) := by
-  have u8_u32_trans_expand : ∀ (x : UInt32), x.toUInt8 = x.toUInt16.toUInt8 := by bv_decide
-  have u8_u64_trans_expand : ∀ (x : UInt64), x.toUInt8 = x.toUInt32.toUInt16.toUInt8 := by bv_decide
-  have u16_u64_trans_expand : ∀ (x : UInt64), x.toUInt16 = x.toUInt32.toUInt16 := by bv_decide
-  unfold encode decode
+  unfold encode
   split_ifs with h1 h2 h3
-  · simp [List.cons_append, List.nil_append,
-      show n.toUInt8 < (0xFD : UInt8) by bv_decide,
-      to_uint8_to_uint64_eq_of_lt (UInt64.lt_trans h1 (by decide))]
-  · rw [List.cons_append]
-    simp
-    unfold encodeU16LE
-    simp only [List.cons_append, List.nil_append]
-    rw [decode_encode_u16_le]
-    simp
-    constructor
-    · apply not_to_uint16_lt_253
-      · exact (UInt64.not_lt.mp h1)
-      · exact h2
-    · exact to_uint16_to_uint64_eq_of_lt h2
-  · rw [List.cons_append]
-    simp [encodeU32LE, encodeU16LE]
-    repeat rw [u8_u32_trans_expand, u8_u64_trans_expand, u16_u64_trans_expand]
-    repeat rw [decode_encode_u16_le]
-    repeat rw [decode_encode_u32_le]
-    simp
-    exact ⟨UInt32.not_lt.mp (not_to_uint32_lt_two_pow_16 h2 h3),
-      to_uint32_to_uint64_eq_of_lt h3⟩
-  · rw [List.cons_append]
-    simp [encodeU64LE, encodeU32LE, encodeU16LE]
-    repeat rw [u8_u32_trans_expand, u8_u64_trans_expand, u16_u64_trans_expand]
-    repeat rw [decode_encode_u16_le]
-    repeat rw [decode_encode_u32_le]
-    repeat rw [decode_encode_u64_le]
-    exact ⟨UInt64.not_lt.mp h3, rfl⟩
+  · have hb : n.toUInt8 < (0xFD : UInt8) := by bv_decide
+    have hv : n.toUInt8.toUInt64 = n := to_uint8_to_uint64_eq_of_lt (UInt64.lt_trans h1 (by decide))
+    simp [decode, hb, hv]
+  · have hge : ¬ n.toUInt16 < (0xFD : UInt16) :=
+      UInt16.not_lt.mpr (not_to_uint16_lt_253 (UInt64.not_lt.mp h1) h2)
+    have hv : n.toUInt16.toUInt64 = n := to_uint16_to_uint64_eq_of_lt h2
+    simp [decode, Codec.decode_encode, hge, hv]
+  · have hge : ¬ n.toUInt32 < (2 ^ 16 : UInt32) := not_to_uint32_lt_two_pow_16 h2 h3
+    have hv : n.toUInt32.toUInt64 = n := to_uint32_to_uint64_eq_of_lt h3
+    simp [decode, Codec.decode_encode, hge, hv]
+  · have hge : ¬ n < (2 ^ 32 : UInt64) := h3
+    simp [decode, Codec.decode_encode, hge]
 
 /-- CompactSize encodings are bounded by the one marker byte plus eight data bytes. -/
-theorem encode_length_le (n : UInt64) :
-    (encode n).length ≤ 9 := by
+theorem encode_length_le (n : UInt64) : (encode n).length ≤ 9 := by
+  have e16 : (Codec.encode n.toUInt16).length = 2 := encodeBitVecLE_length 2 n.toUInt16.toBitVec
+  have e32 : (Codec.encode n.toUInt32).length = 4 := encodeBitVecLE_length 4 n.toUInt32.toBitVec
+  have e64 : (Codec.encode n).length = 8 := encodeBitVecLE_length 8 n.toBitVec
   unfold encode
-  split_ifs <;> simp [encodeU16LE, encodeU32LE, encodeU64LE]
+  split_ifs <;>
+    simp only [List.length_cons, List.length_nil, e16, e32, e64] <;>
+    omega
 
 /--
   Canonicality of accepted parses.
@@ -232,65 +152,91 @@ theorem encode_length_le (n : UInt64) :
   accepted consumed prefix is the shortest CompactSize representation.
 -/
 theorem decode_canonical (bs : List UInt8) (n : UInt64) (rest : List UInt8) :
-    decode bs = some (n, rest) →
-    bs = encode n ++ rest := by
+    decode bs = some (n, rest) → bs = encode n ++ rest := by
   intro parses
-  unfold decode at parses
   match bs with
-  | [] => simp at parses
-  | hd :: tl =>
-    simp at parses
-    split_ifs at parses with one three five nine
-    · obtain ⟨rfl, rfl⟩ := parses
-      simp [encode, show hd.toUInt64 < 0xFD by simpa [UInt8.lt_iff_toNat_lt] using one]
-    · split at parses
-      · next b0 b1 rest' =>
-          simp at parses
-          obtain ⟨ge_253, pre, rfl⟩ := parses
-          subst three
-          have h253 : ¬ n < 253 := UInt64.not_lt.mpr (by
-            simpa [pre] using (UInt16.toUInt64_le.mpr ge_253))
-          have h16 : n < 2^16 := by
-            simpa [pre] using uint16_to_uint64_lt_two_pow_16 (decodeU16LE b0 b1)
-          have hn16 : n.toUInt16 = decodeU16LE b0 b1 := by
-            symm
-            simpa [UInt16.toUInt16_toUInt64] using congrArg UInt64.toUInt16 pre
-          simp [encode, h253, h16, hn16, encode_decode_u16_le]
-      · next => contradiction
-    · split at parses
-      · next b0 b1 b2 b3 rest' =>
-          simp at parses
-          obtain ⟨ge16, pre, rfl⟩ := parses
-          subst five
-          let x := decodeU32LE (decodeU16LE b0 b1) (decodeU16LE b2 b3)
-          change (2^16 : UInt32) ≤ x at ge16
-          change x.toUInt64 = n at pre
-          have le16 : 2^16 ≤ n := by
-            simpa [pre] using (UInt32.toUInt64_le.mpr ge16)
-          have h253 : ¬ n < 253 := UInt64.not_lt.mpr (UInt64.le_trans (by decide) le16)
-          have h16 : ¬ n < 2^16 := UInt64.not_lt.mpr le16
-          have h32 : n < 2^32 := by
-            simpa [pre] using uint32_to_uint64_lt_two_pow_32 x
-          have hn32 : n.toUInt32 = x := by
-            symm
-            simpa [UInt32.toUInt32_toUInt64] using congrArg UInt64.toUInt32 pre
-          simp [encode, h253, h16, h32, hn32, x, encode_decode_u32_le, encode_decode_u16_le]
-      · next => contradiction
-    · split at parses
-      · next b0 b1 b2 b3 b4 b5 b6 b7 rest' =>
-          simp at parses
-          obtain ⟨ge32, pre, rfl⟩ := parses
-          subst nine
-          let x := decodeU64LE
-            (decodeU32LE (decodeU16LE b0 b1) (decodeU16LE b2 b3))
-            (decodeU32LE (decodeU16LE b4 b5) (decodeU16LE b6 b7))
-          change 2^32 ≤ x at ge32
-          change x = n at pre
-          have hx253 : ¬ x < 253 := UInt64.not_lt.mpr (UInt64.le_trans (by decide) ge32)
-          have hx16 : ¬ x < 2^16 := UInt64.not_lt.mpr (UInt64.le_trans (by decide) ge32)
-          have hx32 : ¬ x < 2^32 := UInt64.not_lt.mpr ge32
-          simp [encode, ←pre, hx253, hx16, hx32, x, encode_decode_u64_le,
-            encode_decode_u32_le, encode_decode_u16_le]
-      · next => contradiction
+  | [] => simp [decode] at parses
+  | h :: t =>
+    simp only [decode] at parses
+    split_ifs at parses with c1 c2 c3 c4
+    · -- h < 0xFD
+      simp only [Option.some.injEq, Prod.mk.injEq] at parses
+      obtain ⟨rfl, rfl⟩ := parses
+      have h253 : h.toUInt64 < 253 := by simpa [UInt8.lt_iff_toNat_lt] using c1
+      simp [encode, h253]
+    · -- h = 0xFD
+      cases hdec : Codec.decode (α := UInt16) t with
+      | none => simp [hdec] at parses
+      | some wr =>
+        obtain ⟨w, rest'⟩ := wr
+        simp only [hdec] at parses
+        by_cases cw : w < 0xFD
+        · simp [cw] at parses
+        · rw [if_neg cw] at parses
+          simp only [Option.some.injEq, Prod.mk.injEq] at parses
+          obtain ⟨rfl, rfl⟩ := parses
+          have ht := Codec.decode_canonical t w rest' hdec
+          have h16 : w.toUInt64 < 2 ^ 16 := uint16_to_uint64_lt_two_pow_16 w
+          have h253 : ¬ w.toUInt64 < 253 := by
+            have hle : (253 : UInt64) ≤ w.toUInt64 := by
+              simpa using UInt16.toUInt64_le.mpr (UInt16.not_lt.mp cw)
+            exact UInt64.not_lt.mpr hle
+          have hn16 : w.toUInt64.toUInt16 = w := by simp [UInt16.toUInt16_toUInt64]
+          subst c2
+          simp [encode, h253, h16, hn16, ht]
+    · -- h = 0xFE
+      cases hdec : Codec.decode (α := UInt32) t with
+      | none => simp [hdec] at parses
+      | some wr =>
+        obtain ⟨w, rest'⟩ := wr
+        simp only [hdec] at parses
+        by_cases cw : w < 2 ^ 16
+        · simp [cw] at parses
+        · rw [if_neg cw] at parses
+          simp only [Option.some.injEq, Prod.mk.injEq] at parses
+          obtain ⟨rfl, rfl⟩ := parses
+          have ht := Codec.decode_canonical t w rest' hdec
+          have h32 : w.toUInt64 < 2 ^ 32 := uint32_to_uint64_lt_two_pow_32 w
+          have h16 : ¬ w.toUInt64 < 2 ^ 16 := by
+            have hle : (2 ^ 16 : UInt64) ≤ w.toUInt64 := by
+              simpa using UInt32.toUInt64_le.mpr (UInt32.not_lt.mp cw)
+            exact UInt64.not_lt.mpr hle
+          have h253 : ¬ w.toUInt64 < 253 :=
+            UInt64.not_lt.mpr (UInt64.le_trans (by decide) (UInt64.not_lt.mp h16))
+          have hn32 : w.toUInt64.toUInt32 = w := by simp [UInt32.toUInt32_toUInt64]
+          subst c3
+          simp [encode, h253, h16, h32, hn32, ht]
+    · -- h = 0xFF
+      cases hdec : Codec.decode (α := UInt64) t with
+      | none => simp [hdec] at parses
+      | some wr =>
+        obtain ⟨w, rest'⟩ := wr
+        simp only [hdec] at parses
+        by_cases cw : w < 2 ^ 32
+        · simp [cw] at parses
+        · rw [if_neg cw] at parses
+          simp only [Option.some.injEq, Prod.mk.injEq] at parses
+          obtain ⟨rfl, rfl⟩ := parses
+          have ht := Codec.decode_canonical t w rest' hdec
+          have h16 : ¬ w < 2 ^ 16 :=
+            UInt64.not_lt.mpr (UInt64.le_trans (by decide) (UInt64.not_lt.mp cw))
+          have h253 : ¬ w < 253 :=
+            UInt64.not_lt.mpr (UInt64.le_trans (by decide) (UInt64.not_lt.mp cw))
+          subst c4
+          simp [encode, h253, h16, cw, ht]
+
+/--
+  The CompactSize encoding packaged as a `Codec UInt64`.
+
+  This is a worked codec, not the registered `Codec UInt64` instance: the
+  canonical full-width `Codec UInt64` is the fixed 8-byte little-endian form,
+  whereas CompactSize is the distinguished variable-length encoding used for
+  counts.
+-/
+abbrev compactSizeCodec : Codec UInt64 where
+  encode := encode
+  decode := decode
+  decode_encode := decode_encode
+  decode_canonical := decode_canonical
 
 end BtcVerified.CompactSize
