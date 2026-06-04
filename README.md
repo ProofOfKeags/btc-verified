@@ -42,6 +42,48 @@ Checked claims:
 Why it matters: this fixes the first vocabulary for later BitVM proof packets:
 openings, equivocation, collision resistance, and binding.
 
+### `BtcVerified.Serialize`
+
+A serialization codec discipline: the `Codec` typeclass bundles an encoder, a
+prefix-consuming decoder, and the two laws relating them — round-trip and
+canonicality. Read as an adjunction, `encode` is a section into the byte
+strings and `decode` a partial retraction.
+
+Checked claims:
+
+- `encode_injective`: distinct values never share an encoding.
+- `Codec (α × β)`: running two codecs in sequence again satisfies both laws, so
+  composite structures inherit serialization correctness from their fields.
+- fixed-width little-endian `Codec` instances for `UInt16`/`UInt32`/`UInt64`.
+- `compactSizeCodec`: the existing CompactSize encoder/decoder satisfies the
+  `Codec` laws verbatim — a worked instance validating the abstraction.
+
+Why it matters: a block and its substructures are serialized by composing many
+small encoders. Capturing round-trip and canonicality once, as composable laws,
+lets each substructure reuse its fields' correctness instead of re-deriving it.
+
+### `BtcVerified` block data model
+
+The data model for Bitcoin blocks and their substructures — `OutPoint`, `TxIn`,
+`TxOut`, `Tx`, `BlockHeader`, `Block`, and the `Hash256`/`WitnessStack`
+aliases — the foundation that serialization, consensus validity, proof of work,
+and fork choice are all stated against.
+
+The model is era- and witness-aware from the start: a transaction's `witness`
+field is `none` for the legacy (pre-SegWit) form and `some` for the SegWit
+form, since SegWit is a soft fork whose validity is the legacy ruleset plus
+added constraints. Scripts and witness items are opaque byte lists; hashing
+stays abstract.
+
+Checked claims:
+
+- `witnessWellFormed_of_legacy`: a legacy transaction is always
+  witness-well-formed.
+
+Why it matters: fork choice and proof-of-work semantics presuppose an actual
+representation of blocks and the substructures that carry consensus-validity
+invariants. This fixes that vocabulary as the base of the stack.
+
 ## What this is not yet
 
 - Not a full Bitcoin Script semantics.
