@@ -160,10 +160,11 @@ def NonEquivocation (hash : Bit → Nonce → Digest) : Prop := Equivocation has
   Collision resistance gives non-equivocation: an equivocation witness would
   produce the collision witness that collision resistance rules out.
 -/
-theorem collision_resistance_gives_non_equivocation
-    (hash : Bit → Nonce → Digest) :
-    CollisionResistance hash → NonEquivocation hash := by
-  intros resistance equivocation
+theorem CollisionResistance.nonEquivocation
+    {hash : Bit → Nonce → Digest}
+    (resistance : CollisionResistance hash) :
+    NonEquivocation hash := by
+  intro equivocation
   apply resistance
   exact equivocation.toCollision
 
@@ -176,8 +177,8 @@ def Binding (hash : Bit → Nonce → Digest) : Prop :=
   If equivocation is impossible, then two valid openings for the same commitment
   must reveal the same bit.
 -/
-theorem non_equivocation_makes_commitments_binding
-    (hash : Bit → Nonce → Digest)
+theorem NonEquivocation.binding
+    {hash : Bit → Nonce → Digest}
     (hashForbidsEquivocation : NonEquivocation hash) :
     Binding hash := by
   intros commitment left right
@@ -194,12 +195,10 @@ theorem non_equivocation_makes_commitments_binding
   Collision resistance gives non-equivocation, and non-equivocation rules out
   pairs of valid openings that reveal different bits.
 -/
-theorem collision_resistance_makes_commitments_binding
-    (hash : Bit → Nonce → Digest)
+theorem CollisionResistance.binding
+    {hash : Bit → Nonce → Digest}
     (resistance : CollisionResistance hash) :
-    Binding hash := by
-  apply non_equivocation_makes_commitments_binding hash
-  apply collision_resistance_gives_non_equivocation hash
-  exact resistance
+    Binding hash :=
+  resistance.nonEquivocation.binding
 
 end BtcVerified.BitVM.BitCommitment
