@@ -1,5 +1,4 @@
 import Mathlib.Logic.Equiv.Basic
-import BtcVerified.CompactSize
 /-!
   # The serialization codec discipline
 
@@ -37,8 +36,6 @@ import BtcVerified.CompactSize
     construction serializes any `BitVec (8 * n)` as `n` bytes, and `Codec.ofEquiv`
     transports it to the fixed-width integers (`UInt8`/`UInt16`/`UInt32`/`UInt64`)
     and the 256-bit hash, so byte-level endianness is defined and proved once.
-  * `compactSizeCodec`: the existing `CompactSize` encoder/decoder satisfies the
-    `Codec` laws verbatim — a worked instance validating the abstraction.
 -/
 
 namespace BtcVerified.Serialize
@@ -232,6 +229,14 @@ theorem decodeBitVecLE_canonical :
         simp only [encodeBitVecLE, List.cons_append, setWidth_append_low,
           setWidth_ushiftRight_append, UInt8.ofBitVec_toBitVec, ihbs]
 
+/-- A little-endian `BitVec (8 * n)` encoding is exactly `n` bytes long. -/
+theorem encodeBitVecLE_length :
+    ∀ (n : Nat) (v : BitVec (8 * n)), (encodeBitVecLE n v).length = n := by
+  intro n
+  induction n with
+  | zero => intro v; rfl
+  | succ n ih => intro v; simp [encodeBitVecLE, List.length_cons, ih]
+
 /-- The little-endian byte codec for `BitVec (8 * n)`: the primitive every
 fixed-width codec is built from. -/
 @[reducible] def bitVecCodecLE (n : Nat) : Codec (BitVec (8 * n)) where
@@ -280,21 +285,5 @@ instance instCodecUInt64 : Codec UInt64 :=
 
 /-- The 256-bit hash type is exactly 32 little-endian bytes. -/
 instance instCodecBitVec256 : Codec (BitVec 256) := bitVecCodecLE 32
-
-/-! ## CompactSize as a codec
-
-  A worked instance validating the abstraction: the existing `CompactSize`
-  encoder/decoder discharges the `Codec` laws verbatim. This is a `def` rather
-  than a registered `instance` because the canonical full-width `Codec UInt64`
-  is the fixed 8-byte little-endian form above; CompactSize is the distinguished
-  variable-length encoding used for counts.
--/
-
-/-- The Bitcoin CompactSize variable-length encoding, packaged as a `Codec`. -/
-abbrev compactSizeCodec : Codec UInt64 where
-  encode := CompactSize.encode
-  decode := CompactSize.decode
-  decode_encode := CompactSize.decode_encode
-  decode_canonical := CompactSize.decode_canonical
 
 end BtcVerified.Serialize

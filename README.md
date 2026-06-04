@@ -25,9 +25,14 @@ Checked claims:
 - `decode_canonical`: every accepted parse consumed exactly the canonical
   encoding of the returned value.
 
-Why it matters: CompactSize appears throughout Bitcoin serialization. A
-verified encoder/decoder is a small foundation for later byte-level protocol
-models.
+The fixed-width payloads reuse the little-endian `Codec` primitives from
+`BtcVerified.Serialize`, so CompactSize only adds its own concern — marker
+dispatch and shortest-form minimality. `compactSizeCodec` packages the whole
+encoding as a `Codec UInt64`.
+
+Why it matters: CompactSize is the count prefix throughout Bitcoin
+serialization. A verified encoder/decoder is a small foundation for later
+byte-level protocol models.
 
 ### `BtcVerified.BitVM.BitCommitment`
 
@@ -59,8 +64,6 @@ Checked claims:
   proved by bit-level extensionality. `Codec.ofEquiv` transports it along a
   bijection, giving the fixed-width integer instances (`UInt8`/`UInt16`/`UInt32`/
   `UInt64`) and the 256-bit hash from a single place where endianness is defined.
-- `compactSizeCodec`: the existing CompactSize encoder/decoder satisfies the
-  `Codec` laws verbatim — a worked instance validating the abstraction.
 
 Why it matters: a block and its substructures are serialized by composing many
 small encoders. Capturing round-trip and canonicality once, as composable laws,
