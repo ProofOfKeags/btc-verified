@@ -1,3 +1,4 @@
+import Mathlib.Logic.Equiv.Basic
 import BtcVerified.CompactSize
 /-!
   # The serialization codec discipline
@@ -32,7 +33,10 @@ import BtcVerified.CompactSize
 
   * `encode_injective`: distinct values never share an encoding.
   * the `Codec (α × β)` instance: sequential composition preserves both laws.
-  * fixed-width little-endian `Codec` instances for `UInt16`/`UInt32`/`UInt64`.
+  * `decodeBitVecLE_encodeBitVecLE` / `decodeBitVecLE_canonical`: one little-endian
+    construction serializes any `BitVec (8 * n)` as `n` bytes, and `Codec.ofEquiv`
+    transports it to the fixed-width integers (`UInt8`/`UInt16`/`UInt32`/`UInt64`)
+    and the 256-bit hash, so byte-level endianness is defined and proved once.
   * `compactSizeCodec`: the existing `CompactSize` encoder/decoder satisfies the
     `Codec` laws verbatim — a worked instance validating the abstraction.
 -/
@@ -121,98 +125,161 @@ instance instCodecProd {α β : Type} [Codec α] [Codec β] : Codec (α × β) w
   decode_encode := fun (a, b) rest => decodeProd_encode a b rest
   decode_canonical := fun bs (a, b) rest h => decodeProd_canonical bs a b rest h
 
-/-! ## Fixed-width little-endian integer codecs
+/-! ## Byte and fixed-width little-endian codecs
 
-  These are the natural full-width encodings used by Bitcoin for non-count
-  fields (e.g. version, sequence, lock time as `UInt32`; output value as
-  `UInt64`). They reuse the little-endian chunk machinery and round-trip lemmas
-  from `CompactSize`. (Variable-length counts use CompactSize itself; see
-  `compactSizeCodec`.)
+  The primitive serializable unit is a single byte. From it, one generic
+  little-endian construction serializes any `BitVec (8 * n)` as `n` bytes, low
+  byte first. Every fixed-width Bitcoin integer field — and the 256-bit hash
+  type — is then that one construction transported along a bijection, so
+  byte-level endianness lives in a single place.
 -/
 
-/-- Decode a 2-byte little-endian `UInt16`. -/
-def decodeU16 (bs : List UInt8) : Option (UInt16 × List UInt8) :=
-  match bs with
-  | b0 :: b1 :: rest => some (CompactSize.decodeU16LE b0 b1, rest)
-  | _ => none
+/-- Read a single byte off the front of the input. -/
+def decodeByte : List UInt8 → Option (UInt8 × List UInt8)
+  | [] => none
+  | b :: bs => some (b, bs)
 
-instance instCodecUInt16 : Codec UInt16 where
-  encode := CompactSize.encodeU16LE
-  decode := decodeU16
-  decode_encode w rest := by
-    simp only [CompactSize.encodeU16LE, List.cons_append, List.nil_append, decodeU16,
-      CompactSize.decode_encode_u16_le]
-  decode_canonical bs w rest h := by
-    match bs with
-    | [] => simp [decodeU16] at h
-    | [_] => simp [decodeU16] at h
-    | b0 :: b1 :: r =>
-      simp only [decodeU16, Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨hw, hr⟩ := h
-      subst hw; subst hr
-      simp only [CompactSize.encode_decode_u16_le, List.cons_append, List.nil_append]
+/-- Little-endian serialization of a `BitVec (8 * n)` as `n` bytes, low byte first. -/
+def encodeBitVecLE : (n : Nat) → BitVec (8 * n) → List UInt8
+  | 0, _ => []
+  | n + 1, v => UInt8.ofBitVec (v.setWidth 8) :: encodeBitVecLE n ((v >>> 8).setWidth (8 * n))
 
-/-- Decode a 4-byte little-endian `UInt32`. -/
-def decodeU32 (bs : List UInt8) : Option (UInt32 × List UInt8) :=
-  match bs with
-  | b0 :: b1 :: b2 :: b3 :: rest =>
-    some (CompactSize.decodeU32LE (CompactSize.decodeU16LE b0 b1) (CompactSize.decodeU16LE b2 b3),
-      rest)
-  | _ => none
+/-- Decode `n` little-endian bytes into a `BitVec (8 * n)`. -/
+def decodeBitVecLE : (n : Nat) → List UInt8 → Option (BitVec (8 * n) × List UInt8)
+  | 0, bs => some (0#0, bs)
+  | n + 1, bs =>
+    match decodeByte bs with
+    | none => none
+    | some (b, bs') =>
+      match decodeBitVecLE n bs' with
+      | none => none
+      | some (hi, rest) => some (hi ++ b.toBitVec, rest)
 
-instance instCodecUInt32 : Codec UInt32 where
-  encode := CompactSize.encodeU32LE
-  decode := decodeU32
-  decode_encode w rest := by
-    simp only [CompactSize.encodeU32LE, CompactSize.encodeU16LE, List.cons_append,
-      List.nil_append, decodeU32, CompactSize.decode_encode_u16_le,
-      CompactSize.decode_encode_u32_le]
-  decode_canonical bs w rest h := by
-    match bs with
-    | [] => simp [decodeU32] at h
-    | [_] => simp [decodeU32] at h
-    | [_, _] => simp [decodeU32] at h
-    | [_, _, _] => simp [decodeU32] at h
-    | b0 :: b1 :: b2 :: b3 :: r =>
-      simp only [decodeU32, Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨hw, hr⟩ := h
-      subst hw; subst hr
-      simp only [CompactSize.encode_decode_u32_le, CompactSize.encode_decode_u16_le,
-        List.cons_append, List.nil_append]
+/-- The low byte of `high ++ low` is `low`. -/
+private theorem setWidth_append_low {n : Nat} (hi : BitVec (8 * n)) (lo : BitVec 8) :
+    (hi ++ lo).setWidth 8 = lo := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi8
+  rw [BitVec.getLsbD_setWidth, BitVec.getLsbD_append]
+  simp [hi8]
 
-/-- Decode an 8-byte little-endian `UInt64`. -/
-def decodeU64 (bs : List UInt8) : Option (UInt64 × List UInt8) :=
-  match bs with
-  | b0 :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: rest =>
-    some (CompactSize.decodeU64LE
-      (CompactSize.decodeU32LE (CompactSize.decodeU16LE b0 b1) (CompactSize.decodeU16LE b2 b3))
-      (CompactSize.decodeU32LE (CompactSize.decodeU16LE b4 b5) (CompactSize.decodeU16LE b6 b7)),
-      rest)
-  | _ => none
+/-- Shifting `high ++ low` past its low byte and truncating recovers `high`. -/
+private theorem setWidth_ushiftRight_append {n : Nat} (hi : BitVec (8 * n)) (lo : BitVec 8) :
+    ((hi ++ lo) >>> 8).setWidth (8 * n) = hi := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hin
+  rw [BitVec.getLsbD_setWidth, BitVec.getLsbD_ushiftRight, BitVec.getLsbD_append]
+  have h1 : ¬ (8 + i < 8) := by omega
+  have h2 : 8 + i - 8 = i := by omega
+  rw [if_neg h1, h2]
+  simp [hin]
 
-instance instCodecUInt64 : Codec UInt64 where
-  encode := CompactSize.encodeU64LE
-  decode := decodeU64
-  decode_encode w rest := by
-    simp only [CompactSize.encodeU64LE, CompactSize.encodeU32LE, CompactSize.encodeU16LE,
-      List.cons_append, List.nil_append, decodeU64, CompactSize.decode_encode_u16_le,
-      CompactSize.decode_encode_u32_le, CompactSize.decode_encode_u64_le]
-  decode_canonical bs w rest h := by
-    match bs with
-    | [] => simp [decodeU64] at h
-    | [_] => simp [decodeU64] at h
-    | [_, _] => simp [decodeU64] at h
-    | [_, _, _] => simp [decodeU64] at h
-    | [_, _, _, _] => simp [decodeU64] at h
-    | [_, _, _, _, _] => simp [decodeU64] at h
-    | [_, _, _, _, _, _] => simp [decodeU64] at h
-    | [_, _, _, _, _, _, _] => simp [decodeU64] at h
-    | b0 :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: r =>
-      simp only [decodeU64, Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨hw, hr⟩ := h
-      subst hw; subst hr
-      simp only [CompactSize.encode_decode_u64_le, CompactSize.encode_decode_u32_le,
-        CompactSize.encode_decode_u16_le, List.cons_append, List.nil_append]
+/-- A word equals its high `8 * n` bits appended to its low byte. -/
+private theorem append_split {n : Nat} (v : BitVec (8 * (n + 1))) :
+    ((v >>> 8).setWidth (8 * n)) ++ (v.setWidth 8) = v := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hilt
+  rw [BitVec.getLsbD_append]
+  by_cases h8 : i < 8
+  · rw [if_pos h8, BitVec.getLsbD_setWidth]; simp [h8]
+  · rw [if_neg h8, BitVec.getLsbD_setWidth, BitVec.getLsbD_ushiftRight]
+    have h1 : i - 8 < 8 * n := by omega
+    have h2 : 8 + (i - 8) = i := by omega
+    rw [h2]; simp [h1]
+
+/-- Round-trip for the little-endian `BitVec (8 * n)` serialization. -/
+theorem decodeBitVecLE_encodeBitVecLE :
+    ∀ (n : Nat) (v : BitVec (8 * n)) (rest : List UInt8),
+      decodeBitVecLE n (encodeBitVecLE n v ++ rest) = some (v, rest) := by
+  intro n
+  induction n with
+  | zero =>
+    intro v rest
+    have hv : v = 0#0 := by
+      apply BitVec.eq_of_getLsbD_eq; intro i hi; exact absurd hi (by omega)
+    subst hv
+    rfl
+  | succ n ih =>
+    intro v rest
+    simp only [encodeBitVecLE, List.cons_append, decodeBitVecLE, decodeByte, ih]
+    rw [append_split v]
+
+/-- Canonicality for the little-endian `BitVec (8 * n)` serialization. -/
+theorem decodeBitVecLE_canonical :
+    ∀ (n : Nat) (bs : List UInt8) (v : BitVec (8 * n)) (rest : List UInt8),
+      decodeBitVecLE n bs = some (v, rest) → bs = encodeBitVecLE n v ++ rest := by
+  intro n
+  induction n with
+  | zero =>
+    intro bs v rest h
+    simp only [decodeBitVecLE, Option.some.injEq, Prod.mk.injEq] at h
+    simp only [encodeBitVecLE, List.nil_append, h.2]
+  | succ n ih =>
+    intro bs v rest h
+    cases bs with
+    | nil => simp [decodeBitVecLE, decodeByte] at h
+    | cons b bs' =>
+      simp only [decodeBitVecLE, decodeByte] at h
+      cases hd : decodeBitVecLE n bs' with
+      | none => rw [hd] at h; simp at h
+      | some hr =>
+        obtain ⟨hi, r⟩ := hr
+        rw [hd] at h
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨hv, hr'⟩ := h
+        have ihbs := ih bs' hi r hd
+        subst hr'; subst hv
+        simp only [encodeBitVecLE, List.cons_append, setWidth_append_low,
+          setWidth_ushiftRight_append, UInt8.ofBitVec_toBitVec, ihbs]
+
+/-- The little-endian byte codec for `BitVec (8 * n)`: the primitive every
+fixed-width codec is built from. -/
+@[reducible] def bitVecCodecLE (n : Nat) : Codec (BitVec (8 * n)) where
+  encode := encodeBitVecLE n
+  decode := decodeBitVecLE n
+  decode_encode := decodeBitVecLE_encodeBitVecLE n
+  decode_canonical := decodeBitVecLE_canonical n
+
+/-- Transport a codec along a bijection: a `Codec β` together with `α ≃ β` gives
+a `Codec α`. Round-trip and canonicality transport because the equivalence is a
+bijection. -/
+@[reducible] def Codec.ofEquiv {α β : Type} (e : α ≃ β) (cb : Codec β) : Codec α where
+  encode a := cb.encode (e a)
+  decode bs := (cb.decode bs).map (fun p => (e.symm p.1, p.2))
+  decode_encode a rest := by
+    rw [cb.decode_encode (e a) rest]
+    simp [Equiv.symm_apply_apply]
+  decode_canonical bs a rest h := by
+    cases hdec : cb.decode bs with
+    | none => rw [hdec] at h; simp [Option.map] at h
+    | some p =>
+      obtain ⟨b, rest'⟩ := p
+      rw [hdec] at h
+      simp only [Option.map, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨hb, hr⟩ := h
+      subst hr
+      have hb' : b = e a := (Equiv.symm_apply_eq e).mp hb
+      subst hb'
+      exact cb.decode_canonical bs (e a) rest' hdec
+
+/-- The natural full-width little-endian byte encodings of Bitcoin's integer
+fields, each the `BitVec (8 * n)` codec transported along the `UIntN ≃ BitVec`
+bijection. (Variable-length counts use CompactSize instead; see
+`compactSizeCodec`.) -/
+instance instCodecUInt8 : Codec UInt8 :=
+  Codec.ofEquiv ⟨UInt8.toBitVec, UInt8.ofBitVec, fun _ => rfl, fun _ => rfl⟩ (bitVecCodecLE 1)
+
+instance instCodecUInt16 : Codec UInt16 :=
+  Codec.ofEquiv ⟨UInt16.toBitVec, UInt16.ofBitVec, fun _ => rfl, fun _ => rfl⟩ (bitVecCodecLE 2)
+
+instance instCodecUInt32 : Codec UInt32 :=
+  Codec.ofEquiv ⟨UInt32.toBitVec, UInt32.ofBitVec, fun _ => rfl, fun _ => rfl⟩ (bitVecCodecLE 4)
+
+instance instCodecUInt64 : Codec UInt64 :=
+  Codec.ofEquiv ⟨UInt64.toBitVec, UInt64.ofBitVec, fun _ => rfl, fun _ => rfl⟩ (bitVecCodecLE 8)
+
+/-- The 256-bit hash type is exactly 32 little-endian bytes. -/
+instance instCodecBitVec256 : Codec (BitVec 256) := bitVecCodecLE 32
 
 /-! ## CompactSize as a codec
 

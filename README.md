@@ -54,7 +54,11 @@ Checked claims:
 - `encode_injective`: distinct values never share an encoding.
 - `Codec (α × β)`: running two codecs in sequence again satisfies both laws, so
   composite structures inherit serialization correctness from their fields.
-- fixed-width little-endian `Codec` instances for `UInt16`/`UInt32`/`UInt64`.
+- `decodeBitVecLE_encodeBitVecLE` / `decodeBitVecLE_canonical`: one little-endian
+  construction serializes any `BitVec (8 * n)` as `n` bytes (low byte first),
+  proved by bit-level extensionality. `Codec.ofEquiv` transports it along a
+  bijection, giving the fixed-width integer instances (`UInt8`/`UInt16`/`UInt32`/
+  `UInt64`) and the 256-bit hash from a single place where endianness is defined.
 - `compactSizeCodec`: the existing CompactSize encoder/decoder satisfies the
   `Codec` laws verbatim — a worked instance validating the abstraction.
 
