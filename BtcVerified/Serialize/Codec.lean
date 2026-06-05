@@ -40,13 +40,11 @@ import Mathlib.Logic.Equiv.Basic
 
 namespace BtcVerified.Serialize
 
-/--
-  A serialization codec for `α`: an encoder, a prefix-consuming decoder, and the
-  round-trip and canonicality laws relating them.
+/-- A serialization codec for `α`: an encoder, a prefix-consuming decoder, and the
+round-trip and canonicality laws relating them.
 
-  `decode` returns the decoded value together with the unconsumed tail, so
-  codecs compose by threading the tail from one through the next.
--/
+`decode` returns the decoded value together with the unconsumed tail, so
+codecs compose by threading the tail from one through the next. -/
 class Codec (α : Type) where
   /-- Serialize a value to bytes. -/
   encode : α → List UInt8
@@ -58,10 +56,8 @@ class Codec (α : Type) where
   decode_canonical : ∀ (bs : List UInt8) (a : α) (rest : List UInt8),
     decode bs = some (a, rest) → bs = encode a ++ rest
 
-/--
-  Encoders are injective: two values with the same encoding are equal. This
-  falls straight out of round-trip with an empty tail.
--/
+/-- Encoders are injective: two values with the same encoding are equal. This
+falls straight out of round-trip with an empty tail. -/
 theorem encode_injective {α : Type} [Codec α] {a b : α}
     (h : Codec.encode a = Codec.encode b) : a = b := by
   have ha := Codec.decode_encode a ([] : List UInt8)
@@ -110,12 +106,10 @@ theorem decodeProd_canonical {α β : Type} [Codec α] [Codec β]
       subst ha; subst hb; subst hr
       rw [e1, e2, List.append_assoc]
 
-/--
-  Sequential composition of codecs. Encoding concatenates the field encodings;
-  decoding parses the fields left to right, threading the tail. Both laws are
-  inherited from the component codecs — this is what lets composite structures
-  reuse their fields' serialization correctness.
--/
+/-- Sequential composition of codecs. Encoding concatenates the field encodings;
+decoding parses the fields left to right, threading the tail. Both laws are
+inherited from the component codecs — this is what lets composite structures
+reuse their fields' serialization correctness. -/
 instance instCodecProd {α β : Type} [Codec α] [Codec β] : Codec (α × β) where
   encode p := Codec.encode p.1 ++ Codec.encode p.2
   decode := decodeProd
