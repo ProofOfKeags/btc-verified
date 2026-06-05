@@ -37,11 +37,9 @@ structure Opening (Nonce : Type) where
   /-- The nonce paired with the revealed bit. -/
   nonce : Nonce
 
-/--
-  If two openings reveal different bits, then the openings themselves are
-  different. This is the small structural fact that turns equivocation into a
-  collision witness.
--/
+/-- If two openings reveal different bits, then the openings themselves are
+different. This is the small structural fact that turns equivocation into a
+collision witness. -/
 theorem openings_with_distinct_bits_are_distinct {Nonce : Type}
     (left right : Opening Nonce)
     (hdiff : left.bit ≠ right.bit) : left ≠ right := by
@@ -81,10 +79,8 @@ structure ValidOpening (hash : Bit → Nonce → Digest) (c : Commitment Digest)
   /-- Evidence that the opening recomputes to the target commitment. -/
   valid : Verifies hash c opening
 
-/--
-  Equivocation means one commitment has two valid openings whose revealed bits
-  are distinct.
--/
+/-- Equivocation means one commitment has two valid openings whose revealed bits
+are distinct. -/
 structure Equivocation (hash : Bit → Nonce → Digest) where
   /-- The commitment that admits two distinct valid openings. -/
   commitment : Commitment Digest
@@ -95,10 +91,8 @@ structure Equivocation (hash : Bit → Nonce → Digest) where
   /-- Evidence that the two openings reveal different bits. -/
   bits_distinct : left.opening.bit ≠ right.opening.bit
 
-/--
-  A collision is two distinct openings that produce the same commitment digest
-  under the abstract hash.
--/
+/-- A collision is two distinct openings that produce the same commitment digest
+under the abstract hash. -/
 structure Collision (hash : Bit → Nonce → Digest) where
   /-- One opening in the collision pair. -/
   left : Opening Nonce
@@ -109,12 +103,10 @@ structure Collision (hash : Bit → Nonce → Digest) where
   /-- Evidence that the two openings hash to the same digest. -/
   same_digest : commit hash left.bit left.nonce = commit hash right.bit right.nonce
 
-/--
-  Extracts the concrete collision witness contained in an equivocation.
+/-- Extracts the concrete collision witness contained in an equivocation.
 
-  The two openings are distinct because they reveal different bits, and their
-  digests are equal because both verify against the same commitment.
--/
+The two openings are distinct because they reveal different bits, and their
+digests are equal because both verify against the same commitment. -/
 def Equivocation.toCollision
     {hash : Bit → Nonce → Digest}
     (equivocation : Equivocation hash) :
@@ -132,16 +124,12 @@ def Collision.ofEquivocation
     Collision hash :=
   equivocation.toCollision
 
-/--
-  `CollisionResistance` says that the bundled commitment function admits no
-  collision witnesses.
--/
+/-- `CollisionResistance` says that the bundled commitment function admits no
+collision witnesses. -/
 def CollisionResistance (hash : Bit → Nonce → Digest) : Prop := Collision hash → False
 
-/--
-  Any equivocation refutes collision resistance, because the equivocation can
-  be converted into a concrete collision.
--/
+/-- Any equivocation refutes collision resistance, because the equivocation can
+be converted into a concrete collision. -/
 theorem equivocation_refutes_collision_resistance
     (hash : Bit → Nonce → Digest)
     (equivocation : Equivocation hash) :
@@ -150,16 +138,12 @@ theorem equivocation_refutes_collision_resistance
   apply resistance
   exact equivocation.toCollision
 
-/--
-  `NonEquivocation` says that the bundled commitment function admits no
-  equivocation witnesses.
--/
+/-- `NonEquivocation` says that the bundled commitment function admits no
+equivocation witnesses. -/
 def NonEquivocation (hash : Bit → Nonce → Digest) : Prop := Equivocation hash → False
 
-/--
-  Collision resistance gives non-equivocation: an equivocation witness would
-  produce the collision witness that collision resistance rules out.
--/
+/-- Collision resistance gives non-equivocation: an equivocation witness would
+produce the collision witness that collision resistance rules out. -/
 theorem CollisionResistance.nonEquivocation
     {hash : Bit → Nonce → Digest}
     (resistance : CollisionResistance hash) :
@@ -173,10 +157,8 @@ def Binding (hash : Bit → Nonce → Digest) : Prop :=
   ∀ (c : Commitment Digest) (left right : ValidOpening hash c),
     left.opening.bit = right.opening.bit
 
-/--
-  If equivocation is impossible, then two valid openings for the same commitment
-  must reveal the same bit.
--/
+/-- If equivocation is impossible, then two valid openings for the same commitment
+must reveal the same bit. -/
 theorem NonEquivocation.binding
     {hash : Bit → Nonce → Digest}
     (hashForbidsEquivocation : NonEquivocation hash) :
@@ -189,12 +171,10 @@ theorem NonEquivocation.binding
     constructor
     exact same_bits
 
-/--
-  Collision resistance makes the induced commitments binding.
+/-- Collision resistance makes the induced commitments binding.
 
-  Collision resistance gives non-equivocation, and non-equivocation rules out
-  pairs of valid openings that reveal different bits.
--/
+Collision resistance gives non-equivocation, and non-equivocation rules out
+pairs of valid openings that reveal different bits. -/
 theorem CollisionResistance.binding
     {hash : Bit → Nonce → Digest}
     (resistance : CollisionResistance hash) :
