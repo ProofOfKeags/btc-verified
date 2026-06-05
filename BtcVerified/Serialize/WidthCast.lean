@@ -20,10 +20,8 @@ import Mathlib.Data.UInt
 
 namespace BtcVerified.Serialize
 
-/--
-  Truncating `a : BitVec n` to `m` bits and widening back to `n` bits is the
-  identity whenever `a` already fits in `m` bits (`a.toNat < 2 ^ m`).
--/
+/-- Truncating `a : BitVec n` to `m` bits and widening back to `n` bits is the
+identity whenever `a` already fits in `m` bits (`a.toNat < 2 ^ m`). -/
 theorem setWidth_setWidth_eq_self {n m : Nat} {a : BitVec n} (h : a.toNat < 2 ^ m) :
     (a.setWidth m).setWidth n = a := by
   apply BitVec.eq_of_toNat_eq

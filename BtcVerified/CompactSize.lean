@@ -102,25 +102,21 @@ theorem decodeFixedWidth_canonical (byteWidth minValue : Nat) (hbw : 8 * byteWid
           rw [UInt64.toBitVec_ofBitVec, setWidth_setWidth_eq_self hw64]
         rw [hbs, hb]
 
-/--
-  Canonically encodes a `UInt64` as Bitcoin CompactSize bytes.
+/-- Canonically encodes a `UInt64` as Bitcoin CompactSize bytes.
 
-  The branch conditions implement the shortest-form rule: marker bytes are used
-  only when the value cannot fit in a shorter CompactSize form.
--/
+The branch conditions implement the shortest-form rule: marker bytes are used
+only when the value cannot fit in a shorter CompactSize form. -/
 def encode (n : UInt64) : List UInt8 :=
   if n < 253 then [n.toUInt8]
   else if n < 2 ^ 16 then 0xFD :: encodeFixedWidth 2 n
   else if n < 2 ^ 32 then 0xFE :: encodeFixedWidth 4 n
   else 0xFF :: encodeFixedWidth 8 n
 
-/--
-  Decodes a CompactSize value from the front of a byte list.
+/-- Decodes a CompactSize value from the front of a byte list.
 
-  On success, the result contains the decoded value and the unconsumed tail.
-  Non-canonical forms (a value encoded in a longer-than-necessary marker) and
-  incomplete inputs return `none`.
--/
+On success, the result contains the decoded value and the unconsumed tail.
+Non-canonical forms (a value encoded in a longer-than-necessary marker) and
+incomplete inputs return `none`. -/
 def decode (bs : List UInt8) : Option (UInt64 × List UInt8) :=
   match bs with
   | [] => none
@@ -131,16 +127,19 @@ def decode (bs : List UInt8) : Option (UInt64 × List UInt8) :=
     else if h = 0xFF then decodeFixedWidth 8 (2 ^ 32) t
     else none
 
-private theorem decode_FD (t : List UInt8) : decode (0xFD :: t) = decodeFixedWidth 2 253 t := rfl
-private theorem decode_FE (t : List UInt8) : decode (0xFE :: t) = decodeFixedWidth 4 (2 ^ 16) t := rfl
-private theorem decode_FF (t : List UInt8) : decode (0xFF :: t) = decodeFixedWidth 8 (2 ^ 32) t := rfl
+private theorem decode_FD (t : List UInt8) :
+    decode (0xFD :: t) = decodeFixedWidth 2 253 t := rfl
 
-/--
-  Round-trip correctness for canonical encodings.
+private theorem decode_FE (t : List UInt8) :
+    decode (0xFE :: t) = decodeFixedWidth 4 (2 ^ 16) t := rfl
 
-  Encoding `n` and appending arbitrary trailing bytes always decodes back to
-  `n`, leaving exactly those trailing bytes as the unconsumed tail.
--/
+private theorem decode_FF (t : List UInt8) :
+    decode (0xFF :: t) = decodeFixedWidth 8 (2 ^ 32) t := rfl
+
+/-- Round-trip correctness for canonical encodings.
+
+Encoding `n` and appending arbitrary trailing bytes always decodes back to
+`n`, leaving exactly those trailing bytes as the unconsumed tail. -/
 theorem decode_encode (n : UInt64) (xs : List UInt8) : decode (encode n ++ xs) = some (n, xs) := by
   unfold encode
   split_ifs with h1 h2 h3
@@ -166,13 +165,11 @@ theorem encode_length_le (n : UInt64) : (encode n).length ≤ 9 := by
   unfold encode
   split_ifs <;> simp only [List.length_cons, List.length_nil, encodeFixedWidth_length] <;> omega
 
-/--
-  Canonicality of accepted parses.
+/-- Canonicality of accepted parses.
 
-  If `decode` accepts `bs` as value `n` with tail `rest`, then `bs` is exactly
-  the canonical encoding of `n` followed by `rest`. Equivalently, every
-  accepted consumed prefix is the shortest CompactSize representation.
--/
+If `decode` accepts `bs` as value `n` with tail `rest`, then `bs` is exactly
+the canonical encoding of `n` followed by `rest`. Equivalently, every
+accepted consumed prefix is the shortest CompactSize representation. -/
 theorem decode_canonical (bs : List UInt8) (n : UInt64) (rest : List UInt8) :
     decode bs = some (n, rest) → bs = encode n ++ rest := by
   intro parses
@@ -203,14 +200,12 @@ theorem decode_canonical (bs : List UInt8) (n : UInt64) (rest : List UInt8) :
       have hn0 : ¬ n < 253 := fun hc => hn1 (UInt64.lt_trans hc (by decide))
       simp [encode, hn0, hn2, hn1]
 
-/--
-  The CompactSize encoding packaged as a `Codec UInt64`.
+/-- The CompactSize encoding packaged as a `Codec UInt64`.
 
-  This is a worked codec, not the registered `Codec UInt64` instance: the
-  canonical full-width `Codec UInt64` is the fixed 8-byte little-endian form,
-  whereas CompactSize is the distinguished variable-length encoding used for
-  counts.
--/
+This is a worked codec, not the registered `Codec UInt64` instance: the
+canonical full-width `Codec UInt64` is the fixed 8-byte little-endian form,
+whereas CompactSize is the distinguished variable-length encoding used for
+counts. -/
 abbrev compactSizeCodec : Codec UInt64 where
   encode := encode
   decode := decode
