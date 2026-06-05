@@ -31,10 +31,8 @@ namespace BtcVerified
 /-- A 256-bit hash: txid, block hash, or merkle node. -/
 abbrev Hash256 := BitVec 256
 
-/--
-  A reference to a specific previous transaction output: the transaction id of
-  the funding transaction together with the index of the output being spent.
--/
+/-- A reference to a specific previous transaction output: the transaction id of
+the funding transaction together with the index of the output being spent. -/
 structure OutPoint where
   /-- The txid of the transaction whose output is being spent. -/
   txid : Hash256
@@ -42,10 +40,8 @@ structure OutPoint where
   vout : UInt32
   deriving DecidableEq
 
-/--
-  A transaction input: the output it spends, the unlocking script, and the
-  input sequence number.
--/
+/-- A transaction input: the output it spends, the unlocking script, and the
+input sequence number. -/
 structure TxIn where
   /-- The previous output this input spends. -/
   prevout : OutPoint
@@ -55,10 +51,8 @@ structure TxIn where
   sequence : UInt32
   deriving DecidableEq
 
-/--
-  A transaction output: the amount in satoshis and the locking script that must
-  be satisfied to spend it.
--/
+/-- A transaction output: the amount in satoshis and the locking script that must
+be satisfied to spend it. -/
 structure TxOut where
   /-- The output amount in satoshis. -/
   value : UInt64
@@ -66,21 +60,17 @@ structure TxOut where
   scriptPubKey : List UInt8
   deriving DecidableEq
 
-/--
-  The witness stack for a single input: an ordered list of stack items, each an
-  opaque byte string. SegWit attaches one such stack per transaction input.
--/
+/-- The witness stack for a single input: an ordered list of stack items, each an
+opaque byte string. SegWit attaches one such stack per transaction input. -/
 abbrev WitnessStack := List (List UInt8)
 
-/--
-  A Bitcoin transaction.
+/-- A Bitcoin transaction.
 
-  The `witness` field is the era/format discriminator. `none` is the legacy
-  (pre-SegWit) serialization with no BIP144 marker/flag and no witness data;
-  `some stacks` is the SegWit serialization carrying one `WitnessStack` per
-  input. A well-formed SegWit transaction has exactly as many witness stacks as
-  it has inputs (see `Tx.WitnessWellFormed`).
--/
+The `witness` field is the era/format discriminator. `none` is the legacy
+(pre-SegWit) serialization with no BIP144 marker/flag and no witness data;
+`some stacks` is the SegWit serialization carrying one `WitnessStack` per
+input. A well-formed SegWit transaction has exactly as many witness stacks as
+it has inputs (see `Tx.WitnessWellFormed`). -/
 structure Tx where
   /-- Transaction version (serialized as a 4-byte little-endian word). -/
   version : UInt32
@@ -97,12 +87,10 @@ structure Tx where
 /-- Whether a transaction is in SegWit form (carries witness data). -/
 def Tx.isSegWit (tx : Tx) : Bool := tx.witness.isSome
 
-/--
-  Witness well-formedness: a legacy transaction (no witness) is trivially
-  well-formed, and a SegWit transaction must carry exactly one witness stack per
-  input. This is the smallest structural invariant the consistency layer needs
-  before it can talk about witness commitments.
--/
+/-- Witness well-formedness: a legacy transaction (no witness) is trivially
+well-formed, and a SegWit transaction must carry exactly one witness stack per
+input. This is the smallest structural invariant the consistency layer needs
+before it can talk about witness commitments. -/
 def Tx.WitnessWellFormed (tx : Tx) : Prop :=
   match tx.witness with
   | none => True
@@ -113,13 +101,11 @@ theorem witnessWellFormed_of_legacy {tx : Tx} (h : tx.witness = none) :
     tx.WitnessWellFormed := by
   simp [Tx.WitnessWellFormed, h]
 
-/--
-  An 80-byte Bitcoin block header: the fields covered by proof of work.
+/-- An 80-byte Bitcoin block header: the fields covered by proof of work.
 
-  `bits` is the compact (`nBits`) encoding of the target; decoding it to a
-  256-bit target and checking the block hash against it is the proof-of-work
-  layer's job, not this module's.
--/
+`bits` is the compact (`nBits`) encoding of the target; decoding it to a
+256-bit target and checking the block hash against it is the proof-of-work
+layer's job, not this module's. -/
 structure BlockHeader where
   /-- Block version. -/
   version : UInt32
