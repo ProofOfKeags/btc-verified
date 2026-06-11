@@ -1,6 +1,7 @@
 name = "btc-verified"
 version = "0.1.0"
-defaultTargets = ["BtcVerified"]
+defaultTargets = ["BtcVerified", "Tests"]
+testDriver = "tests"
 lintDriver = "batteries/runLinter"
 
 [leanOptions]
@@ -8,6 +9,13 @@ weak.linter.mathlibStandardSet = true
 
 [[lean_lib]]
 name = "BtcVerified"
+
+[[lean_lib]]
+name = "Tests"
+
+[[lean_exe]]
+name = "tests"
+root = "TestsMain"
 
 [[require]]
 name = "mathlib"
