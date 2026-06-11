@@ -58,8 +58,10 @@ def decodeFixedWidth (byteWidth minValue : Nat) (bs : List UInt8) :
   | some (w, rest) =>
     if w.toNat < minValue then none else some (⟨w.setWidth 64⟩, rest)
 
-/-- Round-trip for one fixed-width form: a value in range round-trips through
-its payload. -/
+/-- Encoding a value that lies in this form's range
+(`minValue ≤ n < 2 ^ (8 * byteWidth)`) as its fixed-width payload and then
+decoding returns the value, leaving the trailing bytes as the unconsumed
+tail. -/
 theorem decodeFixedWidth_encodeFixedWidth (byteWidth minValue : Nat) (n : UInt64)
     (hlo : minValue ≤ n.toNat) (hhi : n.toNat < 2 ^ (8 * byteWidth)) (xs : List UInt8) :
     decodeFixedWidth byteWidth minValue (encodeFixedWidth byteWidth n ++ xs) = some (n, xs) := by
@@ -69,8 +71,9 @@ theorem decodeFixedWidth_encodeFixedWidth (byteWidth minValue : Nat) (n : UInt64
   rw [if_neg (by omega : ¬ n.toNat < minValue)]
   simp [setWidth_setWidth_eq_self hhi, UInt64.ofBitVec_toBitVec]
 
-/-- Canonicality for one fixed-width form: an accepted payload forces the value
-into this form's range and is exactly its canonical encoding. -/
+/-- If the fixed-width decoder accepts `bs` as `n` with tail `rest`, then `n`
+lies in this form's range and `bs` is exactly its payload encoding followed by
+`rest` — an accepted payload is never a longer form's value in disguise. -/
 theorem decodeFixedWidth_canonical (byteWidth minValue : Nat) (hbw : 8 * byteWidth ≤ 64)
     (bs : List UInt8) (n : UInt64) (rest : List UInt8) :
     decodeFixedWidth byteWidth minValue bs = some (n, rest) →
@@ -164,6 +167,19 @@ theorem decode_encode (n : UInt64) (xs : List UInt8) : decode (encode n ++ xs) =
 theorem encode_length_le (n : UInt64) : (encode n).length ≤ 9 := by
   unfold encode
   split_ifs <;> simp only [List.length_cons, List.length_nil, encodeFixedWidth_length] <;> omega
+
+/-- The first byte of a CompactSize encoding is `0x00` only when the value is
+zero. Equivalently, a non-zero count never begins with `0x00` — which is exactly
+what lets the SegWit marker (a reserved zero input count) be told apart from a
+real legacy input count. -/
+theorem encode_head (n : UInt64) :
+    ∃ b t, encode n = b :: t ∧ (n ≠ 0 → b ≠ 0) := by
+  unfold encode
+  split_ifs with h1 h2 h3
+  · exact ⟨n.toUInt8, [], rfl, fun hn => by bv_decide⟩
+  · exact ⟨0xFD, encodeFixedWidth 2 n, rfl, fun _ => by decide⟩
+  · exact ⟨0xFE, encodeFixedWidth 4 n, rfl, fun _ => by decide⟩
+  · exact ⟨0xFF, encodeFixedWidth 8 n, rfl, fun _ => by decide⟩
 
 /-- Canonicality of accepted parses.
 
