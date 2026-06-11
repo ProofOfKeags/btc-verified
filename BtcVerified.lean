@@ -1,3 +1,4 @@
+import BtcVerified.Ext.List
 import BtcVerified.Serialize.Codec
 import BtcVerified.Serialize.WidthCast
 import BtcVerified.Serialize.CountedList
