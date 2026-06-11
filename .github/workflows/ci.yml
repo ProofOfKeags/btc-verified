@@ -12,11 +12,16 @@ permissions:
 
 jobs:
   lake-build:
-    name: lake build
+    name: lake build & lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # `lake build` covers the default targets: the library plus Tests
+      # (golden vectors and the axiom audit, which fails on `sorry`).
+      # `lake test` decodes the block-481824 fixture through the verified
+      # block codec.
       - uses: leanprover/lean-action@v1
         with:
           build: true
-          test: false
+          test: true
+          lint: true
