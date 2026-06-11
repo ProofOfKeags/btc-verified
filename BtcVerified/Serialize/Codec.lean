@@ -79,12 +79,16 @@ def decodeProd {α β : Type} [Codec α] [Codec β]
     | none => none
     | some (b, rest') => some ((a, b), rest')
 
+/-- Decoding a pair from the concatenated encodings of its components returns
+both values, leaving the trailing bytes as the unconsumed tail. -/
 theorem decodeProd_encode {α β : Type} [Codec α] [Codec β]
     (a : α) (b : β) (rest : List UInt8) :
     decodeProd ((Codec.encode a ++ Codec.encode b) ++ rest) = some ((a, b), rest) := by
   unfold decodeProd
   simp only [List.append_assoc, Codec.decode_encode]
 
+/-- If the pair decoder accepts `bs` as `(a, b)` with tail `rest`, then `bs` is
+exactly the two component encodings in sequence followed by `rest`. -/
 theorem decodeProd_canonical {α β : Type} [Codec α] [Codec β]
     (bs : List UInt8) (a : α) (b : β) (rest : List UInt8) :
     decodeProd bs = some ((a, b), rest) →
@@ -178,7 +182,9 @@ private theorem append_split {n : Nat} (v : BitVec (8 * (n + 1))) :
     have h2 : 8 + (i - 8) = i := by omega
     rw [h2]; simp [h1]
 
-/-- Round-trip for the little-endian `BitVec (8 * n)` serialization. -/
+/-- Encoding a `BitVec (8 * n)` as `n` little-endian bytes and then decoding
+returns the original value, leaving any trailing bytes as the unconsumed
+tail. -/
 theorem decodeBitVecLE_encodeBitVecLE :
     ∀ (n : Nat) (v : BitVec (8 * n)) (rest : List UInt8),
       decodeBitVecLE n (encodeBitVecLE n v ++ rest) = some (v, rest) := by
@@ -195,7 +201,8 @@ theorem decodeBitVecLE_encodeBitVecLE :
     simp only [encodeBitVecLE, List.cons_append, decodeBitVecLE, decodeByte, ih]
     rw [append_split v]
 
-/-- Canonicality for the little-endian `BitVec (8 * n)` serialization. -/
+/-- If the little-endian decoder accepts `bs` as the value `v` with tail `rest`,
+then `bs` is exactly the `n`-byte encoding of `v` followed by `rest`. -/
 theorem decodeBitVecLE_canonical :
     ∀ (n : Nat) (bs : List UInt8) (v : BitVec (8 * n)) (rest : List UInt8),
       decodeBitVecLE n bs = some (v, rest) → bs = encodeBitVecLE n v ++ rest := by
