@@ -3,6 +3,15 @@ import BtcVerified.Serialize.Codec
 import BtcVerified.Serialize.WidthCast
 import BtcVerified.Serialize.CountedList
 import BtcVerified.Serialize.CompactSize
+import BtcVerified.Crypto.Hash256
 import BtcVerified.Script.Script
-import BtcVerified.Block.Types
+import BtcVerified.Transaction.OutPoint
+import BtcVerified.Transaction.TxIn
+import BtcVerified.Transaction.TxOut
+import BtcVerified.Transaction.WitnessStack
+import BtcVerified.Transaction.SegwitInput
+import BtcVerified.Transaction.TxBody
+import BtcVerified.Transaction.Tx
+import BtcVerified.Block.BlockHeader
+import BtcVerified.Block.Block
 import BtcVerified.BitVM.BitCommitment
