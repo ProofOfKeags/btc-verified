@@ -99,8 +99,9 @@ def toWords (bytes : Array UInt8) : Array UInt32 := Id.run do
     ws := ws.push (beWord bytes[4 * i]! bytes[4 * i + 1]! bytes[4 * i + 2]! bytes[4 * i + 3]!)
   return ws
 
-/-- SHA-256 of a byte string: the 32-byte digest. -/
-def sha256 (msg : List UInt8) : List UInt8 := Id.run do
+/-- The final 8-word hash state of SHA-256: pad, split into 16-word blocks,
+and fold each through the compression function. -/
+def sha256State (msg : List UInt8) : Array UInt32 := Id.run do
   let words := toWords (pad msg).toArray
   let mut state := initialHash
   for b in [0:words.size / 16] do
@@ -108,13 +109,36 @@ def sha256 (msg : List UInt8) : List UInt8 := Id.run do
     for j in [0:16] do
       block := block.set! j words[16 * b + j]!
     state := compress state block
-  let mut out : List UInt8 := []
-  for i in [0:8] do
-    out := out ++ wordBytes state[i]!
-  return out
+  return state
+
+/-- The 32-byte digest of an 8-word hash state: each word unpacked big-endian,
+in order. Kept outside the state loop so the digest's byte length is a
+structural fact rather than a property of an imperative fold. -/
+def stateBytes (s : Array UInt32) : List UInt8 :=
+  wordBytes s[0]! ++ wordBytes s[1]! ++ wordBytes s[2]! ++ wordBytes s[3]!
+    ++ wordBytes s[4]! ++ wordBytes s[5]! ++ wordBytes s[6]! ++ wordBytes s[7]!
+
+/-- SHA-256 of a byte string: the 32-byte digest. -/
+def sha256 (msg : List UInt8) : List UInt8 := stateBytes (sha256State msg)
 
 /-- Bitcoin's double-SHA-256: `SHA256(SHA256(msg))`. The hash behind txids,
 block hashes, and merkle nodes. -/
 def sha256d (msg : List UInt8) : List UInt8 := sha256 (sha256 msg)
+
+/-- A SHA-256 digest is exactly 32 bytes. -/
+theorem sha256_length (msg : List UInt8) : (sha256 msg).length = 32 := by
+  simp [sha256, stateBytes, wordBytes]
+
+/-- A double-SHA-256 digest is exactly 32 bytes. -/
+theorem sha256d_length (msg : List UInt8) : (sha256d msg).length = 32 :=
+  sha256_length _
+
+/-- Two distinct byte strings with the same double-SHA-256 digest. Theorems
+about hash commitments conclude with this as a constructive disjunct — never
+assuming its absence as an axiom, which would be inconsistent for a concrete
+hash (an infinite domain into 32 bytes has collisions by pigeonhole). The
+*intractability* of producing a witness is the consumer's hypothesis. -/
+def Collision : Prop :=
+  ∃ a b : List UInt8, a ≠ b ∧ sha256d a = sha256d b
 
 end BtcVerified.Sha256
