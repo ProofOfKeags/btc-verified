@@ -230,6 +230,22 @@ theorem decodeBitVecLE_canonical :
         simp only [encodeBitVecLE, List.cons_append, setWidth_append_low,
           setWidth_ushiftRight_append, UInt8.ofBitVec_toBitVec, ihbs]
 
+/-- The little-endian decoder succeeds on any input of at least `n` bytes,
+consuming exactly `n` and leaving the rest as the tail. -/
+theorem decodeBitVecLE_of_le_length :
+    ∀ (n : Nat) (bs : List UInt8), n ≤ bs.length →
+      ∃ v, decodeBitVecLE n bs = some (v, bs.drop n) := by
+  intro n
+  induction n with
+  | zero => exact fun bs _ => ⟨0#0, rfl⟩
+  | succ n ih =>
+    intro bs h
+    cases bs with
+    | nil => simp at h
+    | cons b bs' =>
+      obtain ⟨v, hv⟩ := ih bs' (by simpa using h)
+      exact ⟨v ++ b.toBitVec, by simp [decodeBitVecLE, decodeByte, hv]⟩
+
 /-- A little-endian `BitVec (8 * n)` encoding is exactly `n` bytes long. -/
 theorem encodeBitVecLE_length :
     ∀ (n : Nat) (v : BitVec (8 * n)), (encodeBitVecLE n v).length = n := by
