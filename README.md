@@ -193,6 +193,64 @@ concrete function buys instead is computation: a verified decoder plus a
 computable hash is what lets a real block's merkle root or a header's
 proof-of-work be checked, not just asserted.
 
+### `BtcVerified` transaction ids
+
+`Tx.txid` — the double-SHA-256 of the witness-free `TxBody` serialization,
+read little-endian — and `Tx.wtxid` (BIP141), the same over the full
+serialization. Witness data never affects a txid; for a legacy transaction the
+two coincide by `rfl`.
+
+Checked claims:
+
+- `Tx.txid_faithful`: equal txids imply equal witness-free bodies — or two
+  concrete byte strings witnessing a double-SHA-256 collision.
+- `Tx.wtxid_faithful`: equal wtxids imply equal transactions, witnesses
+  included — or a concrete collision.
+- Golden vectors: the first Bitcoin payment's txid, the genesis coinbase txid
+  (which is the genesis merkle root), and the SegWit coinbase's txid with
+  `wtxid ≠ txid`.
+
+Why it matters: a hash of an encoding only identifies anything because the
+encoding is injective — `encode_injective`, from the codec round-trip law. The
+serialization leaves are exactly what make txids meaningful, and the collision
+disjunct is constructed, never assumed away: intractability of producing a
+witness is the consumer's hypothesis, the only form in which collision
+resistance can soundly appear over a concrete hash.
+
+### `BtcVerified.Merkle`
+
+Bitcoin's merkle tree, with the root computation and canonicality factored
+apart. The spec is structural — a tree built top-down by bisection, procedural
+duplication an explicit `pad` constructor rather than an artifact of iteration
+order — and `computeRoot`, the bottom-up fold Bitcoin actually runs, is proved
+equal to it. Canonicality is a first-class decidable property of the leaf
+list, constraining exactly what threatens injectivity: padding only duplicates
+trailing power-of-two-aligned blocks, so only a right-spine duplication can
+materialize a shorter list's padding (CVE-2012-2459). Core's fused `mutated`
+scan is strictly stronger; the two agree on transaction-valid blocks.
+
+Checked claims:
+
+- `computeRoot_eq_root`: the bottom-up fold computes the structural spec.
+- `root_inj_of_length_eq`: between equal-length lists, the root identifies the
+  list — or two concrete byte strings collide under double-SHA-256.
+- `root_inj_of_canonical`: between canonical lists of equal enclosing width,
+  the root identifies the list — or a concrete collision. This is the
+  injectivity the canonicality rule exists to restore.
+- `Block.merkleCommits`: the consensus condition — a canonical txid list whose
+  root is the header's. Checked on the genesis block and block 170 at build
+  time, and on all 1866 transactions of block 481824 under `lake test`, which
+  with the header-hash check pins every transaction byte of the fixture
+  (txids → merkle root → header → proof-of-work hash).
+
+Why it matters: this is the first consensus-validity leaf — the commitment
+that ties a block's body to the header that proof of work covers. The known
+residual is documented rather than papered over: equal enclosing widths are a
+hypothesis because a 64-byte transaction can confuse a leaf with an interior
+node across heights (the ambiguity the Great Consensus Cleanup proposes to
+close); for block validity the transaction count is in hand, so the hypothesis
+is free.
+
 ### `BtcVerified.Script`
 
 The `Script` type: a Bitcoin Script program as it exists on the wire — raw,
