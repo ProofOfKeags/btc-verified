@@ -5,6 +5,7 @@ import BtcVerified.Serialize.CountedList
 import BtcVerified.Serialize.CompactSize
 import BtcVerified.Crypto.Hash256
 import BtcVerified.Crypto.Sha256
+import BtcVerified.Crypto.Merkle
 import BtcVerified.Script.Script
 import BtcVerified.Transaction.OutPoint
 import BtcVerified.Transaction.TxIn
@@ -16,4 +17,5 @@ import BtcVerified.Transaction.Tx
 import BtcVerified.Transaction.Txid
 import BtcVerified.Block.BlockHeader
 import BtcVerified.Block.Block
+import BtcVerified.Block.Commitment
 import BtcVerified.BitVM.BitCommitment

@@ -79,7 +79,12 @@ def block481824Checks (b : Block) : Bool :=
       | none => false)
   -- Both serialization eras appear in the same block.
   && b.txs.val.any Tx.isSegWit
-  && b.txs.val.any fun tx => !tx.isSegWit
+  && (b.txs.val.any fun tx => !tx.isSegWit)
+  -- The header commits to all 1866 transaction ids through the merkle root,
+  -- and the txid list is canonical. With the header-hash check above, every
+  -- transaction byte in the fixture is now pinned: txids → merkle root →
+  -- header → proof-of-work hash.
+  && decide b.merkleCommits
 
 /-- Where a fixture block is cached locally, by display hash. Gitignored. -/
 def fixturePath (blockHash : String) : System.FilePath :=
