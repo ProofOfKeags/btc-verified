@@ -331,4 +331,35 @@ def block170Hex : String :=
     && tx.wtxid != tx.txid
   | none => false
 
+/-! ## The merkle commitment
+
+  The padding ambiguity and its canonicality fence on synthetic leaves, then
+  the real commitment on real blocks: txids → merkle root → header. -/
+
+-- Materializing the padding of a three-leaf list collides at the root
+-- (CVE-2012-2459); canonicality is what separates the two lists.
+#guard Merkle.computeRoot ([1, 2, 3] : List Hash256)
+  == Merkle.computeRoot ([1, 2, 3, 3] : List Hash256)
+#guard Merkle.canonicalCheck ([1, 2, 3] : List Hash256)
+#guard !Merkle.canonicalCheck ([1, 2, 3, 3] : List Hash256)
+-- A duplicated run of length two only surfaces one level up the tree.
+#guard Merkle.computeRoot ([1, 2, 3, 4, 5, 6] : List Hash256)
+  == Merkle.computeRoot ([1, 2, 3, 4, 5, 6, 5, 6] : List Hash256)
+#guard !Merkle.canonicalCheck ([1, 2, 3, 4, 5, 6, 5, 6] : List Hash256)
+-- A pair-aligned duplicate in the middle is honest content: no shorter list
+-- shares its root, so it stays canonical (Core's uniform scan would reject
+-- it, but such a block has a duplicate txid and dies at transaction
+-- validity instead).
+#guard Merkle.canonicalCheck ([1, 1, 2, 3] : List Hash256)
+
+-- The genesis block commits to its single transaction (root = txid).
+#guard match hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
+  | some (b, _) => decide b.merkleCommits
+  | none => false
+
+-- Block 170 commits to its two transactions (one real combine).
+#guard match hexBytes? block170Hex >>= Codec.decode (α := Block) with
+  | some (b, _) => decide b.merkleCommits
+  | none => false
+
 end Tests.GoldenVectors
