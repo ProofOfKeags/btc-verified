@@ -301,4 +301,34 @@ def block170Hex : String :=
 #guard some (Sha256.sha256 (List.replicate 64 0x61)) ==
   hexBytes? "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb"
 
+/-! ## Transaction ids
+
+  Txids of the standalone transaction vectors against their well-known
+  display hashes. The displayed hex is the digest bytes reversed, so the
+  little-endian `Hash256` value equals the display hex read as a number —
+  the same convention the prevout-txid spot-checks above already pin. -/
+
+-- The first Bitcoin payment; legacy, so wtxid = txid.
+#guard match hexBytes? firstBitcoinPaymentHex >>= Codec.decode (α := Tx) with
+  | some (tx, _) =>
+    tx.txid == 0xf4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16#256
+    && tx.wtxid == tx.txid
+  | none => false
+
+-- The genesis coinbase: its txid is the genesis merkle root.
+#guard match hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
+  | some (b, _) => match b.txs.val with
+    | [coinbase] =>
+      coinbase.txid == 0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b#256
+      && coinbase.txid == b.header.merkleRoot
+    | _ => false
+  | none => false
+
+-- The SegWit activation coinbase: the witness makes wtxid ≠ txid.
+#guard match hexBytes? segwitCoinbaseHex >>= Codec.decode (α := Tx) with
+  | some (tx, _) =>
+    tx.txid == 0xda917699942e4a96272401b534381a75512eeebe8403084500bd637bd47168b3#256
+    && tx.wtxid != tx.txid
+  | none => false
+
 end Tests.GoldenVectors

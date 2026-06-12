@@ -13,6 +13,7 @@ import BtcVerified.Transaction.WitnessStack
 import BtcVerified.Transaction.SegwitInput
 import BtcVerified.Transaction.TxBody
 import BtcVerified.Transaction.Tx
+import BtcVerified.Transaction.Txid
 import BtcVerified.Block.BlockHeader
 import BtcVerified.Block.Block
 import BtcVerified.BitVM.BitCommitment

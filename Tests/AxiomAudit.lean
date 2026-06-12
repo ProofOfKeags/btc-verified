@@ -82,6 +82,15 @@ elab "#assert_axioms " id:ident : command => do
   `native_decide`. Auditing `sha256d` covers `sha256` transitively. -/
 
 #assert_axioms BtcVerified.Sha256.sha256d
+#assert_axioms BtcVerified.Sha256.sha256d_length
+#assert_axioms BtcVerified.Hash256.ofBytesLE_encode
+#assert_axioms BtcVerified.Hash256.encode_ofBytesLE
+
+/-! ## Transaction ids -/
+
+#assert_axioms BtcVerified.Tx.txid_faithful
+#assert_axioms BtcVerified.Tx.wtxid_faithful
+#assert_axioms BtcVerified.Tx.wtxid_legacy
 
 /-! ## BitVM -/
 
