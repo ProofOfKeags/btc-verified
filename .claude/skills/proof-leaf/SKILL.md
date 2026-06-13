@@ -12,8 +12,20 @@ every step is done.
 
 ## 1. The module
 
-- One concern per file, under the matching directory (`Serialize/`,
-  `Transaction/`, `Block/`, `Crypto/`, `BitVM/`).
+- **One major type per module.** A module defines at most one `structure`/
+  `inductive`, and that type's instances — especially of classes we define,
+  like `Codec` — live in its module, never in a collector. (`Prop`-valued
+  predicates and helper `def`s are not "types"; they sit beside the type they
+  are about.) Two exceptions: (A) instances of *our* class over a Core/
+  dependency type live with the *class* — that is why `instCodecUInt8…64` and
+  `instCodecBitVec256` sit in `Serialize/Codec.lean`; (B) record arms of a sum
+  type may share a module *only if* those arm types never appear in a
+  signature outside it (so `SegwitInput`, which appears in `Tx`'s constructor
+  and codec, earns its own module). The audit (issue #9) enforces this.
+- Files sit under the matching directory (`Serialize/`, `Transaction/`,
+  `Block/`, `Crypto/`, `BitVM/`); a leaf with several tightly-coupled types
+  becomes a directory of one-type modules under an umbrella facade that
+  preserves the import surface (see `BitVM/BitCommitment/`).
 - `/-!` module header: two-space indented content, `# Title`, the design
   rationale in prose, and — for proof-bearing modules — a `Checked claims:`
   bullet list naming the theorems. Match the voice of

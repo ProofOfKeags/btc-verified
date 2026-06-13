@@ -17,6 +17,9 @@ they prove.
 - **Naming** follows mathlib conventions: `UpperCamelCase` types and
   predicates, `lowerCamelCase` defs, conclusion-describing theorem names.
   Bitcoin's own nomenclature (`scriptSig`, `nBits`, `vout`) is kept verbatim.
+- **One type per module**: a module defines at most one `structure`/`inductive`,
+  with its instances alongside it (see `CLAUDE.md` for the exact rule and its
+  two exceptions).
 
 ## Workflow
 
@@ -40,6 +43,30 @@ A new proof leaf should:
 
 Commit messages are imperative-mood with a body explaining the why; see
 `git log` for the house style.
+
+## Finding lemmas by type
+
+Mathlib names are transcriptions of the statement (the head symbols of the
+left-hand side, read outside-in, joined by `_`, with relation/connective/
+direction words), so a name is meant to be *reconstructed* from the type
+rather than memorized — see the [naming
+guide](https://leanprover-community.github.io/contribute/naming.html). When
+reconstruction fails, search by type:
+
+- **`exact?` / `apply?` / `rw?`** — built into Lean + Mathlib, zero setup:
+  place the cursor on the goal and they search for a lemma matching its type.
+  The day-to-day tool.
+- **loogle** — search by term *pattern/shape*, e.g. `List.zipWith (_ + _)`:
+  the web UI at <https://loogle.lean-lang.org/>, or the `#loogle` command
+  in-editor.
+- **`#leansearch`** — natural-language queries (<https://leansearch.net>) via
+  LeanSearchClient, which this project already depends on, so it works in any
+  file here.
+
+## Deferring work
+
+If you set work aside, file a GitHub issue for it — a deferral is not done
+until it is tracked. See the policy in `CLAUDE.md`.
 
 See `CLAUDE.md` for the full design conventions (the codec discipline, the
 spec/transport split, doc-string formatting).
