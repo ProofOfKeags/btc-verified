@@ -73,11 +73,21 @@ Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
 
 ## Conventions
 
+- **One type per module**: a module defines at most one `structure`/`inductive`,
+  and that type's instances live in its module — never a collector. Exceptions:
+  instances of our classes over Core/dependency types live with the *class*
+  (e.g. `instCodecUInt8…64` in `Serialize/Codec.lean`); sum-type arm-records may
+  share a module if they never appear in an outside signature. Tightly-coupled
+  clusters become a directory of one-type modules under an umbrella facade (see
+  `BitVM/BitCommitment/`). A `lake`-run introspection audit enforces this
+  (issue #9).
 - **Naming**: rigid Lean/mathlib casing. `UpperCamelCase` for types, props,
   and predicates; `lowerCamelCase` for defs; theorem names describe the
   conclusion mathlib-style (`decode_encode`, `encodeBitVecLE_length`). Full
   words over abbreviations, except honored Bitcoin nomenclature (`scriptSig`,
-  `scriptPubKey`, `nBits`, `vout`, txid).
+  `scriptPubKey`, `nBits`, `vout`, txid). When you can't recall a Mathlib lemma
+  name, search by *type* (`exact?`/`apply?`/`rw?`, loogle, `#leansearch`) — see
+  `CONTRIBUTING.md`.
 - **Doc-strings**: every public declaration gets `/--`. Text starts on the
   same line one space after `/--` (the `linter.style.docString` rule);
   continuation lines are flush-left; closing `-/` sits at the end of the last
@@ -111,3 +121,12 @@ Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
    "Why it matters:" paragraph tying it to the fork-choice stack.
 
 The `/proof-leaf` skill walks through this checklist.
+
+## Deferring work
+
+A deferral is not "done" until it is a tracked GitHub issue. When you set work
+aside — a follow-up leaf, a known cleanup, a someday-proof, a residual flagged
+in review — file an issue (`gh issue create`) capturing the decision and
+enough context to act on it cold, and reference that issue where the work was
+deferred (commit, PR thread, or module header). "I'll get to it later" without
+an issue is how obligations get lost; the issue is the obligation.
