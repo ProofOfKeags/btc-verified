@@ -57,27 +57,21 @@ namespace BtcVerified.Merkle
 
 open BtcVerified.Serialize
 
-/-- A merkle node: the double-SHA-256 of the two children's digests, each
-serialized as its 32 little-endian bytes. -/
+/-- A merkle node: the double-SHA-256 of its two children's raw digest bytes,
+concatenated as-is — exactly what Bitcoin hashes, with no byte reversal. -/
 def combine (l r : Hash256) : Hash256 :=
-  Hash256.ofBytesLE (Sha256.sha256d (encodeBitVecLE 32 l ++ encodeBitVecLE 32 r))
+  ⟨Sha256.sha256d (l.1 ++ r.1), Sha256.sha256d_length _⟩
 
 /-- Equal merkle nodes have equal children — or their two 64-byte preimages
 collide under double-SHA-256. -/
 theorem combine_inj {l r l' r' : Hash256} (h : combine l r = combine l' r') :
     (l = l' ∧ r = r') ∨ Sha256.Collision := by
-  by_cases hm : encodeBitVecLE 32 l ++ encodeBitVecLE 32 r
-      = encodeBitVecLE 32 l' ++ encodeBitVecLE 32 r'
-  · obtain ⟨h₁, h₂⟩ := List.append_inj hm (by rw [encodeBitVecLE_length, encodeBitVecLE_length])
-    exact Or.inl ⟨by simpa [Hash256.ofBytesLE_encode] using congrArg Hash256.ofBytesLE h₁,
-      by simpa [Hash256.ofBytesLE_encode] using congrArg Hash256.ofBytesLE h₂⟩
-  · refine Or.inr ⟨_, _, hm, ?_⟩
-    have hl := Hash256.encode_ofBytesLE (Sha256.sha256d_length
-      (encodeBitVecLE 32 l ++ encodeBitVecLE 32 r))
-    have hr := Hash256.encode_ofBytesLE (Sha256.sha256d_length
-      (encodeBitVecLE 32 l' ++ encodeBitVecLE 32 r'))
-    rw [← hl, ← hr]
-    exact congrArg (encodeBitVecLE 32) h
+  have hd : Sha256.sha256d (l.1 ++ r.1) = Sha256.sha256d (l'.1 ++ r'.1) :=
+    congrArg Subtype.val h
+  by_cases hm : l.1 ++ r.1 = l'.1 ++ r'.1
+  · obtain ⟨h₁, h₂⟩ := List.append_inj hm (by rw [l.2, l'.2])
+    exact Or.inl ⟨Subtype.ext h₁, Subtype.ext h₂⟩
+  · exact Or.inr ⟨_, _, hm, hd⟩
 
 /-! ## The structural spec -/
 

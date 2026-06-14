@@ -87,8 +87,8 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Sha256.sha256d
 #assert_axioms BtcVerified.Sha256.sha256d_length
 #assert_axioms BtcVerified.Sha256.collisionResistant_sha256d
-#assert_axioms BtcVerified.Hash256.ofBytesLE_encode
-#assert_axioms BtcVerified.Hash256.encode_ofBytesLE
+#assert_axioms BtcVerified.instCodecHash256
+#assert_axioms BtcVerified.Hash256.encode_length
 
 /-! ## Transaction ids -/
 

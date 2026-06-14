@@ -47,6 +47,14 @@ where
 #guard hexBytes? "0" == none
 #guard hexBytes? "0g" == none
 
+/-- A hash from its conventional display hex (big-endian): parse and reverse to
+the raw digest bytes a `Hash256` holds. Total — malformed input yields the
+zero hash, never reached by the literal vectors below. -/
+def hashOfDisplay (s : String) : Hash256 :=
+  match (hexBytes? s).map List.reverse with
+  | some bs => (Hash256.ofBytes? bs).getD 0
+  | none => 0
+
 /-- Decode a transaction from hex and check it consumed every byte and
 re-encodes to exactly the input — then apply the vector's own spot-checks. -/
 def checksOut (hex : String) (spot : Tx → Bool) : Bool :=
@@ -84,9 +92,10 @@ def firstBitcoinPaymentHex : String :=
   && tx.body.outputs.val.length == 2
   && (match tx.body.inputs.val with
       | [i] =>
-        -- The displayed txid is the wire bytes reversed, so the little-endian
-        -- decode equals the display hex read as a number.
-        i.prevout.txid == 0x0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9#256
+        -- The display txid is the raw digest bytes reversed; `hashOfDisplay`
+        -- reverses back to what the byte-native `Hash256` stores.
+        i.prevout.txid
+          == hashOfDisplay "0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"
         && i.prevout.vout == 0
         && i.sequence == 0xffffffff
       | _ => false)
@@ -123,7 +132,7 @@ def segwitCoinbaseHex : String :=
         version == 1 && outs.val.length == 2
         && (match ins.val with
             | [si] =>
-              si.input.prevout.txid == 0#256
+              si.input.prevout.txid == (0 : Hash256)
               && si.input.prevout.vout == 0xffffffff
               -- One witness item: the 32-zero-byte reserved value.
               && (match si.witness.val with
@@ -160,7 +169,7 @@ def firstSegwitSpendHex : String :=
         (match ins.val with
          | [si] =>
            si.input.prevout.txid
-             == 0x42f7d0545ef45bd3b9cfee6b170cf6314a3bd8b3f09b610eeb436d92993ad440#256
+             == hashOfDisplay "42f7d0545ef45bd3b9cfee6b170cf6314a3bd8b3f09b610eeb436d92993ad440"
            && si.input.prevout.vout == 1
            -- Witness: 72-byte DER signature, then 33-byte compressed pubkey.
            && (match si.witness.val with
@@ -203,11 +212,11 @@ def genesisBlockHex : String :=
 
 #guard blockChecksOut genesisBlockHex fun b =>
   b.header.version == 1
-  && b.header.prevBlockHash == 0#256
+  && b.header.prevBlockHash == (0 : Hash256)
   -- Displayed hashes are the wire bytes reversed, so the little-endian decode
   -- equals the display hex read as a number.
   && b.header.merkleRoot
-    == 0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b#256
+    == hashOfDisplay "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
   && b.header.time == 1231006505
   && b.header.bits == 0x1d00ffff
   && b.header.nonce == 2083236893
@@ -255,9 +264,9 @@ def block170Hex : String :=
 #guard blockChecksOut block170Hex fun b =>
   b.header.version == 1
   && b.header.prevBlockHash
-    == 0x000000002a22cfee1f2c846adbd12b3e183d4f97683f85dad08a79780a84bd55#256
+    == hashOfDisplay "000000002a22cfee1f2c846adbd12b3e183d4f97683f85dad08a79780a84bd55"
   && b.header.merkleRoot
-    == 0x7dac2c5666815c17a3b36427de37bb9d2e2c5ccec3f8633eb91a4205cb4c10ff#256
+    == hashOfDisplay "7dac2c5666815c17a3b36427de37bb9d2e2c5ccec3f8633eb91a4205cb4c10ff"
   && b.header.time == 1231731025
   && b.header.bits == 0x1d00ffff
   && (match b.txs.val with
@@ -311,7 +320,7 @@ def block170Hex : String :=
 -- The first Bitcoin payment; legacy, so wtxid = txid.
 #guard match hexBytes? firstBitcoinPaymentHex >>= Codec.decode (α := Tx) with
   | some (tx, _) =>
-    tx.txid == 0xf4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16#256
+    tx.txid == hashOfDisplay "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16"
     && tx.wtxid == tx.txid
   | none => false
 
@@ -319,7 +328,8 @@ def block170Hex : String :=
 #guard match hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
   | some (b, _) => match b.txs.val with
     | [coinbase] =>
-      coinbase.txid == 0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b#256
+      coinbase.txid
+        == hashOfDisplay "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
       && coinbase.txid == b.header.merkleRoot
     | _ => false
   | none => false
@@ -327,7 +337,7 @@ def block170Hex : String :=
 -- The SegWit activation coinbase: the witness makes wtxid ≠ txid.
 #guard match hexBytes? segwitCoinbaseHex >>= Codec.decode (α := Tx) with
   | some (tx, _) =>
-    tx.txid == 0xda917699942e4a96272401b534381a75512eeebe8403084500bd637bd47168b3#256
+    tx.txid == hashOfDisplay "da917699942e4a96272401b534381a75512eeebe8403084500bd637bd47168b3"
     && tx.wtxid != tx.txid
   | none => false
 
