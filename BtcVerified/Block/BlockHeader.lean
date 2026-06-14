@@ -64,6 +64,6 @@ instance instCodecBlockHeader : Codec BlockHeader :=
 /-- A block header encodes to exactly 80 bytes: the fixed size of the
 proof-of-work preimage. -/
 theorem BlockHeader.encode_length (h : BlockHeader) : (Codec.encode h).length = 80 := by
-  simp [Codec.encode, List.length_append, encodeBitVecLE_length]
+  simp [Codec.encode, List.length_append, encodeBitVecLE_length, Hash256.length_val]
 
 end BtcVerified

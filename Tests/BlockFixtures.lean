@@ -62,9 +62,9 @@ transaction vectors, tying the fixture to the inline `#guard`s. -/
 def block481824Checks (b : Block) : Bool :=
   b.header.version == 0x20000002
   && b.header.prevBlockHash
-    == 0x000000000000000000cbeff0b533f8e1189cf09dfbebf57a8ebe349362811b80#256
+    == hashOfDisplay "000000000000000000cbeff0b533f8e1189cf09dfbebf57a8ebe349362811b80"
   && b.header.merkleRoot
-    == 0x6438250cad442b982801ae6994edb8a9ec63c0a0ba117779fbe7ef7f07cad140#256
+    == hashOfDisplay "6438250cad442b982801ae6994edb8a9ec63c0a0ba117779fbe7ef7f07cad140"
   && b.header.time == 1503539857
   && b.header.bits == 0x18013ce9
   && b.header.nonce == 575995682

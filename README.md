@@ -195,15 +195,18 @@ proof-of-work be checked, not just asserted.
 
 ### `BtcVerified` transaction ids
 
-`Tx.txid` — the double-SHA-256 of the witness-free `TxBody` serialization,
-read little-endian — and `Tx.wtxid` (BIP141), the same over the full
+`Tx.txid` — the double-SHA-256 of the witness-free `TxBody` serialization, as
+its raw 32 digest bytes — and `Tx.wtxid` (BIP141), the same over the full
 serialization. Witness data never affects a txid; for a legacy transaction the
 two coincide by `rfl`.
 
 Checked claims:
 
 - `Tx.txid_faithful`: equal txids imply equal witness-free bodies — or two
-  concrete byte strings witnessing a double-SHA-256 collision.
+  concrete byte strings witnessing a double-SHA-256 collision. With
+  `CollisionResistant.injective` (the generalized collision vocabulary in
+  `BtcVerified.Collision`), a resistance hypothesis collapses this to outright
+  injectivity.
 - `Tx.wtxid_faithful`: equal wtxids imply equal transactions, witnesses
   included — or a concrete collision.
 - Golden vectors: the first Bitcoin payment's txid, the genesis coinbase txid
