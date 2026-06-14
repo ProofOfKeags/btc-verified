@@ -81,8 +81,12 @@ elab "#assert_axioms " id:ident : command => do
   load-bearing — so the audit guards it against a stray `sorry` or a sneaked-in
   `native_decide`. Auditing `sha256d` covers `sha256` transitively. -/
 
+#assert_axioms BtcVerified.Collision.comp
+#assert_axioms BtcVerified.CollisionResistant.injective
+#assert_axioms BtcVerified.CollisionResistant.comp
 #assert_axioms BtcVerified.Sha256.sha256d
 #assert_axioms BtcVerified.Sha256.sha256d_length
+#assert_axioms BtcVerified.Sha256.collisionResistant_sha256d
 #assert_axioms BtcVerified.Hash256.ofBytesLE_encode
 #assert_axioms BtcVerified.Hash256.encode_ofBytesLE
 
