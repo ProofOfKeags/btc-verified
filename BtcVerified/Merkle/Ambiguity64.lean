@@ -328,4 +328,143 @@ theorem isMinimal64_iff_encode_length {b : TxBody}
     IsMinimal64Body b ↔ (Codec.encode b).length = 64 :=
   ⟨encode_length_of_isMinimal64, fun h => isMinimal64_of_encode_length h hin hout⟩
 
+/-! ## The explicit byte layout (bridge to Rubin's fixed-offset check) -/
+
+/-- A single byte encodes to itself. -/
+theorem encode_uint8_eq (b : UInt8) : Codec.encode b = [b] := by
+  change encodeBitVecLE 1 b.toBitVec = [b]
+  simp [encodeBitVecLE]
+
+/-- A byte sequence encodes to itself. -/
+theorem encodeElems_uint8_eq (xs : List UInt8) : encodeElems xs = xs := by
+  induction xs with
+  | nil => rfl
+  | cons x xs ih => simp only [encodeElems, encode_uint8_eq, ih, List.singleton_append]
+
+/-- The byte layout of a script: its CompactSize length prefix then its bytes. -/
+theorem encode_script_eq (s : Script) :
+    Codec.encode s
+      = CompactSize.encode (UInt64.ofNat s.code.val.length) ++ s.code.val := by
+  change encodeCountedList s.code = _
+  unfold encodeCountedList
+  rw [encodeElems_uint8_eq]
+
+/-- The byte layout of a one-element vector: a `0x01` count then the element. -/
+theorem encode_singleton_countedlist {α : Type} [Codec α] {cl : CountedList α} {x : α}
+    (h : cl.val = [x]) :
+    Codec.encode cl = CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode x := by
+  change encodeCountedList cl = _
+  unfold encodeCountedList
+  rw [h]
+  simp only [List.length_singleton, encodeElems, List.append_nil]
+
+/-- The byte layout of an input: outpoint, scriptSig, sequence. -/
+theorem encode_txin_eq (i : TxIn) :
+    Codec.encode i
+      = Codec.encode i.prevout ++ Codec.encode i.scriptSig ++ Codec.encode i.sequence := by
+  change Codec.encode i.prevout
+    ++ (Codec.encode i.scriptSig ++ Codec.encode i.sequence) = _
+  simp only [List.append_assoc]
+
+/-- The byte layout of an output: value, scriptPubKey. -/
+theorem encode_txout_eq (o : TxOut) :
+    Codec.encode o = Codec.encode o.value ++ Codec.encode o.scriptPubKey := by
+  rfl
+
+/-- The byte layout of a body: version, inputs, outputs, lock time. -/
+theorem encode_txbody_eq (b : TxBody) :
+    Codec.encode b = Codec.encode b.version ++ Codec.encode b.inputs
+      ++ Codec.encode b.outputs ++ Codec.encode b.lockTime := by
+  change Codec.encode b.version
+    ++ (Codec.encode b.inputs ++ (Codec.encode b.outputs ++ Codec.encode b.lockTime)) = _
+  simp only [List.append_assoc]
+
+/-- A CompactSize count below `253` is the single byte carrying that value. -/
+theorem compactSize_encode_ofNat_eq {n : Nat} (h : n < 253) :
+    CompactSize.encode (UInt64.ofNat n) = [(UInt64.ofNat n).toUInt8] := by
+  have hlt : UInt64.ofNat n < 253 := by
+    have hn : n < 2 ^ 64 := by omega
+    have htn : (UInt64.ofNat n).toNat = n := UInt64.toNat_ofNat_of_lt' hn
+    have h253 : (253 : UInt64).toNat = 253 := by decide
+    rw [UInt64.lt_iff_toNat_lt, htn, h253]; exact h
+  unfold CompactSize.encode
+  rw [if_pos hlt]
+
+/-- The full explicit byte layout of a minimal 1-in/1-out body, all the way down
+to its bytes — the layout Rubin's fixed-offset check reads. -/
+theorem encode_oneInOneOut_form {b : TxBody} {i : TxIn} {o : TxOut}
+    (hi : b.inputs.val = [i]) (ho : b.outputs.val = [o]) :
+    Codec.encode b =
+      Codec.encode b.version
+        ++ CompactSize.encode (UInt64.ofNat 1)
+        ++ Codec.encode i.prevout
+        ++ CompactSize.encode (UInt64.ofNat i.scriptSig.code.val.length)
+        ++ i.scriptSig.code.val
+        ++ Codec.encode i.sequence
+        ++ CompactSize.encode (UInt64.ofNat 1)
+        ++ Codec.encode o.value
+        ++ CompactSize.encode (UInt64.ofNat o.scriptPubKey.code.val.length)
+        ++ o.scriptPubKey.code.val
+        ++ Codec.encode b.lockTime := by
+  rw [encode_txbody_eq, encode_singleton_countedlist hi, encode_singleton_countedlist ho,
+    encode_txin_eq, encode_txout_eq, encode_script_eq i.scriptSig, encode_script_eq o.scriptPubKey]
+  simp only [List.append_assoc]
+
+/-! ## Rubin's forbidden preimage, and its equivalence to the minimal shape -/
+
+/-- The structural property Rubin's fixed-offset byte check decides: `P` is the
+64-byte serialization of a one-input/one-output non-witness transaction whose
+scriptSig and scriptPubKey lengths sum to 4. His conjunct (`P[4] = 0x01`,
+`P[41] = x`, `P[46+x] = 0x01`, `P[55+x] = 4-x`) reads exactly the marker and
+length bytes of this layout; here it is captured as the layout itself, so the
+equivalence to the modeled transaction is exact rather than offset-by-offset.
+(`MoneyRange` on the value field is a separable conjunct; it constrains which
+8-byte value appears, not the shape, and is omitted here.) -/
+def IsForbiddenPreimage (P : List UInt8) : Prop :=
+  ∃ (v : UInt32) (op : OutPoint) (ss : List UInt8) (seq : UInt32)
+    (val : UInt64) (spk : List UInt8) (lt : UInt32),
+    ss.length + spk.length = 4 ∧
+    P = Codec.encode v ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode op
+      ++ CompactSize.encode (UInt64.ofNat ss.length) ++ ss ++ Codec.encode seq
+      ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode val
+      ++ CompactSize.encode (UInt64.ofNat spk.length) ++ spk ++ Codec.encode lt
+
+/-- **Rubin's conjunct is equivalent to the minimal shape.** A byte string is a
+forbidden preimage iff it is the serialization of a body in the forbidden shape.
+With `isMinimal64_iff_encode_length`, this pins the forbidden preimages to
+exactly the 64-byte serializations of valid transaction bodies. -/
+theorem isForbiddenPreimage_iff (P : List UInt8) :
+    IsForbiddenPreimage P ↔ ∃ b : TxBody, IsMinimal64Body b ∧ Codec.encode b = P := by
+  constructor
+  · rintro ⟨v, op, ss, seq, val, spk, lt, hsum, hP⟩
+    have hss : ss.length < 2 ^ 64 := by omega
+    have hspk : spk.length < 2 ^ 64 := by omega
+    have h1 : ([(0 : Nat)]).length < 2 ^ 64 := by simp
+    refine ⟨⟨v, ⟨[⟨op, ⟨⟨ss, hss⟩⟩, seq⟩], by simp⟩, ⟨[⟨val, ⟨⟨spk, hspk⟩⟩⟩], by simp⟩, lt⟩,
+      ⟨_, _, rfl, rfl, hsum⟩, ?_⟩
+    rw [encode_oneInOneOut_form rfl rfl]
+    exact hP.symm
+  · rintro ⟨b, ⟨i, o, hi, ho, hsum⟩, rfl⟩
+    exact ⟨b.version, i.prevout, i.scriptSig.code.val, i.sequence, o.value,
+      o.scriptPubKey.code.val, b.lockTime, hsum, encode_oneInOneOut_form hi ho⟩
+
+/-- Capstone: a byte string is a forbidden preimage iff it is the 64-byte
+serialization of a transaction body with at least one input and one output —
+i.e. exactly the txid preimages a real leaf could collide with. Soundness
+("only 64-byte"), completeness ("all valid 64-byte"), and the conjunct ⟺ shape
+bridge, in one statement. The `≠ []` conditions are the vin/vout-nonempty
+validity rules the narrow rule relies on. -/
+theorem isForbiddenPreimage_iff_encode_valid (P : List UInt8) :
+    IsForbiddenPreimage P ↔
+      ∃ b : TxBody, b.inputs.val ≠ [] ∧ b.outputs.val ≠ [] ∧
+        (Codec.encode b).length = 64 ∧ Codec.encode b = P := by
+  rw [isForbiddenPreimage_iff]
+  constructor
+  · rintro ⟨b, hmin, hP⟩
+    have hlen := encode_length_of_isMinimal64 hmin
+    obtain ⟨i, o, hi, ho, _⟩ := hmin
+    exact ⟨b, by rw [hi]; simp, by rw [ho]; simp, hlen, hP⟩
+  · rintro ⟨b, hin, hout, hlen, hP⟩
+    exact ⟨b, isMinimal64_of_encode_length hlen hin hout, hP⟩
+
 end BtcVerified.Merkle
