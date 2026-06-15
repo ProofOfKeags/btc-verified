@@ -306,3 +306,15 @@ or an unexpected axiom. `lake test` decodes the full SegWit activation block,
 fetching it from a block explorer on first run and caching it locally (it is
 public chain data, so it is not committed). See `CONTRIBUTING.md` for the
 contribution workflow.
+
+## About
+
+`btc-verified` is built by Keagan McClelland ([@ProofOfKeags](https://x.com/ProofOfKeags),
+[proofofkeags.com](https://proofofkeags.com)) — an independent Bitcoin/Lightning
+engineer working toward verified cores for the protocol's correctness-critical
+surfaces.
+
+The thesis behind the work — why AI-assisted authorship is making formal
+verification the defensible posture for protocol engineering, rather than a
+luxury — is laid out in
+[Formal Vibefication](https://proofofkeags.com/research/2026-05-12-formal-vibefication.html).
