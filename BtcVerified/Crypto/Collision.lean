@@ -60,4 +60,19 @@ theorem CollisionResistant.comp {α β γ : Type*} {f : α → β} {g : β → �
     CollisionResistant (g ∘ f) :=
   fun hc => (Collision.comp hc).elim hf hg
 
+/-- A collision in the inner function lifts to a collision in the composite:
+the colliding inputs already agree under `f`, hence under `g ∘ f`. -/
+theorem Collision.comp_inner {α β γ : Type*} {f : α → β} {g : β → γ}
+    (hc : Collision f) : Collision (g ∘ f) := by
+  match hc with
+  | ⟨a, b, hab, h⟩ => exact ⟨a, b, hab, congrArg g h⟩
+
+/-- The partial dual of `CollisionResistant.comp`: resistance of `g ∘ f` forces
+resistance of the *inner* `f` (a collision in `f` would lift to one in the
+composite). It does **not** force resistance of the outer `g` — `g` may collide
+on values outside the range of `f`, where no composite input reaches. -/
+theorem CollisionResistant.of_comp {α β γ : Type*} {f : α → β} {g : β → γ}
+    (h : CollisionResistant (g ∘ f)) : CollisionResistant f :=
+  fun hc => h hc.comp_inner
+
 end BtcVerified
