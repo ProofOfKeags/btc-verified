@@ -19,4 +19,5 @@ import BtcVerified.Transaction.Txid
 import BtcVerified.Block.BlockHeader
 import BtcVerified.Block.Block
 import BtcVerified.Block.Commitment
+import BtcVerified.Merkle.Ambiguity64
 import BtcVerified.BitVM.BitCommitment

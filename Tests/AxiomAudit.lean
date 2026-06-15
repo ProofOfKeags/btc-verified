@@ -106,6 +106,8 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Merkle.root_inj_of_length_eq
 #assert_axioms BtcVerified.Merkle.root_inj_of_canonical
 #assert_axioms BtcVerified.Block.merkleCommits
+#assert_axioms BtcVerified.Merkle.decodesAs64ByteTx_iff
+#assert_axioms BtcVerified.Merkle.combine_preimage_length
 
 /-! ## BitVM -/
 
