@@ -108,6 +108,9 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Block.merkleCommits
 #assert_axioms BtcVerified.Merkle.decodesAs64ByteTx_iff
 #assert_axioms BtcVerified.Merkle.combine_preimage_length
+#assert_axioms BtcVerified.Merkle.encode_length_of_isMinimal64
+#assert_axioms BtcVerified.Merkle.isMinimal64_of_encode_length
+#assert_axioms BtcVerified.Merkle.isMinimal64_iff_encode_length
 
 /-! ## BitVM -/
 
