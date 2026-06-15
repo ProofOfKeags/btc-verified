@@ -467,4 +467,90 @@ theorem isForbiddenPreimage_iff_encode_valid (P : List UInt8) :
   · rintro ⟨b, hin, hout, hlen, hP⟩
     exact ⟨b, isMinimal64_of_encode_length hlen hin hout, hP⟩
 
+/-! ## Rubin's literal fixed-offset byte check -/
+
+/-- The byte at the boundary of an explicit `prefix ++ marker :: rest` layout. -/
+theorem getElem?_append_cons {A C : List UInt8} {k : Nat} {b : UInt8}
+    (hk : A.length = k) : (A ++ b :: C)[k]? = some b := by
+  subst hk
+  rw [List.getElem?_append_right (Nat.le_refl _), Nat.sub_self, List.getElem?_cons_zero]
+
+/-- A CompactSize-marker byte for a small value reads back as that value. -/
+theorem toNat_compactSizeByte {n : Nat} (h : n < 256) :
+    ((UInt64.ofNat n).toUInt8).toNat = n := by
+  rw [UInt64.toNat_toUInt8, UInt64.toNat_ofNat_of_lt' (show n < 2 ^ 64 by omega)]
+  omega
+
+/-- Rubin's conjunct in his literal fixed-offset form: a 64-byte string whose
+input-count byte is `0x01`, whose scriptSig-length byte `x` is at most 4, whose
+output-count byte (at `46+x`) is `0x01`, and whose scriptPubKey-length byte (at
+`55+x`) is `4-x`. Byte values are read as naturals (`.map UInt8.toNat`), matching
+the count/length semantics. (`MoneyRange` on the value field is the separable
+remaining conjunct.) -/
+def ForbiddenPreimageBytes (P : List UInt8) : Prop :=
+  P.length = 64 ∧ ∃ x : Nat, x ≤ 4 ∧
+    (P[4]?).map UInt8.toNat = some 1 ∧
+    (P[41]?).map UInt8.toNat = some x ∧
+    (P[46 + x]?).map UInt8.toNat = some 1 ∧
+    (P[55 + x]?).map UInt8.toNat = some (4 - x)
+
+/-- **Rubin's literal fixed-offset check fires on his forbidden preimages.**
+Every byte string that is the serialization of a body in the forbidden shape
+satisfies the byte-index conjunct (`P[4]=0x01`, `P[41]=x`, `P[46+x]=0x01`,
+`P[55+x]=4-x`), read as natural-number values. This is the structure-to-offsets
+direction of the equivalence; the converse (the offset conjunct forces the
+structure) is the field-reconstruction direction, deferred. -/
+theorem forbiddenPreimageBytes_of_isForbidden {P : List UInt8}
+    (h : IsForbiddenPreimage P) : ForbiddenPreimageBytes P := by
+    obtain ⟨v, op, ss, seq, val, spk, lt, hsum, hP⟩ := h
+    have lev := encode_uint32_length v
+    have lop := encode_outpoint_length op
+    have lseq := encode_uint32_length seq
+    have lval := encode_uint64_length val
+    have llt := encode_uint32_length lt
+    rw [compactSize_encode_ofNat_eq (show (1 : Nat) < 253 by decide),
+      compactSize_encode_ofNat_eq (show ss.length < 253 by omega),
+      compactSize_encode_ofNat_eq (show spk.length < 253 by omega)] at hP
+    have hlen : P.length = 64 := by
+      rw [hP]; simp only [List.length_append, List.length_cons, List.length_nil,
+        lev, lop, lseq, lval, llt]; omega
+    refine ⟨hlen, ss.length, by omega, ?_, ?_, ?_, ?_⟩
+    · -- input-count byte at position 4
+      have hg : P = Codec.encode v ++ (UInt64.ofNat 1).toUInt8 ::
+          (Codec.encode op ++ (UInt64.ofNat ss.length).toUInt8 :: (ss ++ Codec.encode seq
+            ++ (UInt64.ofNat 1).toUInt8 :: (Codec.encode val
+            ++ (UInt64.ofNat spk.length).toUInt8 :: (spk ++ Codec.encode lt)))) := by
+        rw [hP]; simp only [List.append_assoc, List.cons_append, List.nil_append]
+      rw [hg, getElem?_append_cons (k := 4) (by rw [lev])]
+      decide
+    · -- scriptSig-length byte at position 41
+      have hg : P = (Codec.encode v ++ (UInt64.ofNat 1).toUInt8 :: Codec.encode op)
+          ++ (UInt64.ofNat ss.length).toUInt8 :: (ss ++ Codec.encode seq
+            ++ (UInt64.ofNat 1).toUInt8 :: (Codec.encode val
+            ++ (UInt64.ofNat spk.length).toUInt8 :: (spk ++ Codec.encode lt))) := by
+        rw [hP]; simp only [List.append_assoc, List.cons_append, List.nil_append]
+      rw [hg, getElem?_append_cons (k := 41)
+        (by simp only [List.length_append, List.length_cons]; omega),
+        Option.map_some, toNat_compactSizeByte (by omega)]
+    · -- output-count byte at position 46 + x
+      have hg : P = (Codec.encode v ++ (UInt64.ofNat 1).toUInt8 ::
+          (Codec.encode op ++ (UInt64.ofNat ss.length).toUInt8 :: (ss ++ Codec.encode seq)))
+          ++ (UInt64.ofNat 1).toUInt8 :: (Codec.encode val
+            ++ (UInt64.ofNat spk.length).toUInt8 :: (spk ++ Codec.encode lt)) := by
+        rw [hP]; simp only [List.append_assoc, List.cons_append, List.nil_append]
+      rw [hg, getElem?_append_cons (k := 46 + ss.length)
+        (by simp only [List.length_append, List.length_cons]; omega)]
+      decide
+    · -- scriptPubKey-length byte at position 55 + x
+      have hg : P = (Codec.encode v ++ (UInt64.ofNat 1).toUInt8 ::
+          (Codec.encode op ++ (UInt64.ofNat ss.length).toUInt8 :: (ss ++ Codec.encode seq
+            ++ (UInt64.ofNat 1).toUInt8 :: Codec.encode val)))
+          ++ (UInt64.ofNat spk.length).toUInt8 :: (spk ++ Codec.encode lt) := by
+        rw [hP]; simp only [List.append_assoc, List.cons_append, List.nil_append]
+      rw [hg, getElem?_append_cons (k := 55 + ss.length)
+        (by simp only [List.length_append, List.length_cons]; omega),
+        Option.map_some, toNat_compactSizeByte (by omega)]
+      congr 1
+      omega
+
 end BtcVerified.Merkle

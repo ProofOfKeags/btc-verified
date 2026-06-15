@@ -113,6 +113,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Merkle.isMinimal64_iff_encode_length
 #assert_axioms BtcVerified.Merkle.isForbiddenPreimage_iff
 #assert_axioms BtcVerified.Merkle.isForbiddenPreimage_iff_encode_valid
+#assert_axioms BtcVerified.Merkle.forbiddenPreimageBytes_of_isForbidden
 
 /-! ## BitVM -/
 
