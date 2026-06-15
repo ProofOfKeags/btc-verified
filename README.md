@@ -307,6 +307,12 @@ fetching it from a block explorer on first run and caching it locally (it is
 public chain data, so it is not committed). See `CONTRIBUTING.md` for the
 contribution workflow.
 
+## License
+
+Licensed under the Apache License, Version 2.0 — matching the Lean and Mathlib
+ecosystem this builds on, and carrying an explicit patent grant. See
+[`LICENSE`](LICENSE).
+
 ## About
 
 `btc-verified` is built by Keagan McClelland ([@ProofOfKeags](https://x.com/ProofOfKeags),
