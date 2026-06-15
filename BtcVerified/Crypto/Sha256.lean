@@ -149,4 +149,16 @@ theorem collisionResistant_sha256d (h : CollisionResistant sha256) :
     CollisionResistant sha256d :=
   h.comp h
 
+/-- The converse: a `sha256d` collision forces a `sha256` collision in the inner
+call, so resistance of `sha256d` gives resistance of `sha256`. Together with
+`collisionResistant_sha256d`, the two resistances are equivalent. -/
+theorem collisionResistant_sha256_of_sha256d (h : CollisionResistant sha256d) :
+    CollisionResistant sha256 :=
+  CollisionResistant.of_comp (f := sha256) (g := sha256) h
+
+/-- Collision resistance of `sha256` and of `sha256d` are equivalent. -/
+theorem collisionResistant_sha256_iff_sha256d :
+    CollisionResistant sha256 ↔ CollisionResistant sha256d :=
+  ⟨collisionResistant_sha256d, collisionResistant_sha256_of_sha256d⟩
+
 end BtcVerified.Sha256

@@ -84,9 +84,12 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Collision.comp
 #assert_axioms BtcVerified.CollisionResistant.injective
 #assert_axioms BtcVerified.CollisionResistant.comp
+#assert_axioms BtcVerified.Collision.comp_inner
+#assert_axioms BtcVerified.CollisionResistant.of_comp
 #assert_axioms BtcVerified.Sha256.sha256d
 #assert_axioms BtcVerified.Sha256.sha256d_length
 #assert_axioms BtcVerified.Sha256.collisionResistant_sha256d
+#assert_axioms BtcVerified.Sha256.collisionResistant_sha256_iff_sha256d
 #assert_axioms BtcVerified.instCodecHash256
 #assert_axioms BtcVerified.Hash256.encode_length
 
