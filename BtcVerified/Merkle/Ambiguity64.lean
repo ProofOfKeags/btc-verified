@@ -494,12 +494,53 @@ def ForbiddenPreimageBytes (P : List UInt8) : Prop :=
     (P[46 + x]?).map UInt8.toNat = some 1 ∧
     (P[55 + x]?).map UInt8.toNat = some (4 - x)
 
+/-- Every fixed-width little-endian field is in the image of its encoder. -/
+theorem exists_encodeBitVecLE {n : Nat} {L : List UInt8} (h : L.length = n) :
+    ∃ bv : BitVec (8 * n), encodeBitVecLE n bv = L := by
+  obtain ⟨bv, hbv⟩ := decodeBitVecLE_of_le_length n L (by omega)
+  have hdrop : L.drop n = [] := by rw [← h]; exact List.drop_length
+  rw [hdrop] at hbv
+  exact ⟨bv, by simpa using (decodeBitVecLE_canonical n L bv [] hbv).symm⟩
+
+theorem exists_encode_uint32 {L : List UInt8} (h : L.length = 4) :
+    ∃ v : UInt32, Codec.encode v = L := by
+  obtain ⟨bv, hbv⟩ := exists_encodeBitVecLE (n := 4) h; exact ⟨UInt32.ofBitVec bv, hbv⟩
+
+theorem exists_encode_uint64 {L : List UInt8} (h : L.length = 8) :
+    ∃ v : UInt64, Codec.encode v = L := by
+  obtain ⟨bv, hbv⟩ := exists_encodeBitVecLE (n := 8) h; exact ⟨UInt64.ofBitVec bv, hbv⟩
+
+theorem exists_encode_hash256 {L : List UInt8} (h : L.length = 32) :
+    ∃ d : Hash256, Codec.encode d = L := ⟨⟨L, h⟩, rfl⟩
+
+theorem exists_encode_outpoint {L : List UInt8} (h : L.length = 36) :
+    ∃ op : OutPoint, Codec.encode op = L := by
+  obtain ⟨d, hd⟩ := exists_encode_hash256 (L := L.take 32) (by rw [List.length_take]; omega)
+  obtain ⟨vout, hvout⟩ := exists_encode_uint32 (L := L.drop 32) (by rw [List.length_drop]; omega)
+  exact ⟨⟨d, vout⟩, by change Codec.encode d ++ Codec.encode vout = L; rw [hd, hvout,
+    List.take_append_drop]⟩
+
+/-- A marker/length byte read as a natural pins down the byte. -/
+theorem markerByte_eq {P : List UInt8} {k val : Nat} (hk : k < P.length)
+    (hval : (P[k]?).map UInt8.toNat = some val) (hb : val < 256) :
+    P[k] = (UInt64.ofNat val).toUInt8 := by
+  rw [List.getElem?_eq_getElem hk, Option.map_some, Option.some.injEq] at hval
+  exact UInt8.toNat_inj.mp (by rw [toNat_compactSizeByte hb]; exact hval)
+
+/-- One byte off the front of a drop. -/
+theorem drop_take_one {P : List UInt8} {k : Nat} (hk : k < P.length) :
+    (P.drop k).take 1 = [P[k]] := by
+  rw [List.take_one, List.head?_drop, List.getElem?_eq_getElem hk]; rfl
+
+/-- Merge two adjacent `take` slices of `P`. -/
+theorem take_merge {P : List UInt8} {a b c : Nat} (hc : a + b = c) :
+    P.take a ++ (P.drop a).take b = P.take c := by
+  rw [← List.take_add, hc]
+
 /-- **Rubin's literal fixed-offset check fires on his forbidden preimages.**
 Every byte string that is the serialization of a body in the forbidden shape
 satisfies the byte-index conjunct (`P[4]=0x01`, `P[41]=x`, `P[46+x]=0x01`,
-`P[55+x]=4-x`), read as natural-number values. This is the structure-to-offsets
-direction of the equivalence; the converse (the offset conjunct forces the
-structure) is the field-reconstruction direction, deferred. -/
+`P[55+x]=4-x`), read as natural-number values. -/
 theorem forbiddenPreimageBytes_of_isForbidden {P : List UInt8}
     (h : IsForbiddenPreimage P) : ForbiddenPreimageBytes P := by
     obtain ⟨v, op, ss, seq, val, spk, lt, hsum, hP⟩ := h
@@ -552,5 +593,55 @@ theorem forbiddenPreimageBytes_of_isForbidden {P : List UInt8}
         Option.map_some, toNat_compactSizeByte (by omega)]
       congr 1
       omega
+
+/-- **The converse: Rubin's offset conjunct forces the structure.** A 64-byte
+string satisfying the fixed-offset byte check is the serialization of a body in
+the forbidden shape. The fields are reconstructed from byte slices, and the
+slices reassemble to `P` by a `take`/`drop` telescope. -/
+theorem isForbidden_of_forbiddenPreimageBytes {P : List UInt8}
+    (h : ForbiddenPreimageBytes P) : IsForbiddenPreimage P := by
+  obtain ⟨hlen, x, hx4, h4, h41, h46, h55⟩ := h
+  obtain ⟨v, hv⟩ := exists_encode_uint32 (L := P.take 4) (by rw [List.length_take]; omega)
+  obtain ⟨op, hop⟩ := exists_encode_outpoint (L := (P.drop 5).take 36)
+    (by rw [List.length_take, List.length_drop]; omega)
+  obtain ⟨seq, hseq⟩ := exists_encode_uint32 (L := (P.drop (42 + x)).take 4)
+    (by rw [List.length_take, List.length_drop]; omega)
+  obtain ⟨val, hval⟩ := exists_encode_uint64 (L := (P.drop (47 + x)).take 8)
+    (by rw [List.length_take, List.length_drop]; omega)
+  obtain ⟨lt, hlt⟩ := exists_encode_uint32 (L := P.drop 60) (by rw [List.length_drop]; omega)
+  have hsslen : ((P.drop 42).take x).length = x := by rw [List.length_take, List.length_drop]; omega
+  have hspklen : ((P.drop (56 + x)).take (4 - x)).length = 4 - x := by
+    rw [List.length_take, List.length_drop]; omega
+  have c4 : CompactSize.encode (UInt64.ofNat 1) = (P.drop 4).take 1 := by
+    rw [drop_take_one (show 4 < P.length by omega), compactSize_encode_ofNat_eq (by decide),
+      markerByte_eq (show 4 < P.length by omega) h4 (by decide)]
+  have c41 : CompactSize.encode (UInt64.ofNat x) = (P.drop 41).take 1 := by
+    rw [drop_take_one (show 41 < P.length by omega), compactSize_encode_ofNat_eq (by omega),
+      markerByte_eq (show 41 < P.length by omega) h41 (by omega)]
+  have c46 : CompactSize.encode (UInt64.ofNat 1) = (P.drop (46 + x)).take 1 := by
+    rw [drop_take_one (show 46 + x < P.length by omega), compactSize_encode_ofNat_eq (by decide),
+      markerByte_eq (show 46 + x < P.length by omega) h46 (by decide)]
+  have c55 : CompactSize.encode (UInt64.ofNat (4 - x)) = (P.drop (55 + x)).take 1 := by
+    rw [drop_take_one (show 55 + x < P.length by omega), compactSize_encode_ofNat_eq (by omega),
+      markerByte_eq (show 55 + x < P.length by omega) h55 (by omega)]
+  refine ⟨v, op, (P.drop 42).take x, seq, val, (P.drop (56 + x)).take (4 - x), lt,
+    by rw [hsslen, hspklen]; omega, ?_⟩
+  rw [hv, hop, hseq, hval, hlt, hsslen, hspklen]
+  nth_rewrite 1 [c4]
+  rw [take_merge (show 4 + 1 = 5 from rfl), take_merge (show 5 + 36 = 41 from rfl), c41,
+    take_merge (show 41 + 1 = 42 from rfl), take_merge (show 42 + x = 42 + x from rfl),
+    take_merge (show (42 + x) + 4 = 46 + x by omega)]
+  nth_rewrite 1 [c46]
+  rw [take_merge (show (46 + x) + 1 = 47 + x by omega),
+    take_merge (show (47 + x) + 8 = 55 + x by omega), c55,
+    take_merge (show (55 + x) + 1 = 56 + x by omega),
+    take_merge (show (56 + x) + (4 - x) = 60 by omega), List.take_append_drop]
+
+/-- **Rubin's literal fixed-offset conjunct is equivalent to his forbidden
+preimage** — the byte-index check and the structural property decide the same
+set of 64-byte strings. -/
+theorem forbiddenPreimageBytes_iff (P : List UInt8) :
+    ForbiddenPreimageBytes P ↔ IsForbiddenPreimage P :=
+  ⟨isForbidden_of_forbiddenPreimageBytes, forbiddenPreimageBytes_of_isForbidden⟩
 
 end BtcVerified.Merkle
