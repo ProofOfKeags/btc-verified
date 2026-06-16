@@ -644,4 +644,106 @@ theorem forbiddenPreimageBytes_iff (P : List UInt8) :
     ForbiddenPreimageBytes P ↔ IsForbiddenPreimage P :=
   ⟨isForbidden_of_forbiddenPreimageBytes, forbiddenPreimageBytes_of_isForbidden⟩
 
+/-! ## MoneyRange
+
+  Rubin's full conjunct also requires the 8-byte value field (at `47+x`) to be in
+  `MoneyRange`. With the shape pinned, that field is exactly `Codec.encode val`,
+  so the byte condition is equivalent to the structural `val ∈ MoneyRange`.
+-/
+
+/-- Bitcoin's `MAX_MONEY`: 21,000,000 BTC in satoshis. -/
+def MAX_MONEY : Nat := 2100000000000000
+
+/-- A forbidden preimage whose output value is in `MoneyRange`. -/
+def IsForbiddenPreimageMR (P : List UInt8) : Prop :=
+  ∃ (v : UInt32) (op : OutPoint) (ss : List UInt8) (seq : UInt32)
+    (val : UInt64) (spk : List UInt8) (lt : UInt32),
+    ss.length + spk.length = 4 ∧ val.toNat ≤ MAX_MONEY ∧
+    P = Codec.encode v ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode op
+      ++ CompactSize.encode (UInt64.ofNat ss.length) ++ ss ++ Codec.encode seq
+      ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode val
+      ++ CompactSize.encode (UInt64.ofNat spk.length) ++ spk ++ Codec.encode lt
+
+/-- Rubin's full fixed-offset conjunct, including the MoneyRange check on the
+8-byte little-endian value field at `47+x`. -/
+def ForbiddenPreimageBytesMR (P : List UInt8) : Prop :=
+  P.length = 64 ∧ ∃ x : Nat, x ≤ 4 ∧
+    (P[4]?).map UInt8.toNat = some 1 ∧
+    (P[41]?).map UInt8.toNat = some x ∧
+    (P[46 + x]?).map UInt8.toNat = some 1 ∧
+    (P[55 + x]?).map UInt8.toNat = some (4 - x) ∧
+    ∃ mv tail, Codec.decode (α := UInt64) (P.drop (47 + x)) = some (mv, tail)
+      ∧ mv.toNat ≤ MAX_MONEY
+
+/-- In the forbidden layout, the scriptSig-length byte at position 41 reads back
+the scriptSig length. -/
+theorem layout_byte41 {P : List UInt8} {v : UInt32} {op : OutPoint} {ss : List UInt8}
+    {seq : UInt32} {val : UInt64} {spk : List UInt8} {lt : UInt32} (hsslt : ss.length < 253)
+    (hP : P = Codec.encode v ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode op
+      ++ CompactSize.encode (UInt64.ofNat ss.length) ++ ss ++ Codec.encode seq
+      ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode val
+      ++ CompactSize.encode (UInt64.ofNat spk.length) ++ spk ++ Codec.encode lt) :
+    (P[41]?).map UInt8.toNat = some ss.length := by
+  rw [compactSize_encode_ofNat_eq (show (1 : Nat) < 253 by decide),
+    compactSize_encode_ofNat_eq hsslt] at hP
+  have hg : P = (Codec.encode v ++ (UInt64.ofNat 1).toUInt8 :: Codec.encode op)
+      ++ (UInt64.ofNat ss.length).toUInt8 :: (ss ++ Codec.encode seq
+        ++ (UInt64.ofNat 1).toUInt8 :: (Codec.encode val
+        ++ CompactSize.encode (UInt64.ofNat spk.length) ++ spk ++ Codec.encode lt)) := by
+    rw [hP]; simp only [List.append_assoc, List.cons_append, List.nil_append]
+  rw [hg, getElem?_append_cons (k := 41)
+    (by simp only [List.length_append, List.length_cons, encode_uint32_length,
+      encode_outpoint_length]),
+    Option.map_some, toNat_compactSizeByte (by omega)]
+
+/-- In the forbidden layout, the 8-byte value field at `47 + ss.length` decodes
+to the output value. -/
+theorem valueField_decode {P : List UInt8} (v : UInt32) (op : OutPoint) (ss : List UInt8)
+    (seq : UInt32) (val : UInt64) (spk : List UInt8) (lt : UInt32) (hsslt : ss.length < 253)
+    (hP : P = Codec.encode v ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode op
+      ++ CompactSize.encode (UInt64.ofNat ss.length) ++ ss ++ Codec.encode seq
+      ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode val
+      ++ CompactSize.encode (UInt64.ofNat spk.length) ++ spk ++ Codec.encode lt) :
+    Codec.decode (α := UInt64) (P.drop (47 + ss.length))
+      = some (val, CompactSize.encode (UInt64.ofNat spk.length) ++ spk ++ Codec.encode lt) := by
+  have hpref : (Codec.encode v ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode op
+      ++ CompactSize.encode (UInt64.ofNat ss.length) ++ ss ++ Codec.encode seq
+      ++ CompactSize.encode (UInt64.ofNat 1)).length = 47 + ss.length := by
+    simp only [List.length_append, encode_uint32_length, encode_outpoint_length,
+      compactSize_length_ofNat_lt_253 (show (1 : Nat) < 253 by decide),
+      compactSize_length_ofNat_lt_253 hsslt]
+    omega
+  have hgroup : P = (Codec.encode v ++ CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode op
+      ++ CompactSize.encode (UInt64.ofNat ss.length) ++ ss ++ Codec.encode seq
+      ++ CompactSize.encode (UInt64.ofNat 1))
+      ++ (Codec.encode val
+        ++ (CompactSize.encode (UInt64.ofNat spk.length) ++ spk ++ Codec.encode lt)) := by
+    rw [hP]; simp only [List.append_assoc]
+  rw [hgroup, List.drop_append_of_le_length (le_of_eq hpref.symm),
+    List.drop_eq_nil_of_le (le_of_eq hpref), List.nil_append, Codec.decode_encode]
+
+/-- **Rubin's full conjunct, MoneyRange included, is equivalent to the forbidden
+preimage with an in-range value.** -/
+theorem forbiddenPreimageBytesMR_iff (P : List UInt8) :
+    ForbiddenPreimageBytesMR P ↔ IsForbiddenPreimageMR P := by
+  constructor
+  · rintro ⟨hlen, x, hx4, h4, h41, h46, h55, mv, tail, hdec, hmv⟩
+    obtain ⟨v, op, ss, seq, val, spk, lt, hsum, hP⟩ :=
+      isForbidden_of_forbiddenPreimageBytes ⟨hlen, x, hx4, h4, h41, h46, h55⟩
+    have hxeq : ss.length = x := by
+      have h41' := layout_byte41 (show ss.length < 253 by omega) hP
+      rw [h41'] at h41; exact Option.some_inj.mp h41
+    have hvd := valueField_decode v op ss seq val spk lt (by omega) hP
+    rw [hxeq, hdec] at hvd
+    have hmveq : mv = val := by rw [Option.some.injEq, Prod.mk.injEq] at hvd; exact hvd.1
+    exact ⟨v, op, ss, seq, val, spk, lt, hsum, by rw [← hmveq]; exact hmv, hP⟩
+  · rintro ⟨v, op, ss, seq, val, spk, lt, hsum, hmr, hP⟩
+    obtain ⟨hlen, x, hx4, h4, h41, h46, h55⟩ :=
+      forbiddenPreimageBytes_of_isForbidden ⟨v, op, ss, seq, val, spk, lt, hsum, hP⟩
+    have hxeq : x = ss.length := by
+      have h41' := layout_byte41 (show ss.length < 253 by omega) hP
+      rw [h41'] at h41; exact (Option.some_inj.mp h41).symm
+    exact ⟨hlen, x, hx4, h4, h41, h46, h55, val, _,
+      by rw [hxeq]; exact valueField_decode v op ss seq val spk lt (by omega) hP, hmr⟩
+
 end BtcVerified.Merkle
