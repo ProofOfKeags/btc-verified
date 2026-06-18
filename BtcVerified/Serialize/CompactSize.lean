@@ -228,4 +228,38 @@ abbrev compactSizeCodec : Codec UInt64 where
   decode_encode := decode_encode
   decode_canonical := decode_canonical
 
+/-! ## Encoded-length facts for small counts -/
+
+/-- A CompactSize count below `253` is a single byte. -/
+theorem encode_length_lt_253 {n : UInt64} (h : n < 253) : (encode n).length = 1 := by
+  unfold encode
+  rw [if_pos h]
+  rfl
+
+/-- A CompactSize count below `253` is a single byte, stated for a `Nat` count in
+range (the form the counted-list count takes). -/
+theorem encode_length_ofNat_lt_253 {n : Nat} (h : n < 253) :
+    (encode (UInt64.ofNat n)).length = 1 := by
+  apply encode_length_lt_253
+  have hn : n < 2 ^ 64 := by omega
+  have htn : (UInt64.ofNat n).toNat = n := UInt64.toNat_ofNat_of_lt' hn
+  have h253 : (253 : UInt64).toNat = 253 := by decide
+  rw [UInt64.lt_iff_toNat_lt, htn, h253]; exact h
+
+/-- A CompactSize encoding is always at least one byte. -/
+theorem encode_length_ge_one (n : UInt64) : 1 ≤ (encode n).length := by
+  unfold encode
+  split_ifs <;> simp [encodeFixedWidth_length]
+
+/-- A CompactSize count below `253` is the single byte carrying that value. -/
+theorem encode_ofNat_singleton {n : Nat} (h : n < 253) :
+    encode (UInt64.ofNat n) = [(UInt64.ofNat n).toUInt8] := by
+  have hlt : UInt64.ofNat n < 253 := by
+    have hn : n < 2 ^ 64 := by omega
+    have htn : (UInt64.ofNat n).toNat = n := UInt64.toNat_ofNat_of_lt' hn
+    have h253 : (253 : UInt64).toNat = 253 := by decide
+    rw [UInt64.lt_iff_toNat_lt, htn, h253]; exact h
+  unfold encode
+  rw [if_pos hlt]
+
 end BtcVerified.CompactSize

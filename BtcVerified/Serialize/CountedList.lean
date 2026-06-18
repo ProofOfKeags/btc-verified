@@ -216,4 +216,45 @@ instance instCodecCountedList {α : Type} [Codec α] : Codec (CountedList α) wh
   decode_encode := decodeCountedList_encodeCountedList
   decode_canonical := decodeCountedList_canonical
 
+/-! ## Length and layout of element sequences and counted lists -/
+
+/-- A byte sequence encodes to exactly its own length: each `UInt8` is one byte. -/
+theorem encodeElems_uint8_length (xs : List UInt8) :
+    (encodeElems xs).length = xs.length := by
+  induction xs with
+  | nil => rfl
+  | cons x xs ih =>
+    simp only [encodeElems, List.length_append, List.length_cons, encode_uint8_length, ih]
+    omega
+
+/-- A byte sequence encodes to itself. -/
+theorem encodeElems_uint8_eq (xs : List UInt8) : encodeElems xs = xs := by
+  induction xs with
+  | nil => rfl
+  | cons x xs ih => simp only [encodeElems, encode_uint8_eq, ih, List.singleton_append]
+
+/-- The encoding of a one-element sequence is just the element's encoding. -/
+theorem encodeElems_singleton {α : Type} [Codec α] (x : α) :
+    (encodeElems [x]).length = (Codec.encode x).length := by
+  simp [encodeElems]
+
+/-- The length of a CompactSize-prefixed list, split into its count prefix and its
+element sequence. -/
+theorem encode_countedlist_length {α : Type} [Codec α] (cl : CountedList α) :
+    (Codec.encode cl).length =
+      (CompactSize.encode (UInt64.ofNat cl.val.length)).length
+        + (encodeElems cl.val).length := by
+  change (encodeCountedList cl).length = _
+  unfold encodeCountedList
+  rw [List.length_append]
+
+/-- The byte layout of a one-element vector: a `0x01` count then the element. -/
+theorem encode_singleton_countedlist {α : Type} [Codec α] {cl : CountedList α} {x : α}
+    (h : cl.val = [x]) :
+    Codec.encode cl = CompactSize.encode (UInt64.ofNat 1) ++ Codec.encode x := by
+  change encodeCountedList cl = _
+  unfold encodeCountedList
+  rw [h]
+  simp only [List.length_singleton, encodeElems, List.append_nil]
+
 end BtcVerified.Serialize
