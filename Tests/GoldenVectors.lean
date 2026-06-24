@@ -362,6 +362,26 @@ def block170Hex : String :=
 -- validity instead).
 #guard Merkle.canonicalCheck ([1, 1, 2, 3] : List Hash256)
 
+-- Bitcoin Core's `ComputeMerkleRoot`, run on the same vectors. The root always
+-- matches `computeRoot`, and the `mutated` flag fires on exactly the
+-- materialized-padding lists — distinct leaves never trip it.
+#guard (Merkle.BitcoinCore.computeMerkleRoot ([1, 2, 3] : List Hash256)).1
+  == Merkle.computeRoot ([1, 2, 3] : List Hash256)
+#guard !(Merkle.BitcoinCore.computeMerkleRoot ([1, 2, 3] : List Hash256)).2
+#guard (Merkle.BitcoinCore.computeMerkleRoot ([1, 2, 3, 3] : List Hash256)).2
+#guard !(Merkle.BitcoinCore.computeMerkleRoot ([1, 2, 3, 4, 5] : List Hash256)).2
+-- A duplicated run trips it one level up, where the pair aligns.
+#guard (Merkle.BitcoinCore.computeMerkleRoot ([1, 2, 3, 4, 5, 6, 5, 6] : List Hash256)).2
+-- Core is strictly stronger than canonicality: a duplicate node is canonical
+-- when it sits at the root (a shorter list of the same width must still split
+-- there, so it is honest content — a duplicate txid dies at transaction
+-- validity, not the merkle layer) yet Core flags it. So non-mutation implies
+-- canonicality, but not conversely. The minimal case `[a, a]`, and the same at
+-- an interior pair `[1, 1, 2, 3]`:
+#guard Merkle.canonicalCheck ([7, 7] : List Hash256)
+#guard (Merkle.BitcoinCore.computeMerkleRoot ([7, 7] : List Hash256)).2
+#guard (Merkle.BitcoinCore.computeMerkleRoot ([1, 1, 2, 3] : List Hash256)).2
+
 -- The genesis block commits to its single transaction (root = txid).
 #guard match hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
   | some (b, _) => decide b.merkleCommits
