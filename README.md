@@ -254,6 +254,43 @@ node across heights (the ambiguity the Great Consensus Cleanup proposes to
 close); for block validity the transaction count is in hand, so the hypothesis
 is free.
 
+### `BtcVerified.Merkle.BitcoinCore`
+
+A verbatim transcription of Bitcoin Core's `ComputeMerkleRoot`
+(`src/consensus/merkle.cpp`) — the single bottom-up pass that computes the root
+and the `mutated` flag together — proved to be exactly the fusion of the
+separated `computeRoot` and `Canonical`. The fidelity point is the *ordering*:
+Core scans each level for an adjacent duplicate **before** it pads, so the
+duplicate that padding itself synthesizes is never compared to its twin — the
+CVE-2012-2459 defense — and `Tree.mutation`, the structural reading of the flag,
+mirrors it (a `pad` node contributes no equality test). The model is computable
+and is run on concrete vectors at build time: the attack list `[1, 2, 3, 3]`
+sets `mutated`, the distinct list `[1, 2, 3]` does not, and `[7, 7]` is
+canonical yet mutates — Core is strictly stronger.
+
+Checked claims:
+
+- `BitcoinCore.computeMerkleRoot_eq_mutation`: Core's fused computation equals
+  the structural fold's root paired with the structural mutation flag —
+  unconditional and hypothesis-free. The faithfulness backbone.
+- `BitcoinCore.computeMerkleRoot_fst`: the root Core returns is exactly
+  `computeRoot`, on every input.
+- `BitcoinCore.canonical_of_not_mutated`: a leaf list Core accepts
+  (`mutated = false`) is `Canonical` — unconditionally. The converse fails
+  (`[a, a]` is canonical yet mutates), so no transaction-distinctness hypothesis
+  is needed or used.
+- `BitcoinCore.eq_of_computeMerkleRoot_eq_of_not_mutated`: two nonempty
+  equal-width lists Core accepts with equal roots are equal — or a concrete
+  double-SHA-256 collision. Core's single check recovers the injectivity
+  `root_inj_of_canonical` provides.
+
+Why it matters: this closes the gap between the algorithm Bitcoin Core actually
+runs and the repo's separated root/canonicality model. Core fuses two concerns
+into one `mutated` scan; we factor them apart, prove each, and show that passing
+Core's scan implies the canonicality that recovers injectivity — without
+assuming distinct txids, since Core's scan is strictly stronger than
+canonicality requires.
+
 ### `BtcVerified.Script`
 
 The `Script` type: a Bitcoin Script program as it exists on the wire — raw,
