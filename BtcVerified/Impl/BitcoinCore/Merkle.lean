@@ -69,6 +69,16 @@ import BtcVerified.Crypto.Merkle
   synthesizes (the copied last node of an odd level) is never compared to its
   twin — only a duplicate already present as a complete pair trips the flag. This
   is exactly the CVE-2012-2459 defense.
+
+  Checked claims:
+
+  * `canonical_of_not_mutated`: a leaf list Core accepts (`mutated = false`) is
+    the spec's `Canonical` — unconditionally.
+  * `eq_of_computeMerkleRoot_eq_of_not_mutated`: two nonempty equal-width leaf
+    lists Core accepts with equal roots are equal — or two concrete byte strings
+    collide under double-SHA-256.
+  * `computeMerkleRoot_fst`: the root Core returns is exactly `computeRoot`, on
+    every input.
 -/
 
 namespace BtcVerified.Impl.BitcoinCore
