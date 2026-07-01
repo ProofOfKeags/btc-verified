@@ -282,9 +282,6 @@ Checked claims:
   input — anchoring it to real chain data through the `Block.merkleCommits`
   checks, and confirmed on block 481824 under `lake test` (its `mutated` flag is
   clear, agreeing with Core, which accepted the block).
-- `computeMerkleRoot_snd_eq_treeMutation`: Core's mutation flag equals the same
-  duplicate check read off the tree structure — the mutation analogue of the
-  spec's `computeRoot_eq_root`.
 
 Why it matters: this closes the gap between the algorithm Bitcoin Core actually
 runs and the repo's separated root/canonicality model. Core fuses the root and a
