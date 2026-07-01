@@ -69,32 +69,6 @@ import BtcVerified.Crypto.Merkle
   synthesizes (the copied last node of an odd level) is never compared to its
   twin — only a duplicate already present as a complete pair trips the flag. This
   is exactly the CVE-2012-2459 defense.
-
-  ## What is proved
-
-  Not a fresh restatement of Core's check, but its consequence for the spec:
-  **passing Core's scan implies the spec's `Canonical`**. Padding only ever
-  duplicates trailing power-of-two-aligned blocks — the right spine — so
-  `Canonical` forbids exactly a trailing block that materializes its left
-  sibling, root-exempt. Core's scan is uniform over the whole tree, so it *also*
-  rejects equal-root pairs no padding could produce (`[a, a]` is canonical, the
-  root being exempt, yet mutates). Core is therefore strictly stronger than
-  `Canonical`; the implication runs one way, and that one direction is
-  unconditional and collision-free — no transaction-distinctness hypothesis.
-
-  Checked claims:
-
-  * `canonical_of_not_mutated`: a leaf list Core accepts (`mutated = false`) is
-    `Canonical` — unconditionally.
-  * `eq_of_computeMerkleRoot_eq_of_not_mutated`: two nonempty equal-width leaf
-    lists Core accepts with equal roots are equal — or two concrete byte strings
-    collide under double-SHA-256. Core's single check recovers the injectivity
-    `root_inj_of_canonical` provides.
-  * `computeMerkleRoot_fst`: the root Core returns is exactly `computeRoot`, on
-    every input.
-  * `computeMerkleRoot_snd_eq_treeMutation`: Core's mutation flag equals the same
-    duplicate check read off the tree the fold builds — the mutation analogue of
-    the spec's `computeRoot_eq_root`.
 -/
 
 namespace BtcVerified.Impl.BitcoinCore
@@ -127,21 +101,21 @@ def computeMerkleRoot : List Hash256 → Hash256 × Bool
   termination_by xs => xs.length
   decreasing_by simp [foldLevel_length]; omega
 
-/-! ## The mutation check, read off the tree
+/-! ## The mutation check, read off the tree (internal)
 
   `Canonical` is a right-spine property of the spec's `Tree`, while the scan
   above is a flat fold over the list. They meet through `treeMutation`, the same
   duplicate check read off the tree the fold builds — a genuine interior `node`
-  with equal-root children, `pad` nodes exempt (their synthetic duplicate is the
-  odd element the scan never reaches). `computeMerkleRoot_snd_eq_treeMutation` is
-  the commute triangle relating the two; the `ofList`-level lemmas that prove it
-  stay `private`. -/
+  with equal-root children, `pad` nodes exempt. `computeMerkleRoot_snd_eq_treeMutation`
+  is the commute triangle relating the two, the mutation analogue of
+  `computeRoot_eq_root`. All `private`: durable facts on the way to the public
+  results, not part of the surface. -/
 
 /-- The whole-tree image of the `mutated` flag: a tree mutates iff some genuine
 interior `node` joins two subtrees with equal roots. A `pad` node contributes no
 equality test of its own — mirroring that the padded duplicate is never scanned
 — but its child is still walked. -/
-def treeMutation : Tree → Bool
+private def treeMutation : Tree → Bool
   | .leaf _ => false
   | .pad t => treeMutation t
   | .node l r => (l.root == r.root) || treeMutation l || treeMutation r
@@ -282,7 +256,7 @@ private theorem treeMutation_ofList_succ :
 read off the tree the fold builds: `(computeMerkleRoot xs).2 = treeMutation
 (tree xs)`. The commute triangle between the flat computation and the structural
 reading — the mutation analogue of the spec's `computeRoot_eq_root`. -/
-theorem computeMerkleRoot_snd_eq_treeMutation : ∀ xs : List Hash256,
+private theorem computeMerkleRoot_snd_eq_treeMutation : ∀ xs : List Hash256,
     (computeMerkleRoot xs).2 = treeMutation (tree xs)
   | [] => by simp [computeMerkleRoot, tree, Nat.clog_zero_right, ofList, treeMutation]
   | [_] => by simp [computeMerkleRoot, tree, Nat.clog_one_right, ofList, treeMutation]
