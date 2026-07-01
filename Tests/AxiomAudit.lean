@@ -109,10 +109,9 @@ elab "#assert_axioms " id:ident : command => do
 
 /-! ## Bitcoin Core's ComputeMerkleRoot -/
 
-#assert_axioms BtcVerified.Merkle.BitcoinCore.computeMerkleRoot_fst
-#assert_axioms BtcVerified.Merkle.BitcoinCore.computeMerkleRoot_eq_mutation
-#assert_axioms BtcVerified.Merkle.BitcoinCore.canonical_of_not_mutated
-#assert_axioms BtcVerified.Merkle.BitcoinCore.eq_of_computeMerkleRoot_eq_of_not_mutated
+#assert_axioms BtcVerified.Impl.BitcoinCore.computeMerkleRoot_fst
+#assert_axioms BtcVerified.Impl.BitcoinCore.canonical_of_not_mutated
+#assert_axioms BtcVerified.Impl.BitcoinCore.eq_of_computeMerkleRoot_eq_of_not_mutated
 
 /-! ## BitVM -/
 

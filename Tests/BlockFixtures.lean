@@ -85,6 +85,10 @@ def block481824Checks (b : Block) : Bool :=
   -- transaction byte in the fixture is now pinned: txids → merkle root →
   -- header → proof-of-work hash.
   && decide b.merkleCommits
+  -- Bitcoin Core's own algorithm accepts the block: run on the real txid list,
+  -- its `mutated` flag is clear — the model agrees with Core, which accepted
+  -- block 481824 into the chain.
+  && !(Impl.BitcoinCore.computeMerkleRoot (b.txs.val.map Tx.txid)).2
 
 /-- Where a fixture block is cached locally, by display hash. Gitignored. -/
 def fixturePath (blockHash : String) : System.FilePath :=

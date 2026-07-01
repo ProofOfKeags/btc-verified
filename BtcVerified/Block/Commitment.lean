@@ -11,7 +11,7 @@ import BtcVerified.Crypto.Merkle
   demands canonicality of the list itself. Core computes the same root with a
   duplicate scan fused into the computation; passing that scan
   (`mutated = false`) implies this `Canonical` predicate
-  (`Merkle.BitcoinCore.canonical_of_not_mutated`), so Core's acceptance recovers
+  (`Impl.BitcoinCore.canonical_of_not_mutated`), so Core's acceptance recovers
   this commitment — Core's scan being strictly stronger off the
   transaction-valid domain.
 
