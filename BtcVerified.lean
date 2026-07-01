@@ -7,7 +7,6 @@ import BtcVerified.Crypto.Collision
 import BtcVerified.Crypto.Hash256
 import BtcVerified.Crypto.Sha256
 import BtcVerified.Crypto.Merkle
-import BtcVerified.Crypto.MerkleBitcoinCore
 import BtcVerified.Script.Script
 import BtcVerified.Transaction.OutPoint
 import BtcVerified.Transaction.TxIn
@@ -21,3 +20,4 @@ import BtcVerified.Block.BlockHeader
 import BtcVerified.Block.Block
 import BtcVerified.Block.Commitment
 import BtcVerified.BitVM.BitCommitment
+import BtcVerified.Impl.BitcoinCore.Merkle
