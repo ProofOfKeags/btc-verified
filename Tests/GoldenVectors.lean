@@ -348,13 +348,13 @@ def block170Hex : String :=
 
 -- Materializing the padding of a three-leaf list collides at the root
 -- (CVE-2012-2459); canonicality is what separates the two lists.
-#guard Merkle.computeRoot ([1, 2, 3] : List Hash256)
-  == Merkle.computeRoot ([1, 2, 3, 3] : List Hash256)
+#guard Merkle.root ([1, 2, 3] : List Hash256)
+  == Merkle.root ([1, 2, 3, 3] : List Hash256)
 #guard Merkle.canonicalCheck ([1, 2, 3] : List Hash256)
 #guard !Merkle.canonicalCheck ([1, 2, 3, 3] : List Hash256)
 -- A duplicated run of length two only surfaces one level up the tree.
-#guard Merkle.computeRoot ([1, 2, 3, 4, 5, 6] : List Hash256)
-  == Merkle.computeRoot ([1, 2, 3, 4, 5, 6, 5, 6] : List Hash256)
+#guard Merkle.root ([1, 2, 3, 4, 5, 6] : List Hash256)
+  == Merkle.root ([1, 2, 3, 4, 5, 6, 5, 6] : List Hash256)
 #guard !Merkle.canonicalCheck ([1, 2, 3, 4, 5, 6, 5, 6] : List Hash256)
 -- A pair-aligned duplicate in the middle is honest content: no shorter list
 -- shares its root, so it stays canonical (Core's uniform scan would reject
@@ -363,10 +363,10 @@ def block170Hex : String :=
 #guard Merkle.canonicalCheck ([1, 1, 2, 3] : List Hash256)
 
 -- Bitcoin Core's `ComputeMerkleRoot`, run on the same vectors. The root always
--- matches `computeRoot`, and the `mutated` flag fires on exactly the
+-- matches the spec root, and the `mutated` flag fires on exactly the
 -- materialized-padding lists — distinct leaves never trip it.
 #guard (Impl.BitcoinCore.computeMerkleRoot ([1, 2, 3] : List Hash256)).1
-  == Merkle.computeRoot ([1, 2, 3] : List Hash256)
+  == Merkle.root ([1, 2, 3] : List Hash256)
 #guard !(Impl.BitcoinCore.computeMerkleRoot ([1, 2, 3] : List Hash256)).2
 #guard (Impl.BitcoinCore.computeMerkleRoot ([1, 2, 3, 3] : List Hash256)).2
 #guard !(Impl.BitcoinCore.computeMerkleRoot ([1, 2, 3, 4, 5] : List Hash256)).2
