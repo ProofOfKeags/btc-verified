@@ -27,7 +27,7 @@ ids form a canonical list whose merkle root is the header's. With
 their txid lists — or exhibit a concrete double-SHA-256 collision. -/
 def Block.merkleCommits (b : Block) : Prop :=
   Merkle.Canonical (b.txs.val.map Tx.txid)
-    ∧ Merkle.computeRoot (b.txs.val.map Tx.txid) = b.header.merkleRoot
+    ∧ Merkle.root (b.txs.val.map Tx.txid) = b.header.merkleRoot
 
 instance : DecidablePred Block.merkleCommits := fun _ =>
   inferInstanceAs (Decidable (_ ∧ _))

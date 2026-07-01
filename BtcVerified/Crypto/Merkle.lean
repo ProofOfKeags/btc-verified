@@ -9,27 +9,22 @@ import Mathlib.Data.Nat.Log
   digests. Bitcoin pads an odd level by hashing its last node with itself —
   and that padding rule makes the construction famously non-injective
   (CVE-2012-2459): a list that materializes part of its own padding as actual
-  content produces the same root as the shorter list it extends. Core rejects
-  such blocks with a uniform per-level duplicate-pair scan fused into its root
-  computation (its `mutated` flag). Here the concern is factored apart: the
-  root computation is one deterministic cryptographic operation, and
-  *canonicality* is a first-class, decidable property of the leaf list.
+  content produces the same root as the shorter list it extends. So a consensus
+  rule must demand more than root equality; that extra requirement,
+  *canonicality*, is factored apart here as a first-class, decidable property of
+  the leaf list.
 
   The spec is structural rather than procedural: `Tree` is built top-down by
   bisection at the enclosing power of two, and procedural duplication is an
   explicit constructor (`pad`, semantically a node with two equal children)
-  instead of an artifact of iteration order. The bottom-up fold Bitcoin
-  actually computes (`computeRoot`) is proved equal to the spec.
+  instead of an artifact of iteration order.
 
   Canonicality constrains exactly what threatens injectivity and nothing
   more. Padding only ever duplicates trailing power-of-two-aligned blocks —
   the right spine — so a cross-length collision requires a trailing block
   duplicating its left sibling, and `Canonical` forbids precisely that
   (`Tree.spineCanonical`, root node exempt: a shorter list with the same
-  enclosing width must still split at the root). Core's uniform scan is
-  strictly stronger — it also rejects pair-aligned duplicates that no padding
-  could produce — but the two agree on transaction-valid blocks, where a
-  duplicated leaf means a duplicated txid: a self-double-spend or a collision.
+  enclosing width must still split at the root).
 
   Collision resistance is never assumed: theorems conclude with
   `Sha256.Collision` — two concrete colliding byte strings — as a
@@ -44,8 +39,6 @@ import Mathlib.Data.Nat.Log
 
   Checked claims:
 
-  * `computeRoot_eq_root`: the bottom-up fold computes the structural spec's
-    root.
   * `root_inj_of_length_eq`: between equal-length lists, the root identifies
     the list — or two concrete byte strings collide under double-SHA-256.
   * `root_inj_of_canonical`: between canonical lists of equal enclosing
@@ -120,125 +113,6 @@ def tree (xs : List Hash256) : Tree := ofList xs (Nat.clog 2 xs.length)
 
 /-- The merkle root of a leaf list (the structural spec). -/
 def root (xs : List Hash256) : Hash256 := (tree xs).root
-
-/-! ## The bottom-up computation -/
-
-/-- One level of Bitcoin's bottom-up fold: hash adjacent pairs, hashing an
-unpaired last node with itself. -/
-def foldLevel : List Hash256 → List Hash256
-  | [] => []
-  | [x] => [combine x x]
-  | x :: y :: rest => combine x y :: foldLevel rest
-
-/-- Each fold level halves the node count, rounding up. -/
-theorem foldLevel_length : ∀ xs : List Hash256, (foldLevel xs).length = (xs.length + 1) / 2
-  | [] => by simp [foldLevel]
-  | [_] => by simp [foldLevel]
-  | _ :: _ :: rest => by simp [foldLevel, foldLevel_length rest]; omega
-
-/-- The merkle root as Bitcoin computes it: fold levels bottom-up until one
-node remains. One deterministic cryptographic operation — canonicality of the
-input is `Canonical`'s concern, decided separately. (Core fuses a duplicate
-scan into this same pass under the name `mutated`; see the module header.) -/
-def computeRoot : List Hash256 → Hash256
-  | [] => 0
-  | [x] => x
-  | x :: y :: rest => computeRoot (foldLevel (x :: y :: rest))
-  termination_by xs => xs.length
-  decreasing_by simp [foldLevel_length]; omega
-
-/-- A fold level distributes over an append at an even boundary. -/
-theorem foldLevel_append : ∀ (as bs : List Hash256), as.length % 2 = 0 →
-    foldLevel (as ++ bs) = foldLevel as ++ foldLevel bs
-  | [], _, _ => rfl
-  | [_], _, h => by simp at h
-  | a :: a' :: rest, bs, h => by
-    have hrest : rest.length % 2 = 0 := by simp at h; omega
-    cases bs with
-    | nil => simp [foldLevel]
-    | cons b bs' =>
-      simp only [List.cons_append, foldLevel, foldLevel_append rest (b :: bs') hrest]
-
-/-- One spec level absorbs one fold level: the width-`2 ^ (k + 1)` tree over
-`xs` and the width-`2 ^ k` tree over `foldLevel xs` share a root. -/
-theorem ofList_root_foldLevel :
-    ∀ (k : Nat) (xs : List Hash256), 0 < xs.length → xs.length ≤ 2 ^ (k + 1) →
-      (ofList xs (k + 1)).root = (ofList (foldLevel xs) k).root := by
-  intro k
-  induction k with
-  | zero =>
-    intro xs h0 h2
-    rw [Nat.pow_succ, Nat.pow_zero, Nat.one_mul] at h2
-    cases xs with
-    | nil => simp at h0
-    | cons x xs' =>
-      cases xs' with
-      | nil => simp [ofList, foldLevel, Tree.root]
-      | cons y xs'' =>
-        have hnil : xs'' = [] := by
-          simp only [List.length_cons] at h2
-          exact List.eq_nil_of_length_eq_zero (by omega)
-        subst hnil
-        simp [ofList, foldLevel, Tree.root]
-  | succ k ih =>
-    intro xs h0 h2
-    have hpow : 2 ^ (k + 2) = 2 ^ (k + 1) + 2 ^ (k + 1) := Nat.two_pow_succ (k + 1)
-    have hpow' : 2 ^ (k + 1) = 2 ^ k + 2 ^ k := Nat.two_pow_succ k
-    by_cases hsplit : xs.length ≤ 2 ^ (k + 1)
-    · have hfold : (foldLevel xs).length ≤ 2 ^ k := by
-        rw [foldLevel_length]; omega
-      have hL : ofList xs (k + 1 + 1) = .pad (ofList xs (k + 1)) := by
-        rw [ofList, if_pos hsplit]
-      have hR : ofList (foldLevel xs) (k + 1) = .pad (ofList (foldLevel xs) k) := by
-        rw [ofList, if_pos hfold]
-      rw [hL, hR, Tree.root, Tree.root, ih xs h0 hsplit]
-    · have hsplit' : 2 ^ (k + 1) < xs.length := by omega
-      have htake : (xs.take (2 ^ (k + 1))).length = 2 ^ (k + 1) := by
-        rw [List.length_take]; omega
-      have hsplitFold : foldLevel xs = foldLevel (xs.take (2 ^ (k + 1)))
-          ++ foldLevel (xs.drop (2 ^ (k + 1))) := by
-        rw [← foldLevel_append _ _ (by omega), List.take_append_drop]
-      have hfoldTake : (foldLevel (xs.take (2 ^ (k + 1)))).length = 2 ^ k := by
-        rw [foldLevel_length, htake]; omega
-      have hfoldLen : ¬ (foldLevel xs).length ≤ 2 ^ k := by
-        rw [foldLevel_length]; omega
-      have hL : ofList xs (k + 1 + 1)
-          = .node (ofList (xs.take (2 ^ (k + 1))) (k + 1))
-              (ofList (xs.drop (2 ^ (k + 1))) (k + 1)) := by
-        rw [ofList, if_neg (by omega)]
-      have hR : ofList (foldLevel xs) (k + 1)
-          = .node (ofList ((foldLevel xs).take (2 ^ k)) k)
-              (ofList ((foldLevel xs).drop (2 ^ k)) k) := by
-        rw [ofList, if_neg hfoldLen]
-      have htakeF : (foldLevel xs).take (2 ^ k) = foldLevel (xs.take (2 ^ (k + 1))) := by
-        rw [hsplitFold, List.take_left' hfoldTake]
-      have hdropF : (foldLevel xs).drop (2 ^ k) = foldLevel (xs.drop (2 ^ (k + 1))) := by
-        rw [hsplitFold, List.drop_left' hfoldTake]
-      rw [hL, hR, Tree.root, Tree.root, htakeF, hdropF,
-        ih _ (by rw [List.length_take]; omega) (by omega),
-        ih _ (by rw [List.length_drop]; omega) (by rw [List.length_drop]; omega)]
-
-/-- The bottom-up fold computes the structural spec's root. -/
-theorem computeRoot_eq_root : ∀ xs : List Hash256, computeRoot xs = root xs
-  | [] => by simp [computeRoot, root, tree, Nat.clog_zero_right, ofList, Tree.root]
-  | [x] => by simp [computeRoot, root, tree, Nat.clog_one_right, ofList, Tree.root]
-  | x :: y :: rest => by
-    have hlen : 2 ≤ (x :: y :: rest).length := by simp
-    have hclog : Nat.clog 2 (x :: y :: rest).length
-        = Nat.clog 2 (((x :: y :: rest).length + 1) / 2) + 1 := by
-      rw [Nat.clog_of_two_le (by decide) hlen,
-        show (x :: y :: rest).length + 2 - 1 = (x :: y :: rest).length + 1 by omega]
-    have hfl : (foldLevel (x :: y :: rest)).length = ((x :: y :: rest).length + 1) / 2 :=
-      foldLevel_length _
-    have hrec : computeRoot (x :: y :: rest) = computeRoot (foldLevel (x :: y :: rest)) := by
-      conv_lhs => rw [computeRoot]
-    rw [hrec, computeRoot_eq_root (foldLevel (x :: y :: rest)), root, root, tree, tree,
-      hfl, hclog, ofList_root_foldLevel _ _ (by simp) (by
-        calc (x :: y :: rest).length ≤ 2 ^ Nat.clog 2 (x :: y :: rest).length :=
-              Nat.le_pow_clog (by decide) _
-          _ = 2 ^ (Nat.clog 2 (((x :: y :: rest).length + 1) / 2) + 1) := by rw [← hclog])]
-  termination_by xs => xs.length
-  decreasing_by simp [foldLevel_length]; omega
 
 /-! ## Canonicality -/
 
