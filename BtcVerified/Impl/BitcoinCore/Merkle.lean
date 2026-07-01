@@ -36,9 +36,9 @@ import BtcVerified.Crypto.Merkle
   `while` loop; Lean is functional. The correspondence is *up to the
   imperative-to-functional rendering* — the loop invariant "`hashes` holds the
   current level" becomes the recursion's list argument, and the sticky local
-  `bool mutation` becomes the accumulator threaded through `computeMerkleRootAux`.
-  One recursive call is one loop iteration; the `size > 1` guard is the
-  two-or-more-element pattern. Line by line:
+  `bool mutation` becomes the OR of each level's scan, folded up through the
+  recursion. One recursive call is one loop iteration; the `size > 1` guard is
+  the two-or-more-element pattern. Line by line:
 
   - `while (hashes.size() > 1)` — the `x :: y :: rest` arm; `[]`/`[x]` exit.
   - `for (pos=0; pos+1<size; pos+=2) if (h[pos]==h[pos+1])` — `levelMutation`
@@ -50,7 +50,8 @@ import BtcVerified.Crypto.Merkle
     Core uses, and rides only on the leaf byte order being `uint256::begin()`
     order — fixed in `Crypto/Hash256.lean`, with no reversal, as Core does none
     in the tree.
-  - sticky `bool mutation`, OR-ed across iterations — the accumulator argument.
+  - sticky `bool mutation`, OR-ed across iterations — `levelMutation xs || r.2`,
+    this level's scan OR-ed with the flag returned from the recursion.
   - `if (size == 0) return uint256()` — `[] => (0, ·)` (`0 : Hash256` is 32 zero
     bytes = `uint256()`); `return hashes[0]` — `[x] => (x, ·)`. Both cases are
     for totality: a consensus block always has a coinbase leaf, so neither the
@@ -108,23 +109,20 @@ def levelMutation : List Hash256 → Bool
   | [_] => false
   | x :: y :: rest => (x == y) || levelMutation rest
 
-/-- The `while (hashes.size() > 1)` loop of Core's `ComputeMerkleRoot`, carrying
-the running `mutated` accumulator (Core's `bool mutation`): each call is one
-iteration — scan the current level (`levelMutation`), OR it into the accumulator,
-then pad-and-combine the level (`foldLevel`) — and the `size > 1` guard is the
-two-or-more-element pattern. -/
-def computeMerkleRootAux : List Hash256 → Bool → Hash256 × Bool
-  | [], acc => (0, acc)
-  | [x], acc => (x, acc)
-  | x :: y :: rest, acc =>
-      computeMerkleRootAux (foldLevel (x :: y :: rest)) (acc || levelMutation (x :: y :: rest))
+/-- Bitcoin Core's `ComputeMerkleRoot(hashes, &mutated)` on the consensus path:
+at each level with two or more nodes (the `while (size > 1)` guard), scan the
+current level for an adjacent duplicate (`levelMutation`), pad-and-combine the
+level (`foldLevel`), recurse, and OR this level's scan into the flag folded up
+from the levels below — Core's sticky `bool mutation`. Returns the root paired
+with that flag. -/
+def computeMerkleRoot : List Hash256 → Hash256 × Bool
+  | [] => (0, false)
+  | [x] => (x, false)
+  | x :: y :: rest =>
+      let r := computeMerkleRoot (foldLevel (x :: y :: rest))
+      (r.1, levelMutation (x :: y :: rest) || r.2)
   termination_by xs => xs.length
   decreasing_by simp [foldLevel_length]; omega
-
-/-- Bitcoin Core's `ComputeMerkleRoot(hashes, &mutated)` on the consensus path:
-initialize `mutation = false` and run the loop. Returns the root paired with the
-accumulated `mutated` flag. -/
-def computeMerkleRoot (xs : List Hash256) : Hash256 × Bool := computeMerkleRootAux xs false
 
 /-! ## Internal bridge to the spec's canonicality
 
@@ -276,51 +274,28 @@ private theorem treeMutation_ofList_succ :
       rw [hL, hR, treeMutation, treeMutation, htakeF, hdropF, hLr, hRr, hLm, hRm, hlm]
       ac_rfl
 
-/-- The whole-tree flag peels one level over a list of length ≥ 2: the tree over
-`x :: y :: rest` mutates iff this level's scan fires or the tree over its
-`foldLevel` mutates. The tree-level analogue of `computeRoot`'s recursive step. -/
-private theorem treeMutation_tree_cons (x y : Hash256) (rest : List Hash256) :
-    treeMutation (tree (x :: y :: rest))
-      = (levelMutation (x :: y :: rest) || treeMutation (tree (foldLevel (x :: y :: rest)))) := by
-  have hlen : 2 ≤ (x :: y :: rest).length := by simp
-  have hclog : Nat.clog 2 (x :: y :: rest).length
-      = Nat.clog 2 (((x :: y :: rest).length + 1) / 2) + 1 := by
-    rw [Nat.clog_of_two_le (by decide) hlen,
-      show (x :: y :: rest).length + 2 - 1 = (x :: y :: rest).length + 1 by omega]
-  have hfl : (foldLevel (x :: y :: rest)).length = ((x :: y :: rest).length + 1) / 2 :=
-    foldLevel_length _
-  rw [tree, tree, hfl, hclog,
-    treeMutation_ofList_succ (Nat.clog 2 (((x :: y :: rest).length + 1) / 2)) (x :: y :: rest)
-      (by simp) (by
-        calc (x :: y :: rest).length ≤ 2 ^ Nat.clog 2 (x :: y :: rest).length :=
-              Nat.le_pow_clog (by decide) _
-          _ = 2 ^ (Nat.clog 2 (((x :: y :: rest).length + 1) / 2) + 1) := by rw [← hclog])]
-
-/-- The loop returns exactly the spec's `computeRoot` in its first component,
-whatever the incoming accumulator — the flag never affects the returned root. -/
-private theorem computeMerkleRootAux_fst : ∀ (xs : List Hash256) (acc : Bool),
-    (computeMerkleRootAux xs acc).1 = computeRoot xs
-  | [], _ => by simp [computeMerkleRootAux, computeRoot]
-  | [_], _ => by simp [computeMerkleRootAux, computeRoot]
-  | x :: y :: rest, acc => by
-    rw [computeMerkleRootAux,
-      computeMerkleRootAux_fst (foldLevel (x :: y :: rest)) (acc || levelMutation (x :: y :: rest))]
-    conv_rhs => rw [computeRoot]
-  termination_by xs => xs.length
-  decreasing_by simp [foldLevel_length]; omega
-
-/-- The loop's accumulated flag is the incoming accumulator OR the whole-tree
-flag of the tree it builds. Instantiated at `mut = false`, this is the mutation
-analogue of `computeRoot_eq_root`. -/
-private theorem computeMerkleRootAux_snd : ∀ (xs : List Hash256) (acc : Bool),
-    (computeMerkleRootAux xs acc).2 = (acc || treeMutation (tree xs))
-  | [], _ => by simp [computeMerkleRootAux, tree, Nat.clog_zero_right, ofList, treeMutation]
-  | [_], _ => by simp [computeMerkleRootAux, tree, Nat.clog_one_right, ofList, treeMutation]
-  | x :: y :: rest, acc => by
-    rw [computeMerkleRootAux,
-      computeMerkleRootAux_snd (foldLevel (x :: y :: rest)) (acc || levelMutation (x :: y :: rest)),
-      treeMutation_tree_cons x y rest]
-    ac_rfl
+/-- The fold's mutation flag is the whole-tree flag of the tree it builds. The
+mutation analogue of `computeRoot_eq_root`. -/
+private theorem computeMerkleRoot_snd_eq_treeMutation : ∀ xs : List Hash256,
+    (computeMerkleRoot xs).2 = treeMutation (tree xs)
+  | [] => by simp [computeMerkleRoot, tree, Nat.clog_zero_right, ofList, treeMutation]
+  | [_] => by simp [computeMerkleRoot, tree, Nat.clog_one_right, ofList, treeMutation]
+  | x :: y :: rest => by
+    have hlen : 2 ≤ (x :: y :: rest).length := by simp
+    have hclog : Nat.clog 2 (x :: y :: rest).length
+        = Nat.clog 2 (((x :: y :: rest).length + 1) / 2) + 1 := by
+      rw [Nat.clog_of_two_le (by decide) hlen,
+        show (x :: y :: rest).length + 2 - 1 = (x :: y :: rest).length + 1 by omega]
+    have hfl : (foldLevel (x :: y :: rest)).length = ((x :: y :: rest).length + 1) / 2 :=
+      foldLevel_length _
+    simp only [computeMerkleRoot]
+    rw [computeMerkleRoot_snd_eq_treeMutation (foldLevel (x :: y :: rest)),
+      tree, tree, hfl, hclog,
+      treeMutation_ofList_succ (Nat.clog 2 (((x :: y :: rest).length + 1) / 2)) (x :: y :: rest)
+        (by simp) (by
+          calc (x :: y :: rest).length ≤ 2 ^ Nat.clog 2 (x :: y :: rest).length :=
+                Nat.le_pow_clog (by decide) _
+            _ = 2 ^ (Nat.clog 2 (((x :: y :: rest).length + 1) / 2) + 1) := by rw [← hclog])]
   termination_by xs => xs.length
   decreasing_by simp [foldLevel_length]; omega
 
@@ -359,9 +334,16 @@ private theorem spineCanonical_ofList_of_treeMutation :
 
 /-- Bitcoin Core returns exactly the spec's `computeRoot` in its first component
 — unconditionally; the mutated flag does not affect the returned root. -/
-theorem computeMerkleRoot_fst (xs : List Hash256) :
-    (computeMerkleRoot xs).1 = computeRoot xs :=
-  computeMerkleRootAux_fst xs false
+theorem computeMerkleRoot_fst : ∀ xs : List Hash256,
+    (computeMerkleRoot xs).1 = computeRoot xs
+  | [] => by simp [computeMerkleRoot, computeRoot]
+  | [_] => by simp [computeMerkleRoot, computeRoot]
+  | x :: y :: rest => by
+    simp only [computeMerkleRoot]
+    rw [computeMerkleRoot_fst (foldLevel (x :: y :: rest))]
+    conv_rhs => rw [computeRoot]
+  termination_by xs => xs.length
+  decreasing_by simp [foldLevel_length]; omega
 
 /-- A leaf list Bitcoin Core accepts (no mutation) is `Canonical` —
 unconditionally, with no distinctness hypothesis and no collision caveat. The
@@ -370,10 +352,7 @@ mutates), so `Canonical` does not imply non-mutation. -/
 theorem canonical_of_not_mutated (xs : List Hash256)
     (hm : (computeMerkleRoot xs).2 = false) : Canonical xs := by
   have hmut : treeMutation (tree xs) = false := by
-    have h := computeMerkleRootAux_snd xs false
-    simp only [Bool.false_or] at h
-    simp only [computeMerkleRoot] at hm
-    exact h.symm.trans hm
+    rw [← computeMerkleRoot_snd_eq_treeMutation]; exact hm
   have hsc : (tree xs).spineCanonical = true :=
     spineCanonical_ofList_of_treeMutation (Nat.clog 2 xs.length) xs hmut
   unfold Canonical canonicalCheck
