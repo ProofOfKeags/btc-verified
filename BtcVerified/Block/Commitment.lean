@@ -8,12 +8,7 @@ import BtcVerified.Crypto.Merkle
   ids form a canonical list whose merkle root is the header's `merkleRoot`.
   Root equality alone is not enough — the padding ambiguity (CVE-2012-2459)
   lets a non-canonical list share a canonical list's root — so consensus
-  demands canonicality of the list itself. Core computes the same root with a
-  duplicate scan fused into the computation; passing that scan
-  (`mutated = false`) implies this `Canonical` predicate
-  (`Impl.BitcoinCore.canonical_of_not_mutated`), so Core's acceptance recovers
-  this commitment — Core's scan being strictly stronger off the
-  transaction-valid domain.
+  demands canonicality of the list itself.
 
   The SegWit witness commitment — the wtxid merkle root committed in the
   coinbase — is the next leaf, not this one.
