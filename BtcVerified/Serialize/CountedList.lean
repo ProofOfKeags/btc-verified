@@ -130,16 +130,11 @@ def encodeCountedList {α : Type} [Codec α] (cl : CountedList α) : List UInt8 
 /-- Decode a counted list: read the CompactSize count, decode that many elements,
 then attach the length bound. -/
 def decodeCountedList {α : Type} [Codec α] (bs : List UInt8) :
-    Option (CountedList α × List UInt8) :=
-  match CompactSize.decode bs with
-  | none => none
-  | some (count, rest) =>
-    match decodeElems count.toNat rest with
-    | none => none
-    | some (xs, rest') =>
-      match CountedList.ofList? xs with
-      | none => none
-      | some cl => some (cl, rest')
+    Option (CountedList α × List UInt8) := do
+  let (count, rest) ← CompactSize.decode bs
+  let (xs, rest') ← decodeElems count.toNat rest
+  let cl ← CountedList.ofList? xs
+  return (cl, rest')
 
 /-- Round-trip: a counted list encodes and decodes back to itself, tail
 preserved. -/
@@ -150,8 +145,8 @@ theorem decodeCountedList_encodeCountedList {α : Type} [Codec α]
   unfold encodeCountedList decodeCountedList
   rw [List.append_assoc]
   have hc : (UInt64.ofNat l.length).toNat = l.length := UInt64.toNat_ofNat_of_lt' hl
-  simp only [CompactSize.decode_encode, hc, decodeElems_encodeElems,
-    CountedList.ofList?_eq_some hl]
+  simp only [Option.bind_eq_bind, CompactSize.decode_encode, Option.bind_some, hc,
+    decodeElems_encodeElems, CountedList.ofList?_eq_some hl, Option.pure_def]
 
 /-- Canonicality: an accepted parse consumed exactly the canonical count prefix
 followed by the canonical element encodings. -/
@@ -160,29 +155,17 @@ theorem decodeCountedList_canonical {α : Type} [Codec α]
     (h : decodeCountedList bs = some (cl, rest)) :
     bs = encodeCountedList cl ++ rest := by
   unfold decodeCountedList at h
-  cases hcs : CompactSize.decode bs with
-  | none => simp [hcs] at h
-  | some p =>
-    obtain ⟨count, rest0⟩ := p
-    simp only [hcs] at h
-    cases hln : decodeElems (α := α) count.toNat rest0 with
-    | none => simp [hln] at h
-    | some q =>
-      obtain ⟨xs, rest'⟩ := q
-      simp only [hln] at h
-      cases hof : CountedList.ofList? xs with
-      | none => simp [hof] at h
-      | some cl' =>
-        simp only [hof, Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, rfl⟩ := h
-        have hcv : cl'.val = xs := CountedList.val_of_ofList? hof
-        have ecs := CompactSize.decode_canonical bs count rest0 hcs
-        have eel := decodeElems_canonical count.toNat rest0 xs rest' hln
-        have hlen : xs.length = count.toNat := decodeElems_length count.toNat rest0 xs rest' hln
-        have hcnt : count = UInt64.ofNat xs.length := by
-          rw [hlen, UInt64.ofNat_toNat]
-        unfold encodeCountedList
-        rw [hcv, ecs, eel, hcnt, List.append_assoc]
+  simp only [Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+    Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨⟨count, rest0⟩, hcs, ⟨xs, rest'⟩, hln, cl', hof, rfl, rfl⟩ := h
+  have hcv : cl'.val = xs := CountedList.val_of_ofList? hof
+  have ecs := CompactSize.decode_canonical bs count rest0 hcs
+  have eel := decodeElems_canonical count.toNat rest0 xs rest' hln
+  have hlen : xs.length = count.toNat := decodeElems_length count.toNat rest0 xs rest' hln
+  have hcnt : count = UInt64.ofNat xs.length := by
+    rw [hlen, UInt64.ofNat_toNat]
+  unfold encodeCountedList
+  rw [hcv, ecs, eel, hcnt, List.append_assoc]
 
 /-- The codec for a CompactSize-prefixed list: a count prefix followed by the
 elements. Both laws come from the count codec (`CompactSize`) and the element
