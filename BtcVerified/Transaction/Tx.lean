@@ -204,10 +204,8 @@ def decodeLegacy (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8
 def decodeTx (bs : List UInt8) : Option (Tx × List UInt8) := do
   let (version, rest1) ← Codec.decode (α := UInt32) bs
   match rest1 with
-  | 0x00 :: rest2 =>
-    match rest2 with
-    | 0x01 :: rest3 => decodeSegwit version rest3
-    | _ => none
+  | 0x00 :: 0x01 :: rest3 => decodeSegwit version rest3
+  | 0x00 :: _ => none
   | _ => decodeLegacy version rest1
 
 /-! ## Round-trip -/
@@ -246,9 +244,7 @@ theorem decodeTx_legacy_eq (version : UInt32) (inputs : CountedList TxIn)
   unfold decodeTx
   rw [hbt]
   simp only [List.cons_append, Option.bind_eq_bind, Codec.decode_encode, Option.bind_some]
-  split
-  · next rest2 heq => rw [List.cons.injEq] at heq; exact absurd heq.1 hb
-  · rfl
+  split <;> simp_all
 
 /-- Round-trip: every transaction encodes and decodes back to itself, tail
 preserved. -/
@@ -336,14 +332,12 @@ theorem decodeTx_canonical (bs : List UInt8) (tx : Tx) (rest : List UInt8)
   dsimp only at h
   have ev := Codec.decode_canonical bs version rest1 hv
   split at h
-  · rename_i rest2
-    split at h
-    · rename_i rest3
-      obtain ⟨ins, outs, lockTime, rfl, hbody⟩ :=
-        decodeSegwit_canonical version rest3 tx rest h
-      rw [ev, hbody]
-      simp only [encodeTx, List.append_assoc, List.cons_append]
-    · simp at h
+  · rename_i rest3
+    obtain ⟨ins, outs, lockTime, rfl, hbody⟩ :=
+      decodeSegwit_canonical version rest3 tx rest h
+    rw [ev, hbody]
+    simp only [encodeTx, List.append_assoc, List.cons_append]
+  · simp at h
   · obtain ⟨inputs, outputs, lockTime, hne, rfl, hbody⟩ :=
       decodeLegacy_canonical version rest1 tx rest h
     rw [ev, hbody]
