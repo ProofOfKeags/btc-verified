@@ -277,6 +277,44 @@ def block170Hex : String :=
         && some (Codec.encode payment) == hexBytes? firstBitcoinPaymentHex
       | _ => false)
 
+/-! ## The blockchain: genesis → block 1 linkage
+
+  Block 1 (2009-01-09), hash
+  `00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048`: the
+  first block mined after genesis, extending it directly. Only its 80
+  header bytes appear — the chain layer is about headers — decoded by the
+  verified header codec and authenticated end to end by hashing to the
+  well-known block 1 hash, so no single byte of the vector can be wrong
+  without the guard failing.
+-/
+
+/-- Raw wire bytes of block 1's header, fetched from blockstream.info. -/
+def block1HeaderHex : String :=
+  "010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d61900\
+   00000000128063777e9fa444bbbe680e1fee14677ba1a3c3540bf7b1cdb606e8\
+   57233e0e61bc6649ffff001d01e36299"
+
+#guard match hexBytes? block1HeaderHex >>= Codec.decode (α := BlockHeader),
+    hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
+  | some (b1, rest), some (g, _) =>
+    rest == []
+    -- The decoded header re-encodes byte-for-byte and hashes to the
+    -- well-known block 1 hash — authenticating all 80 bytes at once.
+    && some (Codec.encode b1) == hexBytes? block1HeaderHex
+    && b1.hash
+      == hashOfDisplay "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048"
+    -- The genesis header hashes to the well-known genesis block hash.
+    && g.header.hash
+      == hashOfDisplay "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+    -- Block 1 directly extends the genesis header: the chain's first link,
+    -- checked by the decidable linkage relation.
+    && decide (b1.Extends g.header)
+    -- The two headers are a chain from the zero anchor (the genesis
+    -- header's own prevBlockHash) up to block 1's hash — the Chain 0
+    -- instantiation on real mainnet data, via the decidable list predicate.
+    && decide (IsChain 0 b1.hash [b1, g.header])
+  | _, _ => false
+
 /-! ## CompactSize boundary values -/
 
 #guard CompactSize.encode 0 == [0x00]
