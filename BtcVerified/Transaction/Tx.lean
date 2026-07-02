@@ -110,7 +110,7 @@ theorem zipInputs_segwit (ins : CountedList SegwitInput) :
     zipInputs (segwitInputs ins) (segwitWitnesses ins) = ins := by
   apply Subtype.ext
   simp only [zipInputs, segwitInputs, segwitWitnesses]
-  exact List.zipWith_map_proj (fun _ => rfl) ins.val
+  exact List.zipWith_map_map_left_right (fun _ => rfl) ins.val
 
 /-- The unbundled inputs of a rebundling are the inputs we started from. -/
 theorem segwitInputs_zipInputs (txins : CountedList TxIn) (wits : List WitnessStack)
