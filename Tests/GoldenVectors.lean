@@ -277,6 +277,40 @@ def block170Hex : String :=
         && some (Codec.encode payment) == hexBytes? firstBitcoinPaymentHex
       | _ => false)
 
+/-! ## The blockchain: genesis → block 1 linkage
+
+  Block 1 (2009-01-09), hash
+  `00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048`: the
+  first block mined after genesis, extending it directly. Built from its
+  known display-order fields — the way a block explorer presents them —
+  rather than raw wire bytes, since only the linkage relation, not the
+  codec, is under test here.
+-/
+
+/-- Block 1's header. -/
+def block1Header : BlockHeader where
+  version := 1
+  prevBlockHash :=
+    hashOfDisplay "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+  merkleRoot :=
+    hashOfDisplay "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a49f7e77638012"
+  time := 1231469665
+  bits := 0x1d00ffff
+  nonce := 2573394689
+
+#guard match hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
+  | some (b, _) =>
+    -- The genesis header hashes to the well-known genesis block hash.
+    b.header.hash
+      == hashOfDisplay "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+    -- Block 1 directly extends the genesis header — the chain's first real
+    -- link, checked by the decidable linkage relation.
+    && decide (block1Header.Extends b.header)
+    -- Block 1's own hash matches the well-known block 1 hash.
+    && block1Header.hash
+      == hashOfDisplay "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048"
+  | none => false
+
 /-! ## CompactSize boundary values -/
 
 #guard CompactSize.encode 0 == [0x00]
