@@ -128,7 +128,7 @@ def segwitCoinbaseHex : String :=
   tx.isSegWit
   && tx.body.lockTime == 0
   && (match tx with
-      | .segwit version ins outs _ =>
+      | .segwit version ins outs _ _ =>
         version == 1 && outs.val.length == 2
         && (match ins.val with
             | [si] =>
@@ -165,7 +165,7 @@ def firstSegwitSpendHex : String :=
   && tx.body.lockTime == 0
   && tx.body.outputs.val.length == 1
   && (match tx with
-      | .segwit _ ins _ _ =>
+      | .segwit _ ins _ _ _ =>
         (match ins.val with
          | [si] =>
            si.input.prevout.txid
@@ -177,6 +177,31 @@ def firstSegwitSpendHex : String :=
                | _ => false)
          | _ => false)
       | .legacy .. => false)
+
+/-! ## BIP144 superfluous-witness regression
+
+  BIP144's serialization section requires the old transaction serialization
+  when the witness is empty. Bitcoin Core enforces the same rule by rejecting a
+  marker/flag transaction whose witness stacks are all empty with
+  "Superfluous witness record".
+
+  This synthetic vector is otherwise a parseable marker/flag transaction with
+  one input, one output, and the single per-input witness field encoded as
+  `0x00` (an empty stack). The transaction decoder must reject it instead of
+  returning a `.segwit` value.
+-/
+
+/-- A BIP144 marker/flag transaction with no actual witness data. -/
+def superfluousWitnessHex : String :=
+  "0100000000010100000000000000000000000000000000000000000000000000\
+   00000000000000ffffffff00ffffffff010000000000000000000000000000"
+
+#guard match hexBytes? superfluousWitnessHex with
+  | none => false
+  | some bytes =>
+    match Codec.decode (α := Tx) bytes with
+    | none => true
+    | some _ => false
 
 /-! ## Blocks -/
 
