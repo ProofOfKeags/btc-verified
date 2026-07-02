@@ -53,4 +53,29 @@ def Script.equivCode : Script ≃ CountedList UInt8 where
 instance instCodecScript : Codec Script :=
   Codec.ofEquiv Script.equivCode inferInstance
 
+/-- A short script (program length below 253) encodes to a one-byte length prefix
+plus its program bytes. -/
+theorem encode_script_length_lt_253 {s : Script} (h : s.code.val.length < 253) :
+    (Codec.encode s).length = 1 + s.code.val.length := by
+  change (encodeCountedList s.code).length = 1 + s.code.val.length
+  unfold encodeCountedList
+  rw [List.length_append, encodeElems_uint8_length, CompactSize.encode_length_ofNat_lt_253 h]
+
+/-- The general script length: a CompactSize length prefix plus the program bytes
+(no size assumption). -/
+theorem encode_script_length_eq (s : Script) :
+    (Codec.encode s).length
+      = (CompactSize.encode (UInt64.ofNat s.code.val.length)).length + s.code.val.length := by
+  change (encodeCountedList s.code).length = _
+  unfold encodeCountedList
+  rw [List.length_append, encodeElems_uint8_length]
+
+/-- The byte layout of a script: its CompactSize length prefix then its bytes. -/
+theorem encode_script_eq (s : Script) :
+    Codec.encode s
+      = CompactSize.encode (UInt64.ofNat s.code.val.length) ++ s.code.val := by
+  change encodeCountedList s.code = _
+  unfold encodeCountedList
+  rw [encodeElems_uint8_eq]
+
 end BtcVerified

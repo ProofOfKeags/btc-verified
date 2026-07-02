@@ -105,6 +105,17 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Merkle.root_inj_of_length_eq
 #assert_axioms BtcVerified.Merkle.root_inj_of_canonical
 #assert_axioms BtcVerified.Block.merkleCommits
+#assert_axioms BtcVerified.Merkle.decodesAs64ByteTx_iff
+#assert_axioms BtcVerified.Merkle.combine_preimage_length
+#assert_axioms BtcVerified.Merkle.encode_length_of_isMinimal64
+#assert_axioms BtcVerified.Merkle.isMinimal64_of_encode_length
+#assert_axioms BtcVerified.Merkle.isMinimal64_iff_encode_length
+#assert_axioms BtcVerified.Merkle.isForbiddenPreimage_iff
+#assert_axioms BtcVerified.Merkle.isForbiddenPreimage_iff_encode_valid
+#assert_axioms BtcVerified.Merkle.forbiddenPreimageBytes_of_isForbidden
+#assert_axioms BtcVerified.Merkle.isForbidden_of_forbiddenPreimageBytes
+#assert_axioms BtcVerified.Merkle.forbiddenPreimageBytes_iff
+#assert_axioms BtcVerified.Merkle.forbiddenPreimageBytesMR_iff
 
 /-! ## Bitcoin Core's ComputeMerkleRoot -/
 

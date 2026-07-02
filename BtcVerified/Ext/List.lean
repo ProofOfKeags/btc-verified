@@ -49,4 +49,22 @@ theorem map_zipWith_right {mk : α → β → γ} {g : γ → β} (hg : ∀ a b,
     | nil => simp at hlen
     | cons y bs => simp only [zipWith_cons_cons, map_cons, hg, ih bs (by simpa using hlen)]
 
+/-! ## Indexing and slicing helpers -/
+
+/-- The element at the boundary of an explicit `prefix ++ marker :: rest` layout. -/
+theorem getElem?_append_cons {A C : List α} {k : Nat} {b : α}
+    (hk : A.length = k) : (A ++ b :: C)[k]? = some b := by
+  subst hk
+  rw [getElem?_append_right (Nat.le_refl _), Nat.sub_self, getElem?_cons_zero]
+
+/-- One element off the front of a `drop`. -/
+theorem drop_take_one {l : List α} {k : Nat} (hk : k < l.length) :
+    (l.drop k).take 1 = [l[k]] := by
+  rw [take_one, head?_drop, getElem?_eq_getElem hk]; rfl
+
+/-- Merge two adjacent `take` slices. -/
+theorem take_merge {l : List α} {a b c : Nat} (hc : a + b = c) :
+    l.take a ++ (l.drop a).take b = l.take c := by
+  rw [← take_add, hc]
+
 end List

@@ -286,4 +286,42 @@ instance instCodecUInt64 : Codec UInt64 :=
 /-- The 256-bit hash type is exactly 32 little-endian bytes. -/
 instance instCodecBitVec256 : Codec (BitVec 256) := bitVecCodecLE 32
 
+/-! ## Encode lengths and surjectivity for the fixed-width integer codecs -/
+
+/-- A `UInt8` encodes to one byte. -/
+theorem encode_uint8_length (b : UInt8) : (Codec.encode b).length = 1 :=
+  encodeBitVecLE_length 1 b.toBitVec
+
+/-- A `UInt32` encodes to four bytes. -/
+theorem encode_uint32_length (n : UInt32) : (Codec.encode n).length = 4 :=
+  encodeBitVecLE_length 4 n.toBitVec
+
+/-- A `UInt64` encodes to eight bytes. -/
+theorem encode_uint64_length (n : UInt64) : (Codec.encode n).length = 8 :=
+  encodeBitVecLE_length 8 n.toBitVec
+
+/-- A single byte encodes to itself. -/
+theorem encode_uint8_eq (b : UInt8) : Codec.encode b = [b] := by
+  change encodeBitVecLE 1 b.toBitVec = [b]
+  simp [encodeBitVecLE]
+
+/-- Every fixed-width little-endian field is in the image of its encoder: a byte
+string of the right length is some `BitVec`'s encoding. -/
+theorem exists_encodeBitVecLE {n : Nat} {L : List UInt8} (h : L.length = n) :
+    ∃ bv : BitVec (8 * n), encodeBitVecLE n bv = L := by
+  obtain ⟨bv, hbv⟩ := decodeBitVecLE_of_le_length n L (by omega)
+  have hdrop : L.drop n = [] := by rw [← h]; exact List.drop_length
+  rw [hdrop] at hbv
+  exact ⟨bv, by simpa using (decodeBitVecLE_canonical n L bv [] hbv).symm⟩
+
+/-- Every 4-byte string is some `UInt32`'s encoding. -/
+theorem exists_encode_uint32 {L : List UInt8} (h : L.length = 4) :
+    ∃ v : UInt32, Codec.encode v = L := by
+  obtain ⟨bv, hbv⟩ := exists_encodeBitVecLE (n := 4) h; exact ⟨UInt32.ofBitVec bv, hbv⟩
+
+/-- Every 8-byte string is some `UInt64`'s encoding. -/
+theorem exists_encode_uint64 {L : List UInt8} (h : L.length = 8) :
+    ∃ v : UInt64, Codec.encode v = L := by
+  obtain ⟨bv, hbv⟩ := exists_encodeBitVecLE (n := 8) h; exact ⟨UInt64.ofBitVec bv, hbv⟩
+
 end BtcVerified.Serialize
