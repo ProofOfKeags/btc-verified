@@ -54,7 +54,8 @@ any value below `minValue` (the shortest-form minimum for this marker). -/
 def decodeFixedWidth (byteWidth minValue : Nat) (bs : List UInt8) :
     Option (UInt64 × List UInt8) := do
   let (w, rest) ← decodeBitVecLE byteWidth bs
-  if w.toNat < minValue then none else return (⟨w.setWidth 64⟩, rest)
+  guard (minValue ≤ w.toNat)
+  return (⟨w.setWidth 64⟩, rest)
 
 /-- Encoding a value that lies in this form's range
 (`minValue ≤ n < 2 ^ (8 * byteWidth)`) as its fixed-width payload and then
@@ -67,7 +68,8 @@ theorem decodeFixedWidth_encodeFixedWidth (byteWidth minValue : Nat) (n : UInt64
     rw [BitVec.toNat_setWidth]; exact Nat.mod_eq_of_lt hhi
   simp only [encodeFixedWidth, decodeFixedWidth, decodeBitVecLE_encodeBitVecLE,
     Option.bind_eq_bind, Option.bind_some, hw]
-  rw [if_neg (by omega : ¬ n.toNat < minValue)]
+  unfold guard
+  rw [if_pos hlo]
   simp [setWidth_setWidth_eq_self hhi, UInt64.ofBitVec_toBitVec]
 
 /-- If the fixed-width decoder accepts `bs` as `n` with tail `rest`, then `n`
@@ -81,10 +83,11 @@ theorem decodeFixedWidth_canonical (byteWidth minValue : Nat) (hbw : 8 * byteWid
   intro parses
   unfold decodeFixedWidth at parses
   simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at parses
-  obtain ⟨⟨w, rest'⟩, hd, parses⟩ := parses
-  by_cases hw : w.toNat < minValue
-  · simp [hw] at parses
-  · rw [if_neg hw] at parses
+  obtain ⟨⟨w, rest'⟩, hd, _, hg, parses⟩ := parses
+  dsimp only at hg parses
+  unfold guard at hg
+  by_cases hw : minValue ≤ w.toNat
+  · rw [if_pos hw] at hg
     simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at parses
     obtain ⟨rfl, rfl⟩ := parses
     have hwlt : w.toNat < 2 ^ (8 * byteWidth) := w.isLt
@@ -92,7 +95,7 @@ theorem decodeFixedWidth_canonical (byteWidth minValue : Nat) (hbw : 8 * byteWid
     have hval : (⟨w.setWidth 64⟩ : UInt64).toNat = w.toNat := by
       rw [UInt64.toNat_ofBitVec, BitVec.toNat_setWidth]; exact Nat.mod_eq_of_lt hw64
     refine ⟨?_, ?_, ?_⟩
-    · rw [hval]; omega
+    · rw [hval]; exact hw
     · rw [hval]; exact hwlt
     · have hbs := decodeBitVecLE_canonical byteWidth bs w rest' hd
       have hb : encodeFixedWidth byteWidth (⟨w.setWidth 64⟩ : UInt64)
@@ -100,6 +103,8 @@ theorem decodeFixedWidth_canonical (byteWidth minValue : Nat) (hbw : 8 * byteWid
         unfold encodeFixedWidth
         rw [UInt64.toBitVec_ofBitVec, setWidth_setWidth_eq_self hw64]
       rw [hbs, hb]
+  · rw [if_neg hw] at hg
+    simp at hg
 
 /-- Canonically encodes a `UInt64` as Bitcoin CompactSize bytes.
 
