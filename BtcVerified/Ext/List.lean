@@ -17,7 +17,7 @@ variable {α β γ : Type*}
 
 /-- Recombine a list's two projections with their constructor to recover the
 list, when the constructor and projections round-trip. -/
-theorem zipWith_map_proj {f : γ → α} {g : γ → β} {mk : α → β → γ}
+theorem zipWith_map_map_left_right {f : γ → α} {g : γ → β} {mk : α → β → γ}
     (h : ∀ c, mk (f c) (g c) = c) (l : List γ) :
     zipWith mk (l.map f) (l.map g) = l := by
   rw [zipWith_map, zipWith_self]
