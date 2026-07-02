@@ -99,6 +99,10 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Tx.wtxid_faithful
 #assert_axioms BtcVerified.Tx.wtxid_legacy
 
+/-! ## Block hashes -/
+
+#assert_axioms BtcVerified.BlockHeader.hash_faithful
+
 /-! ## The merkle tree -/
 
 #assert_axioms BtcVerified.Merkle.combine_inj

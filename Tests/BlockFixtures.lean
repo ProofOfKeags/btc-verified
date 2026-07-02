@@ -47,10 +47,10 @@ the fixture's own spot-checks. -/
 def blockFixtureChecksOut (displayHash : String) (bytes : List UInt8)
     (spot : Block → Bool) : Bool :=
   match hexBytes? displayHash, Codec.decode (α := Block) bytes with
-  | some hashBytes, some (b, rest) =>
+  | some _, some (b, rest) =>
     rest == []
     && Codec.encode b == bytes
-    && Sha256.sha256d (Codec.encode b.header) == hashBytes.reverse
+    && b.header.hash == hashOfDisplay displayHash
     && spot b
   | _, _ => false
 
