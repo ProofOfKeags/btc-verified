@@ -73,13 +73,10 @@ def encodeElems {α : Type} [Codec α] : List α → List UInt8
 /-- Decode exactly `n` consecutive values, threading the unconsumed tail. -/
 def decodeElems {α : Type} [Codec α] : Nat → List UInt8 → Option (List α × List UInt8)
   | 0, bs => some ([], bs)
-  | n + 1, bs =>
-    match Codec.decode (α := α) bs with
-    | none => none
-    | some (x, rest) =>
-      match decodeElems n rest with
-      | none => none
-      | some (xs, rest') => some (x :: xs, rest')
+  | n + 1, bs => do
+    let (x, rest) ← Codec.decode (α := α) bs
+    let (xs, rest') ← decodeElems n rest
+    return (x :: xs, rest')
 
 /-- Decoding exactly `n` elements yields exactly `n` of them. -/
 theorem decodeElems_length {α : Type} [Codec α] (n : Nat) (bs : List UInt8)
@@ -90,21 +87,11 @@ theorem decodeElems_length {α : Type} [Codec α] (n : Nat) (bs : List UInt8)
     simp only [decodeElems, Option.some.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, _⟩ := h; rfl
   | succ n ih =>
-    simp only [decodeElems] at h
-    cases hd : Codec.decode (α := α) bs with
-    | none => simp [hd] at h
-    | some xr =>
-      obtain ⟨x, r1⟩ := xr
-      simp only [hd] at h
-      cases hd2 : decodeElems (α := α) n r1 with
-      | none => simp [hd2] at h
-      | some xsr =>
-        obtain ⟨xs', r2⟩ := xsr
-        simp only [hd2] at h
-        simp only [Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, rfl⟩ := h
-        simp only [List.length_cons]
-        rw [ih r1 xs' r2 hd2]
+    simp only [decodeElems, Option.bind_eq_bind, Option.pure_def,
+      Option.bind_eq_some_iff, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨⟨x, r1⟩, hd, ⟨xs', r2⟩, hd2, rfl, rfl⟩ := h
+    simp only [List.length_cons]
+    rw [ih r1 xs' r2 hd2]
 
 /-- Round-trip for the element sequence: encoding a list and decoding exactly its
 length returns it, tail preserved. -/
@@ -113,8 +100,8 @@ theorem decodeElems_encodeElems {α : Type} [Codec α] (xs : List α) (rest : Li
   induction xs generalizing rest with
   | nil => rfl
   | cons x xs ih =>
-    simp only [encodeElems, List.append_assoc, decodeElems,
-      Codec.decode_encode, ih]
+    simp only [encodeElems, List.append_assoc, decodeElems, Option.bind_eq_bind,
+      Codec.decode_encode, Option.bind_some, ih, Option.pure_def]
 
 /-- Canonicality for the element sequence: an accepted parse of `n` elements
 consumed exactly their canonical encodings. -/
@@ -126,22 +113,12 @@ theorem decodeElems_canonical {α : Type} [Codec α] (n : Nat) (bs : List UInt8)
     simp only [decodeElems, Option.some.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h; rfl
   | succ n ih =>
-    simp only [decodeElems] at h
-    cases hd : Codec.decode (α := α) bs with
-    | none => simp [hd] at h
-    | some xr =>
-      obtain ⟨x, r1⟩ := xr
-      simp only [hd] at h
-      cases hd2 : decodeElems (α := α) n r1 with
-      | none => simp [hd2] at h
-      | some xsr =>
-        obtain ⟨xs', r2⟩ := xsr
-        simp only [hd2] at h
-        simp only [Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, rfl⟩ := h
-        have e1 := Codec.decode_canonical bs x r1 hd
-        have e2 := ih r1 xs' r2 hd2
-        rw [e1, e2, encodeElems, List.append_assoc]
+    simp only [decodeElems, Option.bind_eq_bind, Option.pure_def,
+      Option.bind_eq_some_iff, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨⟨x, r1⟩, hd, ⟨xs', r2⟩, hd2, rfl, rfl⟩ := h
+    have e1 := Codec.decode_canonical bs x r1 hd
+    have e2 := ih r1 xs' r2 hd2
+    rw [e1, e2, encodeElems, List.append_assoc]
 
 /-! ## The counted-list codec -/
 
