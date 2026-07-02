@@ -65,10 +65,17 @@ jobs:
           lint: false
           use-mathlib-cache: true
 
+      # Model is scoped to the triggering actor: the maintainer's runs get
+      # Fable 5, anyone else authorized (future collaborators, allowlisted
+      # bots) falls back to Sonnet 5 so they can't draw down Fable usage.
+      # Actors without write access are refused by the action itself before
+      # any model is invoked.
       - uses: anthropics/claude-code-action@v1
         id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --model ${{ github.actor == 'ProofOfKeags' && 'claude-fable-5' || 'claude-sonnet-5' }}
 
       # Open the PR that issue-driven Claude runs stop short of creating.
       # claude-code-action deliberately never runs `gh pr create` itself; it
