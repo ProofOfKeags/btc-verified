@@ -132,13 +132,10 @@ def encodeBitVecLE : (n : Nat) → BitVec (8 * n) → List UInt8
 /-- Decode `n` little-endian bytes into a `BitVec (8 * n)`. -/
 def decodeBitVecLE : (n : Nat) → List UInt8 → Option (BitVec (8 * n) × List UInt8)
   | 0, bs => some (0#0, bs)
-  | n + 1, bs =>
-    match decodeByte bs with
-    | none => none
-    | some (b, bs') =>
-      match decodeBitVecLE n bs' with
-      | none => none
-      | some (hi, rest) => some (hi ++ b.toBitVec, rest)
+  | n + 1, bs => do
+    let (b, bs') ← decodeByte bs
+    let (hi, rest) ← decodeBitVecLE n bs'
+    return (hi ++ b.toBitVec, rest)
 
 /-- The low byte of `high ++ low` is `low`. -/
 private theorem setWidth_append_low {n : Nat} (hi : BitVec (8 * n)) (lo : BitVec 8) :
@@ -188,7 +185,8 @@ theorem decodeBitVecLE_encodeBitVecLE :
     rfl
   | succ n ih =>
     intro v rest
-    simp only [encodeBitVecLE, List.cons_append, decodeBitVecLE, decodeByte, ih]
+    simp only [encodeBitVecLE, List.cons_append, decodeBitVecLE, decodeByte,
+      Option.bind_eq_bind, Option.bind_some, ih, Option.pure_def]
     rw [append_split v]
 
 /-- If the little-endian decoder accepts `bs` as the value `v` with tail `rest`,
@@ -207,18 +205,13 @@ theorem decodeBitVecLE_canonical :
     cases bs with
     | nil => simp [decodeBitVecLE, decodeByte] at h
     | cons b bs' =>
-      simp only [decodeBitVecLE, decodeByte] at h
-      cases hd : decodeBitVecLE n bs' with
-      | none => rw [hd] at h; simp at h
-      | some hr =>
-        obtain ⟨hi, r⟩ := hr
-        rw [hd] at h
-        simp only [Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨hv, hr'⟩ := h
-        have ihbs := ih bs' hi r hd
-        subst hr'; subst hv
-        simp only [encodeBitVecLE, List.cons_append, setWidth_append_low,
-          setWidth_ushiftRight_append, UInt8.ofBitVec_toBitVec, ihbs]
+      simp only [decodeBitVecLE, decodeByte, Option.bind_eq_bind, Option.bind_some,
+        Option.pure_def, Option.bind_eq_some_iff, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨⟨hi, r⟩, hd, hv, hr'⟩ := h
+      have ihbs := ih bs' hi r hd
+      subst hr'; subst hv
+      simp only [encodeBitVecLE, List.cons_append, setWidth_append_low,
+        setWidth_ushiftRight_append, UInt8.ofBitVec_toBitVec, ihbs]
 
 /-- The little-endian decoder succeeds on any input of at least `n` bytes,
 consuming exactly `n` and leaving the rest as the tail. -/
