@@ -25,3 +25,16 @@ jobs:
           build: true
           test: true
           lint: true
+
+  nix-develop:
+    name: nix develop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Check flake
+        run: nix flake check
+      - name: Fetch mathlib cache through dev shell
+        run: nix develop -c lake exe cache get
+      - name: Build through dev shell
+        run: nix develop -c lake build

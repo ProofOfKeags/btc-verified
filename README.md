@@ -330,6 +330,12 @@ The point is to make a public, checked trail toward those larger artifacts.
 
 ## Build
 
+With Nix, enter the development shell first:
+
+```
+nix develop
+```
+
 ```
 lake exe cache get   # fetch the mathlib cache (first build only)
 lake build           # the library, plus the golden vectors and axiom audit

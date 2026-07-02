@@ -23,6 +23,14 @@ they prove.
 
 ## Workflow
 
+With Nix installed, enter the development shell first:
+
+```sh
+nix develop
+```
+
+Then run the normal Lean workflow:
+
 ```sh
 lake exe cache get   # once, after cloning or bumping mathlib
 lake build           # builds the library and the tests
