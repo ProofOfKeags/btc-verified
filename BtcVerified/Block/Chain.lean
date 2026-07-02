@@ -59,6 +59,11 @@ import BtcVerified.Block.BlockHash
 
 namespace BtcVerified
 
+/- Nothing in this file computes a digest at elaboration time: `seal` keeps
+`whnf` from unfolding `BlockHeader.hash` through the whole codec and SHA-256
+stack while Lean generates the `Chain` inductive's auxiliary machinery. -/
+seal BlockHeader.hash
+
 /-! ## Linkage -/
 
 /-- `h₂` directly extends `h₁`: its `prevBlockHash` is `h₁`'s hash — the one
