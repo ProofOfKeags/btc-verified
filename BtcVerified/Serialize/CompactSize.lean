@@ -52,11 +52,9 @@ theorem encodeFixedWidth_length (byteWidth : Nat) (n : UInt64) :
 /-- Decode `byteWidth` little-endian payload bytes, rejecting as non-canonical
 any value below `minValue` (the shortest-form minimum for this marker). -/
 def decodeFixedWidth (byteWidth minValue : Nat) (bs : List UInt8) :
-    Option (UInt64 × List UInt8) :=
-  match decodeBitVecLE byteWidth bs with
-  | none => none
-  | some (w, rest) =>
-    if w.toNat < minValue then none else some (⟨w.setWidth 64⟩, rest)
+    Option (UInt64 × List UInt8) := do
+  let (w, rest) ← decodeBitVecLE byteWidth bs
+  if w.toNat < minValue then none else return (⟨w.setWidth 64⟩, rest)
 
 /-- Encoding a value that lies in this form's range
 (`minValue ≤ n < 2 ^ (8 * byteWidth)`) as its fixed-width payload and then
@@ -67,7 +65,8 @@ theorem decodeFixedWidth_encodeFixedWidth (byteWidth minValue : Nat) (n : UInt64
     decodeFixedWidth byteWidth minValue (encodeFixedWidth byteWidth n ++ xs) = some (n, xs) := by
   have hw : (n.toBitVec.setWidth (8 * byteWidth)).toNat = n.toNat := by
     rw [BitVec.toNat_setWidth]; exact Nat.mod_eq_of_lt hhi
-  simp only [encodeFixedWidth, decodeFixedWidth, decodeBitVecLE_encodeBitVecLE, hw]
+  simp only [encodeFixedWidth, decodeFixedWidth, decodeBitVecLE_encodeBitVecLE,
+    Option.bind_eq_bind, Option.bind_some, hw]
   rw [if_neg (by omega : ¬ n.toNat < minValue)]
   simp [setWidth_setWidth_eq_self hhi, UInt64.ofBitVec_toBitVec]
 
@@ -81,29 +80,26 @@ theorem decodeFixedWidth_canonical (byteWidth minValue : Nat) (hbw : 8 * byteWid
         bs = encodeFixedWidth byteWidth n ++ rest := by
   intro parses
   unfold decodeFixedWidth at parses
-  cases hd : decodeBitVecLE byteWidth bs with
-  | none => simp [hd] at parses
-  | some wr =>
-    obtain ⟨w, rest'⟩ := wr
-    simp only [hd] at parses
-    by_cases hw : w.toNat < minValue
-    · simp [hw] at parses
-    · rw [if_neg hw] at parses
-      simp only [Option.some.injEq, Prod.mk.injEq] at parses
-      obtain ⟨rfl, rfl⟩ := parses
-      have hwlt : w.toNat < 2 ^ (8 * byteWidth) := w.isLt
-      have hw64 : w.toNat < 2 ^ 64 := lt_of_lt_of_le hwlt (Nat.pow_le_pow_right (by omega) hbw)
-      have hval : (⟨w.setWidth 64⟩ : UInt64).toNat = w.toNat := by
-        rw [UInt64.toNat_ofBitVec, BitVec.toNat_setWidth]; exact Nat.mod_eq_of_lt hw64
-      refine ⟨?_, ?_, ?_⟩
-      · rw [hval]; omega
-      · rw [hval]; exact hwlt
-      · have hbs := decodeBitVecLE_canonical byteWidth bs w rest' hd
-        have hb : encodeFixedWidth byteWidth (⟨w.setWidth 64⟩ : UInt64)
-            = encodeBitVecLE byteWidth w := by
-          unfold encodeFixedWidth
-          rw [UInt64.toBitVec_ofBitVec, setWidth_setWidth_eq_self hw64]
-        rw [hbs, hb]
+  simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at parses
+  obtain ⟨⟨w, rest'⟩, hd, parses⟩ := parses
+  by_cases hw : w.toNat < minValue
+  · simp [hw] at parses
+  · rw [if_neg hw] at parses
+    simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at parses
+    obtain ⟨rfl, rfl⟩ := parses
+    have hwlt : w.toNat < 2 ^ (8 * byteWidth) := w.isLt
+    have hw64 : w.toNat < 2 ^ 64 := lt_of_lt_of_le hwlt (Nat.pow_le_pow_right (by omega) hbw)
+    have hval : (⟨w.setWidth 64⟩ : UInt64).toNat = w.toNat := by
+      rw [UInt64.toNat_ofBitVec, BitVec.toNat_setWidth]; exact Nat.mod_eq_of_lt hw64
+    refine ⟨?_, ?_, ?_⟩
+    · rw [hval]; omega
+    · rw [hval]; exact hwlt
+    · have hbs := decodeBitVecLE_canonical byteWidth bs w rest' hd
+      have hb : encodeFixedWidth byteWidth (⟨w.setWidth 64⟩ : UInt64)
+          = encodeBitVecLE byteWidth w := by
+        unfold encodeFixedWidth
+        rw [UInt64.toBitVec_ofBitVec, setWidth_setWidth_eq_self hw64]
+      rw [hbs, hb]
 
 /-- Canonically encodes a `UInt64` as Bitcoin CompactSize bytes.
 
