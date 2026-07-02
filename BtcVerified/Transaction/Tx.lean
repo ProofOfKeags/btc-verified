@@ -29,6 +29,12 @@ import BtcVerified.Ext.List
   transaction — which is what lets the decoder dispatch on it, and why the
   `legacy` constructor carries a non-empty-inputs proof.
 
+  BIP144 also says that if the witness is empty, the old serialization format
+  must be used. Therefore the SegWit constructor carries the corresponding
+  invariant: at least one input has a non-empty witness stack. Per-input empty
+  witnesses remain valid; what is forbidden is using the marker/flag form when
+  every witness stack is empty.
+
   The witness region is the one place the wire format and the data model disagree
   on order: the model bundles each input with its witness, while the wire groups
   all inputs first and all witnesses last. The codec is where that regrouping
@@ -49,6 +55,36 @@ namespace BtcVerified
 
 open BtcVerified.Serialize
 
+/-! ## SegWit input lists -/
+
+/-- Whether a per-input witness stack contains at least one stack item. BIP144
+allows individual empty witness stacks, but the SegWit marker/flag transaction
+form is only canonical when the transaction's witness as a whole is non-empty. -/
+def witnessStackHasItems (wit : WitnessStack) : Bool :=
+  !wit.val.isEmpty
+
+/-- Whether a list of per-input witness stacks contains any actual witness data.
+BIP144's serialization rule is: if this is false, the transaction must use the
+old non-witness serialization format. -/
+def witnessListHasWitness (wits : List WitnessStack) : Bool :=
+  wits.any witnessStackHasItems
+
+/-- The underlying inputs of a SegWit transaction, witnesses dropped — the input
+vector as it appears in the inputs region of the wire format. -/
+def segwitInputs (ins : CountedList SegwitInput) : CountedList TxIn :=
+  ⟨ins.val.map SegwitInput.input, by rw [List.length_map]; exact ins.property⟩
+
+/-- The witnesses of a SegWit transaction in input order — the witness region of
+the wire format. -/
+def segwitWitnesses (ins : CountedList SegwitInput) : List WitnessStack :=
+  ins.val.map SegwitInput.witness
+
+/-- Whether a SegWit input list has the non-empty witness required by BIP144 for
+marker/flag serialization. Empty stacks for non-witness-program inputs are fine;
+at least one stack in the transaction must be non-empty. -/
+def segwitHasWitness (ins : CountedList SegwitInput) : Bool :=
+  witnessListHasWitness (segwitWitnesses ins)
+
 /-- A Bitcoin transaction in one of its two serialization forms.
 
 `legacy` is the pre-SegWit form: a witness-free `TxBody`. Its inputs are
@@ -58,14 +94,19 @@ wire.
 
 `segwit` is the BIP144 form, where each input carries its own witness. The
 arity rule — one witness stack per input — is structural here (it *is* a list of
-`SegwitInput`), so no separate well-formedness predicate is needed. -/
+`SegwitInput`). BIP144 additionally requires the old serialization when the
+transaction's witness is empty, so this constructor carries a proof that at
+least one input witness stack is non-empty. -/
 inductive Tx where
   /-- A legacy (pre-SegWit) transaction: a witness-free body with non-empty
   inputs. -/
   | legacy (body : TxBody) (inputsNonempty : body.inputs.val ≠ [])
-  /-- A BIP144 SegWit transaction: each input bundled with its witness. -/
+  /-- A BIP144 SegWit transaction: each input bundled with its witness, and at
+  least one witness stack non-empty so the marker/flag serialization is
+  canonical. -/
   | segwit (version : UInt32) (inputs : CountedList SegwitInput)
       (outputs : CountedList TxOut) (lockTime : UInt32)
+      (hasWitness : segwitHasWitness inputs = true)
   deriving DecidableEq
 
 /-- Whether a transaction is in SegWit (witnessed) serialization form. -/
@@ -78,7 +119,7 @@ interpretation. A legacy transaction *is* its body; a SegWit transaction's body
 drops each input's witness. -/
 def Tx.body : Tx → TxBody
   | .legacy body _ => body
-  | .segwit version inputs outputs lockTime =>
+  | .segwit version inputs outputs lockTime _ =>
     { version := version
       inputs := ⟨inputs.val.map SegwitInput.input, by
         rw [List.length_map]; exact inputs.property⟩
@@ -86,16 +127,6 @@ def Tx.body : Tx → TxBody
       lockTime := lockTime }
 
 /-! ## Bundling and unbundling SegWit inputs -/
-
-/-- The underlying inputs of a SegWit transaction, witnesses dropped — the input
-vector as it appears in the inputs region of the wire format. -/
-def segwitInputs (ins : CountedList SegwitInput) : CountedList TxIn :=
-  ⟨ins.val.map SegwitInput.input, by rw [List.length_map]; exact ins.property⟩
-
-/-- The witnesses of a SegWit transaction in input order — the witness region of
-the wire format. -/
-def segwitWitnesses (ins : CountedList SegwitInput) : List WitnessStack :=
-  ins.val.map SegwitInput.witness
 
 /-- Rebundle a decoded input vector and witness list (read from their separate
 wire regions) into SegWit inputs. -/
@@ -179,11 +210,60 @@ def encodeSegwitBody (ins : CountedList SegwitInput) (outs : CountedList TxOut)
 marker `0x00` and flag `0x01`, then the SegWit body. -/
 def encodeTx : Tx → List UInt8
   | .legacy body _ => Codec.encode body
-  | .segwit version ins outs lockTime =>
+  | .segwit version ins outs lockTime _ =>
     Codec.encode version ++ 0x00 :: 0x01 :: encodeSegwitBody ins outs lockTime
 
+/-- Build a SegWit transaction from separately decoded inputs and witness
+stacks, enforcing the two BIP144 shape rules that are not visible in the raw
+lists themselves: there must be one witness stack per input, and the
+transaction's witness as a whole must be non-empty.
+
+The decoder calls this after `decodeElems` has read exactly one witness stack per
+input, so the length check is guaranteed there. Keeping the check here makes the
+smart constructor correct for arbitrary separately supplied lists too. -/
+def Tx.segwit? (version : UInt32) (txins : CountedList TxIn)
+    (outs : CountedList TxOut) (lockTime : UInt32)
+    (wits : List WitnessStack) : Option Tx :=
+  if hw : witnessListHasWitness wits = true then
+    if hwlen : wits.length = txins.val.length then
+      have hzip : segwitHasWitness (zipInputs txins wits) = true := by
+        unfold segwitHasWitness
+        rw [segwitWitnesses_zipInputs txins wits hwlen]
+        exact hw
+      some (.segwit version (zipInputs txins wits) outs lockTime hzip)
+    else
+      none
+  else
+    none
+
+/-- Any transaction produced by `Tx.segwit?` is exactly the zipped SegWit
+transaction, and the witness list has the same length as the input list. -/
+theorem Tx.segwit_of_segwit? {version : UInt32} {txins : CountedList TxIn}
+    {outs : CountedList TxOut} {lockTime : UInt32}
+    {wits : List WitnessStack} {tx : Tx}
+    (h : Tx.segwit? version txins outs lockTime wits = some tx) :
+    ∃ (_ : wits.length = txins.val.length)
+      (hasWitness : segwitHasWitness (zipInputs txins wits) = true),
+      tx = .segwit version (zipInputs txins wits) outs lockTime hasWitness := by
+  unfold Tx.segwit? at h
+  split at h
+  · rename_i hw
+    split at h
+    · rename_i hwlen
+      simp only [Option.some.injEq] at h
+      subst h
+      refine ⟨hwlen, ?_, ?_⟩
+      · unfold segwitHasWitness
+        rw [segwitWitnesses_zipInputs txins wits hwlen]
+        exact hw
+      · rfl
+    · simp at h
+  · simp at h
+
 /-- Decode the SegWit body (everything after version, marker, and flag),
-rebundling the separately-read inputs and witnesses. -/
+rebundling the separately-read inputs and witnesses. BIP144 requires old
+serialization when the transaction's witness is empty, so all-empty witness
+stacks are rejected instead of producing a SegWit transaction. -/
 def decodeSegwit (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8) :=
   match Codec.decode (α := CountedList TxIn) bs with
   | none => none
@@ -196,7 +276,10 @@ def decodeSegwit (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8
       | some (wits, r3) =>
         match Codec.decode (α := UInt32) r3 with
         | none => none
-        | some (lockTime, r4) => some (.segwit version (zipInputs txins wits) outs lockTime, r4)
+        | some (lockTime, r4) =>
+          match Tx.segwit? version txins outs lockTime wits with
+          | none => none
+          | some tx => some (tx, r4)
 
 /-- Decode a legacy transaction body (everything after version), then attach the
 non-empty-inputs proof via the smart constructor. -/
@@ -231,13 +314,23 @@ def decodeTx (bs : List UInt8) : Option (Tx × List UInt8) :=
 /-- Decoding an encoded SegWit body returns the SegWit transaction it came from,
 leaving the trailing bytes as the unconsumed tail. -/
 theorem decodeSegwit_encode (version : UInt32) (ins : CountedList SegwitInput)
-    (outs : CountedList TxOut) (lockTime : UInt32) (rest : List UInt8) :
+    (outs : CountedList TxOut) (lockTime : UInt32)
+    (hasWitness : segwitHasWitness ins = true) (rest : List UInt8) :
     decodeSegwit version (encodeSegwitBody ins outs lockTime ++ rest)
-      = some (.segwit version ins outs lockTime, rest) := by
+      = some (.segwit version ins outs lockTime hasWitness, rest) := by
   unfold decodeSegwit encodeSegwitBody
   simp only [List.append_assoc, Codec.decode_encode]
   rw [segwitInputs_length, decodeElems_encodeElems]
-  simp only [Codec.decode_encode, zipInputs_segwit]
+  have hw : witnessListHasWitness (segwitWitnesses ins) = true := by
+    simpa [segwitHasWitness] using hasWitness
+  have hwlen : (segwitWitnesses ins).length = (segwitInputs ins).val.length :=
+    (segwitInputs_length ins).symm
+  have hm :
+      Tx.segwit? version (segwitInputs ins) outs lockTime (segwitWitnesses ins)
+        = some (.segwit version ins outs lockTime hasWitness) := by
+    unfold Tx.segwit?
+    simp [hw, hwlen, zipInputs_segwit]
+  simp [hm, Codec.decode_encode]
 
 /-- Decoding the encoded post-version fields of a body with non-empty inputs
 returns the legacy transaction on that body, tail preserved. -/
@@ -270,10 +363,10 @@ preserved. -/
 theorem decodeTx_encodeTx (tx : Tx) (rest : List UInt8) :
     decodeTx (encodeTx tx ++ rest) = some (tx, rest) := by
   cases tx with
-  | segwit version ins outs lockTime =>
+  | segwit version ins outs lockTime hasWitness =>
     unfold encodeTx decodeTx
     simp only [List.append_assoc, List.cons_append, Codec.decode_encode]
-    exact decodeSegwit_encode version ins outs lockTime rest
+    exact decodeSegwit_encode version ins outs lockTime hasWitness rest
   | legacy body hne =>
     obtain ⟨b, t, hbt, hb0⟩ := CompactSize.encode_head (UInt64.ofNat body.inputs.val.length)
     have hb : b ≠ 0x00 := hb0 (ofNat_length_ne_zero hne body.inputs.property)
@@ -298,7 +391,7 @@ carrying the given version and `bs` is exactly the canonical encoding of its
 body followed by the tail. -/
 theorem decodeSegwit_canonical (version : UInt32) (bs : List UInt8) (tx : Tx)
     (rest : List UInt8) (h : decodeSegwit version bs = some (tx, rest)) :
-    ∃ ins outs lockTime, tx = .segwit version ins outs lockTime ∧
+    ∃ ins outs lockTime hasWitness, tx = .segwit version ins outs lockTime hasWitness ∧
       bs = encodeSegwitBody ins outs lockTime ++ rest := by
   unfold decodeSegwit at h
   cases hti : Codec.decode (α := CountedList TxIn) bs with
@@ -320,18 +413,22 @@ theorem decodeSegwit_canonical (version : UInt32) (bs : List UInt8) (tx : Tx)
         | none => simp [hlt] at h
         | some lr =>
           obtain ⟨lockTime, r4⟩ := lr
-          simp only [hlt, Option.some.injEq, Prod.mk.injEq] at h
-          obtain ⟨rfl, rfl⟩ := h
-          refine ⟨zipInputs txins wits, outs, lockTime, rfl, ?_⟩
-          have hwlen : wits.length = txins.val.length := decodeElems_length _ _ _ _ hwit
-          have eti := Codec.decode_canonical bs txins r1 hti
-          have eto := Codec.decode_canonical r1 outs r2 hto
-          have ewit := decodeElems_canonical _ _ _ _ hwit
-          have elt := Codec.decode_canonical r3 lockTime r4 hlt
-          unfold encodeSegwitBody
-          rw [segwitInputs_zipInputs txins wits hwlen,
-            segwitWitnesses_zipInputs txins wits hwlen, eti, eto, ewit, elt]
-          simp only [List.append_assoc]
+          simp only [hlt] at h
+          cases hseg : Tx.segwit? version txins outs lockTime wits with
+          | none => simp [hseg] at h
+          | some builtTx =>
+            simp only [hseg, Option.some.injEq, Prod.mk.injEq] at h
+            obtain ⟨rfl, rfl⟩ := h
+            obtain ⟨hwlen, hasWitness, htx⟩ := Tx.segwit_of_segwit? hseg
+            refine ⟨zipInputs txins wits, outs, lockTime, hasWitness, htx, ?_⟩
+            have eti := Codec.decode_canonical bs txins r1 hti
+            have eto := Codec.decode_canonical r1 outs r2 hto
+            have ewit := decodeElems_canonical _ _ _ _ hwit
+            have elt := Codec.decode_canonical r3 lockTime r4 hlt
+            unfold encodeSegwitBody
+            rw [segwitInputs_zipInputs txins wits hwlen,
+              segwitWitnesses_zipInputs txins wits hwlen, eti, eto, ewit, elt]
+            simp only [List.append_assoc]
 
 /-- If the legacy decoder accepts `bs`, the result is a legacy transaction whose
 body carries the given version, its inputs are non-empty, and `bs` is exactly
@@ -386,7 +483,7 @@ theorem decodeTx_canonical (bs : List UInt8) (tx : Tx) (rest : List UInt8)
     · rename_i rest2
       split at h
       · rename_i rest3
-        obtain ⟨ins, outs, lockTime, rfl, hbody⟩ :=
+        obtain ⟨ins, outs, lockTime, hasWitness, rfl, hbody⟩ :=
           decodeSegwit_canonical version rest3 tx rest h
         rw [ev, hbody]
         simp only [encodeTx, List.append_assoc, List.cons_append]

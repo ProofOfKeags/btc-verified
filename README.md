@@ -93,7 +93,10 @@ facts of the wire format into the types:
 - A SegWit transaction bundles each input with the witness that unlocks it
   (`SegwitInput`), so the one-witness-per-input arity is structural rather than a
   side condition. The wire groups witnesses after inputs; that regrouping is the
-  codec's job, not the model's.
+  codec's job, not the model's. Per BIP144, if the transaction's witness is
+  empty then the old serialization format must be used, so the `segwit`
+  constructor also carries a proof that at least one input witness stack is
+  non-empty.
 - The `legacy` constructor carries a non-empty-inputs proof, because the SegWit
   serialization reserves a zero input count (the `0x00` marker), so a legacy
   transaction can never encode zero inputs.
@@ -127,7 +130,9 @@ disagree on order: `decode` reads the inputs and witnesses from their separate
 BIP144 regions and rebundles them (`zipInputs`); `encode` unzips. The
 legacy/SegWit dispatch turns on the marker byte, and a CompactSize first byte is
 `0x00` only for a zero count — which is what makes a non-empty legacy input count
-unambiguous against the marker. Packaged as `instCodecTx : Codec Tx`.
+unambiguous against the marker. The SegWit branch also enforces BIP144's
+empty-witness rule: marker/flag serialization is rejected when every witness
+stack is empty. Packaged as `instCodecTx : Codec Tx`.
 
 Why it matters: a transaction is the unit a block commits to and the unit fork
 choice ultimately weighs. Verified round-trip and canonicality for both eras is
