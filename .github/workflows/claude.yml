@@ -70,12 +70,20 @@ jobs:
       # bots) falls back to Sonnet 5 so they can't draw down Fable usage.
       # Actors without write access are refused by the action itself before
       # any model is invoked.
+      #
+      # The lake commands are pre-allowed so Claude can iterate to green:
+      # without them every build/test/lint call is permission-blocked in the
+      # headless run, and Claude ships uncompiled proofs with "CI is the
+      # compile check" caveats (see the issue-22 thread). The setup step
+      # above has already warmed the mathlib olean cache, so these commands
+      # are cheap enough to run repeatedly inside the time budget.
       - uses: anthropics/claude-code-action@v1
         id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
             --model ${{ github.actor == 'ProofOfKeags' && 'claude-fable-5' || 'claude-sonnet-5' }}
+            --allowedTools "Bash(lake build:*),Bash(lake test:*),Bash(lake lint:*),Bash(lake exe cache get:*)"
 
       # Open the PR that issue-driven Claude runs stop short of creating.
       # claude-code-action deliberately never runs `gh pr create` itself; it
