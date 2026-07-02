@@ -66,5 +66,52 @@ jobs:
           use-mathlib-cache: true
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+      # Open the PR that issue-driven Claude runs stop short of creating.
+      # claude-code-action deliberately never runs `gh pr create` itself; it
+      # hands back a quick-pull link instead. But clicking that link makes
+      # the clicker the PR author, and GitHub blocks review/approval of
+      # one's own PRs — so for review separation the bot must be the opener.
+      # Doing it as a deterministic step (option 2 from the issue-22 thread)
+      # keeps Claude's own tool surface unchanged. The Claude App token from
+      # the action's output is used rather than the workflow GITHUB_TOKEN
+      # because PRs created with GITHUB_TOKEN don't trigger `pull_request`
+      # workflows — CI would silently skip the new PR.
+      - name: Open PR for Claude's branch
+        if: >-
+          steps.claude.outputs.branch_name != '' &&
+          (github.event_name == 'issues' ||
+          (github.event_name == 'issue_comment' && !github.event.issue.pull_request))
+        env:
+          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+          BRANCH: ${{ steps.claude.outputs.branch_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          # branch_name is set even for runs that never push (e.g. Q&A-only
+          # answers), so only open a PR for a branch that exists on the
+          # remote, is ahead of master, and doesn't already have one.
+          if ! git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+            echo "Branch $BRANCH was never pushed; nothing to open."
+            exit 0
+          fi
+          ahead=$(gh api "repos/$GITHUB_REPOSITORY/compare/master...$BRANCH" --jq .ahead_by)
+          if [ "$ahead" -eq 0 ]; then
+            echo "Branch $BRANCH has no commits beyond master; nothing to open."
+            exit 0
+          fi
+          if [ -n "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            echo "An open PR for $BRANCH already exists."
+            exit 0
+          fi
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$BRANCH" \
+            --base master \
+            --title "$ISSUE_TITLE" \
+            --body "Automated PR for the @claude run on #${ISSUE_NUMBER}; see that issue's thread for the run's summary and verification notes.
+
+          Closes #${ISSUE_NUMBER}."
