@@ -291,7 +291,7 @@ def block170Hex : String :=
 /-- Raw wire bytes of block 1's header, fetched from blockstream.info. -/
 def block1HeaderHex : String :=
   "010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d61900\
-   00000000128063777e9fa444bbbe680e1fee14677ba1a3c3540bf7b1cdb606e8\
+   00000000982051fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e8\
    57233e0e61bc6649ffff001d01e36299"
 
 #guard match hexBytes? block1HeaderHex >>= Codec.decode (α := BlockHeader),
