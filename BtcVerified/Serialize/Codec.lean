@@ -71,13 +71,10 @@ theorem encode_injective {α : Type} [Codec α] {a b : α}
 
 /-- Decode an `α` then a `β` from the remaining bytes, threading the tail. -/
 def decodeProd {α β : Type} [Codec α] [Codec β]
-    (bs : List UInt8) : Option ((α × β) × List UInt8) :=
-  match Codec.decode (α := α) bs with
-  | none => none
-  | some (a, rest) =>
-    match Codec.decode (α := β) rest with
-    | none => none
-    | some (b, rest') => some ((a, b), rest')
+    (bs : List UInt8) : Option ((α × β) × List UInt8) := do
+  let (a, rest) ← Codec.decode (α := α) bs
+  let (b, rest') ← Codec.decode (α := β) rest
+  return ((a, b), rest')
 
 /-- Decoding a pair from the concatenated encodings of its components returns
 both values, leaving the trailing bytes as the unconsumed tail. -/
@@ -85,7 +82,8 @@ theorem decodeProd_encode {α β : Type} [Codec α] [Codec β]
     (a : α) (b : β) (rest : List UInt8) :
     decodeProd ((Codec.encode a ++ Codec.encode b) ++ rest) = some ((a, b), rest) := by
   unfold decodeProd
-  simp only [List.append_assoc, Codec.decode_encode]
+  simp only [List.append_assoc, Option.bind_eq_bind, Codec.decode_encode,
+    Option.bind_some, Option.pure_def]
 
 /-- If the pair decoder accepts `bs` as `(a, b)` with tail `rest`, then `bs` is
 exactly the two component encodings in sequence followed by `rest`. -/
@@ -95,20 +93,12 @@ theorem decodeProd_canonical {α β : Type} [Codec α] [Codec β]
     bs = (Codec.encode a ++ Codec.encode b) ++ rest := by
   intro h
   unfold decodeProd at h
-  cases hd : Codec.decode (α := α) bs with
-  | none => simp [hd] at h
-  | some ar =>
-    obtain ⟨a', r1⟩ := ar
-    cases hd2 : Codec.decode (α := β) r1 with
-    | none => simp [hd, hd2] at h
-    | some br =>
-      obtain ⟨b', r2⟩ := br
-      simp only [hd, hd2, Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨⟨ha, hb⟩, hr⟩ := h
-      have e1 := Codec.decode_canonical bs a' r1 hd
-      have e2 := Codec.decode_canonical r1 b' r2 hd2
-      subst ha; subst hb; subst hr
-      rw [e1, e2, List.append_assoc]
+  simp only [Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+    Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨⟨a', r1⟩, hd, ⟨b', r2⟩, hd2, ⟨ha, hb⟩, hr⟩ := h
+  subst ha; subst hb; subst hr
+  rw [Codec.decode_canonical bs a' r1 hd, Codec.decode_canonical r1 b' r2 hd2,
+    List.append_assoc]
 
 /-- Sequential composition of codecs. Encoding concatenates the field encodings;
 decoding parses the fields left to right, threading the tail. Both laws are
