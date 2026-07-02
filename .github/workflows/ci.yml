@@ -16,6 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # Cache elan's toolchain install plus lake's package checkouts and
+      # build output, keyed on the two files that determine whether either
+      # needs to change. A near-miss (e.g. only the manifest changed) still
+      # restores the previous toolchain via restore-keys.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .lake
+            ~/.elan
+          key: ${{ runner.os }}-lake-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-lake-
       # `lake build` covers the default targets: the library plus Tests
       # (golden vectors and the axiom audit, which fails on `sorry`).
       # `lake test` decodes the block-481824 fixture through the verified
@@ -32,6 +44,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@main
+      # Persists the Nix store (nixpkgs closure, flake eval) across runs so
+      # `nix-installer-action` and `nix flake check` don't redo the same
+      # evaluation from scratch every time.
+      - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Check flake
         run: nix flake check
       - name: Fetch mathlib cache through dev shell
