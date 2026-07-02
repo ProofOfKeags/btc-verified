@@ -193,19 +193,12 @@ def decodeSegwit (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8
 
 /-- Decode a legacy transaction body (everything after version), then attach the
 non-empty-inputs proof via the smart constructor. -/
-def decodeLegacy (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8) :=
-  match Codec.decode (α := CountedList TxIn) bs with
-  | none => none
-  | some (inputs, r1) =>
-    match Codec.decode (α := CountedList TxOut) r1 with
-    | none => none
-    | some (outputs, r2) =>
-      match Codec.decode (α := UInt32) r2 with
-      | none => none
-      | some (lockTime, r3) =>
-        match Tx.legacy? ⟨version, inputs, outputs, lockTime⟩ with
-        | none => none
-        | some tx => some (tx, r3)
+def decodeLegacy (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8) := do
+  let (inputs, r1) ← Codec.decode (α := CountedList TxIn) bs
+  let (outputs, r2) ← Codec.decode (α := CountedList TxOut) r1
+  let (lockTime, r3) ← Codec.decode (α := UInt32) r2
+  let tx ← Tx.legacy? ⟨version, inputs, outputs, lockTime⟩
+  return (tx, r3)
 
 /-- Decode a transaction: read the version, then dispatch on the marker byte. -/
 def decodeTx (bs : List UInt8) : Option (Tx × List UInt8) :=
@@ -241,8 +234,9 @@ theorem decodeLegacy_encode (body : TxBody) (hne : body.inputs.val ≠ [])
           ++ Codec.encode body.lockTime ++ rest)
       = some (Tx.legacy body hne, rest) := by
   unfold decodeLegacy
-  simp only [List.append_assoc, Codec.decode_encode]
+  simp only [List.append_assoc, Option.bind_eq_bind, Codec.decode_encode, Option.bind_some]
   rw [Tx.legacy?_eq_some hne]
+  rfl
 
 /-- When the byte after the version is not the marker `0x00`, `decodeTx`
 dispatches to the legacy decoder. -/
@@ -320,33 +314,18 @@ theorem decodeLegacy_canonical (version : UInt32) (bs : List UInt8) (tx : Tx)
       tx = Tx.legacy ⟨version, inputs, outputs, lockTime⟩ hne ∧
         bs = Codec.encode inputs ++ Codec.encode outputs ++ Codec.encode lockTime ++ rest := by
   unfold decodeLegacy at h
-  cases hti : Codec.decode (α := CountedList TxIn) bs with
-  | none => simp [hti] at h
-  | some tir =>
-    obtain ⟨inputs, r1⟩ := tir
-    simp only [hti] at h
-    cases hto : Codec.decode (α := CountedList TxOut) r1 with
-    | none => simp [hto] at h
-    | some tor =>
-      obtain ⟨outputs, r2⟩ := tor
-      simp only [hto] at h
-      cases hlt : Codec.decode (α := UInt32) r2 with
-      | none => simp [hlt] at h
-      | some lr =>
-        obtain ⟨lockTime, r3⟩ := lr
-        simp only [hlt] at h
-        cases hleg : Tx.legacy? ⟨version, inputs, outputs, lockTime⟩ with
-        | none => simp [hleg] at h
-        | some tx' =>
-          simp only [hleg, Option.some.injEq, Prod.mk.injEq] at h
-          obtain ⟨rfl, rfl⟩ := h
-          obtain ⟨hne, htxeq⟩ := Tx.legacy_of_legacy? hleg
-          refine ⟨inputs, outputs, lockTime, hne, htxeq, ?_⟩
-          have eti := Codec.decode_canonical bs inputs r1 hti
-          have eto := Codec.decode_canonical r1 outputs r2 hto
-          have elt := Codec.decode_canonical r2 lockTime r3 hlt
-          rw [eti, eto, elt]
-          simp only [List.append_assoc]
+  simp only [Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+    Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨⟨inputs, r1⟩, hti, ⟨outputs, r2⟩, hto, ⟨lockTime, r3⟩, hlt, tx', hleg,
+    rfl, rfl⟩ := h
+  dsimp only at hto hlt hleg ⊢
+  obtain ⟨hne, htxeq⟩ := Tx.legacy_of_legacy? hleg
+  refine ⟨inputs, outputs, lockTime, hne, htxeq, ?_⟩
+  have eti := Codec.decode_canonical bs inputs r1 hti
+  have eto := Codec.decode_canonical r1 outputs r2 hto
+  have elt := Codec.decode_canonical r2 lockTime r3 hlt
+  rw [eti, eto, elt]
+  simp only [List.append_assoc]
 
 /-- Canonicality: an accepted parse consumed exactly the canonical encoding,
 including the legacy/SegWit branch the value's own form dictates. -/
