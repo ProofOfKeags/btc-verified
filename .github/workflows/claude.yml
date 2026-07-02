@@ -31,6 +31,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Same cache as ci.yml's lake-build job, keyed identically so a cache
+      # warmed by either workflow benefits the other (the GitHub Actions
+      # cache is scoped per-repo, not per-workflow).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .lake
+            ~/.elan
+          key: ${{ runner.os }}-lake-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-lake-
+
       # Install elan and fetch the mathlib olean cache (`lake exe cache get`)
       # without building, so Claude's own `lake build` doesn't rebuild
       # mathlib from source and eat the whole time budget. The GitHub cache
