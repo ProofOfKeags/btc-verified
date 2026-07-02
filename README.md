@@ -220,6 +220,51 @@ disjunct is constructed, never assumed away: intractability of producing a
 witness is the consumer's hypothesis, the only form in which collision
 resistance can soundly appear over a concrete hash.
 
+### `BtcVerified` block hashes and the chain
+
+`BlockHeader.hash` — the double-SHA-256 of a header's 80-byte encoding, the
+same digest `prevBlockHash` links commit to and a proof-of-work target is
+checked against (the target check itself is a later leaf). Promoted from the
+ad hoc expression the fixture tests computed inline, the same move `Tx.txid`
+made for transactions.
+
+On top of it, `Chain`: a structurally linked sequence of block headers,
+tip-first (the newest header is the outermost constructor) and hash-anchored
+at both ends — `Chain anchor tip` is a segment reaching from the block hash
+`anchor` (exclusive) up to the tip hash `tip`, with the linkage carried by
+the indices themselves: extending demands the rest's tip hash be the new
+header's `prevBlockHash`. Carrying both endpoints in the type is what lets
+segments compose (`Chain.append`, with the empty segment as identity) — the
+algebra the block tree's branch paths will reuse — while the full Bitcoin
+chain stays the plain genesis instantiation `Chain 0 tip` (the zero hash is
+the genesis header's own `prevBlockHash`), not a special case. This is the
+*linear* chain only: proof of work, cumulative work, and the block tree
+(fork detection) are later leaves built on the same linkage relation.
+
+Checked claims:
+
+- `BlockHeader.hash_faithful`: equal block hashes mean equal headers — or a
+  concrete double-SHA-256 collision.
+- `Chain.toList_append`: stacking chain segments concatenates their header
+  lists — composition is compatible with the plain-list view.
+- `Chain.isChain_toList`: a chain's list-of-headers view satisfies `IsChain`,
+  the decidable linkage predicate over plain lists, so real header lists can
+  be checked directly, without constructing a `Chain` term.
+- `Chain.tip_commits`: two chains of equal length sharing a tip hash carry
+  the same header list — or a concrete collision. The tip hash commits to
+  the entire history, proved in the same peel-and-recurse,
+  collision-disjunct style as `Merkle.root_inj_of_length_eq`.
+- Golden vector: block 1's raw 80 header bytes decode, re-encode, and hash
+  to the well-known block 1 hash; the decoded header extends the decoded
+  genesis header (`BlockHeader.Extends`); and the two headers form an
+  `IsChain 0` chain — the genesis instantiation on real mainnet data.
+
+Why it matters: fork choice compares branches, and a branch has to *be*
+something before validity or cumulative work can be stated over it. This is
+that structural layer — a tip hash commits to an entire history — and every
+later layer (proof of work, the block tree, validity, fork choice) is a
+refinement of this type, not a rewrite.
+
 ### `BtcVerified.Merkle`
 
 Bitcoin's merkle tree, as a tree — the platonic spec, with the root computation
@@ -345,9 +390,10 @@ lake lint
 
 `lake build` also elaborates `Tests/`: golden vectors that run the verified
 decoder over real mainnet bytes (the first Bitcoin payment, the SegWit
-activation coinbase, the first SegWit spend, the genesis block, block 170) and
-an axiom audit that fails the build if any headline theorem depends on `sorry`
-or an unexpected axiom. `lake test` decodes the full SegWit activation block,
+activation coinbase, the first SegWit spend, the genesis block, block 170,
+and the genesis → block 1 chain link) and an axiom audit that fails the
+build if any headline theorem depends on `sorry` or an unexpected axiom.
+`lake test` decodes the full SegWit activation block,
 fetching it from a block explorer on first run and caching it locally (it is
 public chain data, so it is not committed). See `CONTRIBUTING.md` for the
 contribution workflow.
