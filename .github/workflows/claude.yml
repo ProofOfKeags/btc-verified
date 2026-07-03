@@ -77,13 +77,20 @@ jobs:
       # compile check" caveats (see the issue-22 thread). The setup step
       # above has already warmed the mathlib olean cache, so these commands
       # are cheap enough to run repeatedly inside the time budget.
+      #
+      # The read-only gh commands are pre-allowed so Claude can fetch PR
+      # review comments itself: a pull_request_review run fires the instant
+      # the review is submitted, and its event payload carries only the
+      # review body, not the inline comments attached to it — the PR #33
+      # review run came up empty-handed because every live-fetch path (gh,
+      # curl, WebFetch) was permission-blocked.
       - uses: anthropics/claude-code-action@v1
         id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
             --model ${{ github.actor == 'ProofOfKeags' && 'claude-fable-5' || 'claude-sonnet-5' }}
-            --allowedTools "Bash(lake build:*),Bash(lake test:*),Bash(lake lint:*),Bash(lake exe cache get:*)"
+            --allowedTools "Bash(lake build:*),Bash(lake test:*),Bash(lake lint:*),Bash(lake exe cache get:*),Bash(gh pr view:*),Bash(gh api repos/ProofOfKeags/btc-verified/pulls/*)"
 
       # Open the PR that issue-driven Claude runs stop short of creating.
       # claude-code-action deliberately never runs `gh pr create` itself; it
