@@ -101,12 +101,13 @@ elab "#assert_axioms " id:ident : command => do
 
 /-! ## Block hashes -/
 
-#assert_axioms BtcVerified.BlockHeader.hash_faithful
+#assert_axioms BtcVerified.BlockHeader.hash_inj
 
 /-! ## The chain -/
 
 #assert_axioms BtcVerified.Chain.toList_append
 #assert_axioms BtcVerified.Chain.isChain_toList
+#assert_axioms BtcVerified.Chain.tip_commits_prefix
 #assert_axioms BtcVerified.Chain.tip_commits
 
 /-! ## The merkle tree -/

@@ -310,9 +310,11 @@ def block1HeaderHex : String :=
     -- checked by the decidable linkage relation.
     && decide (b1.Extends g.header)
     -- The two headers are a chain from the zero anchor (the genesis
-    -- header's own prevBlockHash) up to block 1's hash — the Chain 0
-    -- instantiation on real mainnet data, via the decidable list predicate.
-    && decide (IsChain 0 b1.hash [b1, g.header])
+    -- header's own prevBlockHash) — the Chain 0 instantiation on real
+    -- mainnet data, via the decidable list predicate; the tip it reaches
+    -- is b1's hash, checked against the known block 1 hash above.
+    && decide (IsChain 0 [b1, g.header])
+    && tipHash 0 [b1, g.header] == b1.hash
   | _, _ => false
 
 /-! ## CompactSize boundary values -/

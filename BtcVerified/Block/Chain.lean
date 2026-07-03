@@ -51,17 +51,28 @@ import BtcVerified.Block.BlockHash
     lists — composition is compatible with the plain-list view.
   * `Chain.isChain_toList`: a chain's list-of-headers view satisfies the
     decidable linkage predicate `IsChain` the chain's indices guarantee by
-    construction.
+    construction (with `Chain.tipHash_toList` recovering the tip index from
+    the list).
+  * `Chain.tip_commits_prefix`: of two chains sharing a tip hash, the one
+    with no more headers carries a prefix (tip-first) of the other's header
+    list — or two concrete byte strings collide under double-SHA-256. No
+    relation between the anchors is assumed; this is the hypothesis-minimal
+    form of tip commitment.
   * `Chain.tip_commits`: two chains of equal length that share a tip hash
-    carry the same header list — or two concrete byte strings collide under
-    double-SHA-256. The tip hash commits to the entire history.
+    carry the same header list — or a concrete collision. The tip hash
+    commits to the entire history.
 -/
 
 namespace BtcVerified
 
-/- Nothing in this file computes a digest at elaboration time: `seal` keeps
-`whnf` from unfolding `BlockHeader.hash` through the whole codec and SHA-256
-stack while Lean generates the `Chain` inductive's auxiliary machinery. -/
+/- `seal` marks `BlockHeader.hash` irreducible for the remainder of this file
+(it is sugar for `attribute [local irreducible]`): the elaborator treats the
+name as an opaque constant instead of unfolding its definition. Nothing in
+this file should compute a digest at elaboration time, but without the seal,
+generating the `Chain` inductive's auxiliary machinery sends `whnf` through
+`hash` into the whole codec and SHA-256 stack. Sealing is elaboration-local
+and changes no meaning: proofs about `hash` and `decide` checks in other
+files are unaffected. -/
 seal BlockHeader.hash
 
 /-! ## Linkage -/
@@ -116,60 +127,85 @@ theorem Chain.toList_append {a m t : Hash256} :
 
 /-! ## The linkage predicate over plain lists -/
 
-/-- The linkage predicate over a plain, tip-first header list: `hs` links
-all the way from the tip hash down to `anchor` — the head hashes to the tip,
-each header's hash is what the header after it (nearer the tip) points back
-to, and an empty segment pins the tip hash to the anchor itself. Exactly
-what a `Chain anchor tip`'s `toList` satisfies. -/
-def IsChain (anchor : Hash256) : Hash256 → List BlockHeader → Prop
-  | tip, [] => tip = anchor
-  | tip, hd :: tl => hd.hash = tip ∧ IsChain anchor hd.prevBlockHash tl
+/-- The tip hash a plain, tip-first header list reaches up to: the head's
+hash, or the anchor itself when the segment is empty. This is the data a
+`Chain`'s tip index carries, recovered from the list — which is why `IsChain`
+below needs no tip parameter. -/
+def tipHash (anchor : Hash256) : List BlockHeader → Hash256
+  | [] => anchor
+  | hd :: _ => hd.hash
+
+/-- The linkage predicate over a plain, tip-first header list: every header's
+`prevBlockHash` is the hash of what sits below it — the next header, or the
+anchor at the bottom of the segment. Exactly what a `Chain anchor tip`'s
+`toList` satisfies. The tip hash is not a parameter because the list already
+determines it (`tipHash`). -/
+def IsChain (anchor : Hash256) : List BlockHeader → Prop
+  | [] => True
+  | hd :: tl => hd.prevBlockHash = tipHash anchor tl ∧ IsChain anchor tl
 
 /-- `IsChain` is decidable, so real header lists — golden vectors now, block
 tree paths later — can be checked directly, without building a `Chain`
 term. -/
 instance instDecidableIsChain (a : Hash256) :
-    (t : Hash256) → (hs : List BlockHeader) → Decidable (IsChain a t hs)
-  | t, [] => inferInstanceAs (Decidable (t = a))
-  | _, hd :: tl =>
-    haveI := instDecidableIsChain a hd.prevBlockHash tl
+    (hs : List BlockHeader) → Decidable (IsChain a hs)
+  | [] => inferInstanceAs (Decidable True)
+  | _ :: tl =>
+    haveI := instDecidableIsChain a tl
     inferInstanceAs (Decidable (_ ∧ _))
+
+/-- A chain's list-of-headers view reaches up to exactly the chain's tip
+index: the tip hash carried by the type is the one the list determines. -/
+theorem Chain.tipHash_toList {a : Hash256} :
+    {t : Hash256} → (c : Chain a t) → tipHash a c.toList = t
+  | _, .nil => rfl
+  | _, .extend _ _ => rfl
 
 /-- A chain's list-of-headers view satisfies the linkage predicate the
 chain's indices guarantee by construction. -/
 theorem Chain.isChain_toList {a : Hash256} :
-    {t : Hash256} → (c : Chain a t) → IsChain a t c.toList
-  | _, .nil => rfl
-  | _, .extend tip rest => ⟨rfl, rest.isChain_toList⟩
+    {t : Hash256} → (c : Chain a t) → IsChain a c.toList
+  | _, .nil => trivial
+  | _, .extend _ rest => ⟨rest.tipHash_toList.symm, rest.isChain_toList⟩
 
 /-! ## The tip-commitment theorem -/
 
-/-- Two chains of equal length that share a tip hash carry the same header
-list — or two concrete byte strings witness a double-SHA-256 collision. The
-tip hash commits to the entire history: peeling the tip (equal hashes give
-equal headers, via `BlockHeader.hash_faithful`, or a collision) forces equal
-`prevBlockHash`es, and recursing identifies the chains one header at a
-time. -/
-theorem Chain.tip_commits {a₁ a₂ : Hash256} :
+/-- Of two chains sharing a tip hash, the one with no more headers carries a
+prefix (tip-first) of the other's header list — or two concrete byte strings
+witness a double-SHA-256 collision. Peeling the tip (equal hashes give equal
+headers, via `BlockHeader.hash_inj`, or a collision) forces equal
+`prevBlockHash`es, and recursing identifies the chains one header at a time
+until the shorter one runs out. No relation between the anchors is assumed —
+a shorter chain anchored higher up the same history sees exactly a prefix of
+the longer one, which is also why a shared tip cannot force outright
+equality without the length bound. -/
+theorem Chain.tip_commits_prefix {a₁ a₂ : Hash256} :
     {t₁ t₂ : Hash256} → (c₁ : Chain a₁ t₁) → (c₂ : Chain a₂ t₂) → t₁ = t₂ →
-      c₁.toList.length = c₂.toList.length →
-      c₁.toList = c₂.toList ∨ Sha256.Collision
-  | _, _, .nil, .nil, _, _ => Or.inl rfl
-  | _, _, .nil, .extend .., _, hlen => by
-      simp only [Chain.toList, List.length_nil, List.length_cons] at hlen
-      exact absurd hlen (by omega)
+      c₁.toList.length ≤ c₂.toList.length →
+      c₁.toList <+: c₂.toList ∨ Sha256.Collision
+  | _, _, .nil, _, _, _ => Or.inl (List.nil_prefix ..)
   | _, _, .extend .., .nil, _, hlen => by
       simp only [Chain.toList, List.length_nil, List.length_cons] at hlen
       exact absurd hlen (by omega)
   | _, _, .extend tip₁ rest₁, .extend tip₂ rest₂, heq, hlen => by
       simp only [Chain.toList, List.length_cons] at hlen
-      rcases BlockHeader.hash_faithful heq with htip | hcol
-      · rcases Chain.tip_commits rest₁ rest₂
-          (congrArg BlockHeader.prevBlockHash htip) (by omega) with heql | hcol
-        · refine Or.inl ?_
-          simp only [Chain.toList]
-          rw [heql, htip]
+      rcases BlockHeader.hash_inj heq with htip | hcol
+      · rcases Chain.tip_commits_prefix rest₁ rest₂
+          (congrArg BlockHeader.prevBlockHash htip) (by omega) with hpre | hcol
+        · exact Or.inl (by simpa only [Chain.toList, List.cons_prefix_cons]
+            using ⟨htip, hpre⟩)
         · exact Or.inr hcol
       · exact Or.inr hcol
+
+/-- Two chains of equal length that share a tip hash carry the same header
+list — or two concrete byte strings witness a double-SHA-256 collision. The
+tip hash commits to the entire history; the equal-length hypothesis is what
+upgrades `Chain.tip_commits_prefix`'s prefix to equality, and it cannot be
+dropped — a strictly shorter chain anchored higher up shares the tip while
+carrying strictly fewer headers. -/
+theorem Chain.tip_commits {a₁ a₂ t₁ t₂ : Hash256} (c₁ : Chain a₁ t₁) (c₂ : Chain a₂ t₂)
+    (heq : t₁ = t₂) (hlen : c₁.toList.length = c₂.toList.length) :
+    c₁.toList = c₂.toList ∨ Sha256.Collision :=
+  (c₁.tip_commits_prefix c₂ heq (Nat.le_of_eq hlen)).imp (·.eq_of_length hlen) id
 
 end BtcVerified
