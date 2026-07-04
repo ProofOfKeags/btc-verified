@@ -245,7 +245,7 @@ Checked claims:
 
 - `BlockHeader.hash_binding`: the block hash is a binding commitment to the
   header — equal block hashes mean equal headers, or a concrete
-  double-SHA-256 collision, the same shape as `Merkle.root_inj_of_length_eq`.
+  double-SHA-256 collision, the same shape as `Merkle.root_binding_of_length_eq`.
 - `Chain.toList_append`: stacking chain segments concatenates their header
   lists — composition is compatible with the plain-list view.
 - `Chain.isChain_toList`: a chain's list-of-headers view satisfies `IsChain`,
@@ -259,7 +259,7 @@ Checked claims:
 - `Chain.tip_commits`: two chains of equal length sharing a tip hash carry
   the same header list — or a concrete collision. The tip hash commits to
   the entire history, proved in the same peel-and-recurse,
-  collision-disjunct style as `Merkle.root_inj_of_length_eq`.
+  collision-disjunct style as `Merkle.root_binding_of_length_eq`.
 - Golden vector: block 1's raw 80 header bytes decode, re-encode, and hash
   to the well-known block 1 hash; the decoded header extends the decoded
   genesis header (`BlockHeader.Extends`); and the two headers form an
@@ -277,19 +277,19 @@ Bitcoin's merkle tree, as a tree — the platonic spec, with the root computatio
 and canonicality factored apart. The root is a structural tree fold: the tree is
 built top-down by bisection, procedural duplication an explicit `pad` constructor
 rather than an artifact of iteration order. Canonicality is a first-class
-decidable property of the leaf list, constraining exactly what threatens
-injectivity: padding only duplicates trailing power-of-two-aligned blocks, so
+decidable property of the leaf list, constraining exactly what threatens the
+root's binding: padding only duplicates trailing power-of-two-aligned blocks, so
 only a right-spine duplication can materialize a shorter list's padding
 (CVE-2012-2459). The bottom-up vector computation of this root, and the clients
 that run it, live under `Impl/`.
 
 Checked claims:
 
-- `root_inj_of_length_eq`: between equal-length lists, the root identifies the
-  list — or two concrete byte strings collide under double-SHA-256.
-- `root_inj_of_canonical`: between canonical lists of equal enclosing width,
-  the root identifies the list — or a concrete collision. This is the
-  injectivity the canonicality rule exists to restore.
+- `root_binding_of_length_eq`: between equal-length lists, the root identifies
+  the list — or two concrete byte strings collide under double-SHA-256.
+- `root_binding_of_canonical`: between canonical lists of equal enclosing
+  width, the root identifies the list — or a concrete collision. This is the
+  binding the canonicality rule exists to restore.
 - `Block.merkleCommits`: the consensus condition — a canonical txid list whose
   root is the header's. Checked on the genesis block and block 170 at build
   time, and on all 1866 transactions of block 481824 under `lake test`, which
@@ -331,7 +331,7 @@ Checked claims:
   stronger and no transaction-distinctness hypothesis is needed or used.
 - `eq_of_computeMerkleRoot_eq_of_not_mutated`: two nonempty equal-width lists Core
   accepts with equal roots are equal — or a concrete double-SHA-256 collision.
-  Core's single check recovers the injectivity `root_inj_of_canonical` provides.
+  Core's single check recovers the binding `root_binding_of_canonical` provides.
 - `computeMerkleRoot_fst`: the root Core returns is exactly `computeRoot` (hence
   the spec `root`) on every input — anchored to real chain data through the
   `Block.merkleCommits` checks, and confirmed on block 481824 under `lake test`
@@ -340,7 +340,7 @@ Checked claims:
 Why it matters: this closes the gap between the algorithm Bitcoin Core actually
 runs and the repo's separated root/canonicality model. Core fuses the root and a
 duplicate scan into one pass; the spec factors them apart, and passing Core's
-scan is proved to imply the canonicality that recovers injectivity — the one-way
+scan is proved to imply the canonicality that recovers the binding — the one-way
 direction that matters, since Core is strictly stronger than canonicality
 requires.
 

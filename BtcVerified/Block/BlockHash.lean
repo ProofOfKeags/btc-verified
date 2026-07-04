@@ -10,7 +10,8 @@ import BtcVerified.Crypto.Sha256
   made for transactions.
 
   As with `Tx.txid_binding`, the binding theorem here is the
-  collision-disjunct idiom (`Merkle.root_inj_of_length_eq` is the same shape):
+  collision-disjunct idiom (`Merkle.root_binding_of_length_eq` is the same
+  shape):
   the hash is a binding commitment to the header — equal hashes force equal
   headers, or the two encodings exhibit a concrete double-SHA-256 collision.
   Collision resistance is never assumed for the concrete hash — only ever a
