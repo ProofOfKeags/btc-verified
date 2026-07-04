@@ -95,8 +95,8 @@ elab "#assert_axioms " id:ident : command => do
 
 /-! ## Transaction ids -/
 
-#assert_axioms BtcVerified.Tx.txid_faithful
-#assert_axioms BtcVerified.Tx.wtxid_faithful
+#assert_axioms BtcVerified.Tx.txid_binding
+#assert_axioms BtcVerified.Tx.wtxid_binding
 #assert_axioms BtcVerified.Tx.wtxid_legacy
 
 /-! ## Block hashes -/

@@ -35,7 +35,7 @@ def CollisionResistant {α β : Type*} (h : α → β) : Prop := ¬ Collision h
 
 /-- A collision-resistant function is injective: equal images force equal
 inputs. This is the bridge that turns the `… ∨ Collision` disjunct of the
-hashing faithfulness theorems into outright injectivity under a resistance
+hashing binding theorems into outright injectivity under a resistance
 hypothesis. -/
 theorem CollisionResistant.injective {α β : Type*} {h : α → β}
     (hcr : CollisionResistant h) {a b : α} (hab : h a = h b) : a = b := by

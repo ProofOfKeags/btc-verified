@@ -9,7 +9,7 @@ import BtcVerified.Crypto.Sha256
   fixture tests computed inline into the library — the same move `Tx.txid`
   made for transactions.
 
-  As with `Tx.txid_faithful`, the binding theorem here is the
+  As with `Tx.txid_binding`, the binding theorem here is the
   collision-disjunct idiom (`Merkle.root_inj_of_length_eq` is the same shape):
   the hash is a binding commitment to the header — equal hashes force equal
   headers, or the two encodings exhibit a concrete double-SHA-256 collision.
