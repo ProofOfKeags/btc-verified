@@ -12,7 +12,7 @@ import BtcVerified.Crypto.Hash256
 
   A hash of an encoding only identifies anything because the encoding is
   injective — `encode_injective`, a consequence of the codec round-trip law.
-  The faithfulness theorems here are exactly that observation: equal txids
+  The binding theorems here are exactly that observation: equal txids
   mean equal bodies, and equal wtxids mean equal transactions, or in either
   case there are two concrete byte strings witnessing a double-SHA-256
   collision (`Sha256.Collision`). The collision appears as a constructed
@@ -20,9 +20,9 @@ import BtcVerified.Crypto.Hash256
 
   Checked claims:
 
-  * `Tx.txid_faithful`: equal txids imply equal witness-free bodies, or a
+  * `Tx.txid_binding`: equal txids imply equal witness-free bodies, or a
     concrete `sha256d` collision.
-  * `Tx.wtxid_faithful`: equal wtxids imply equal transactions (witnesses
+  * `Tx.wtxid_binding`: equal wtxids imply equal transactions (witnesses
     included), or a concrete `sha256d` collision.
   * `Tx.wtxid_legacy`: a legacy transaction's wtxid is its txid.
 -/
@@ -50,7 +50,7 @@ theorem Tx.wtxid_legacy (body : TxBody) (h : body.inputs.val ≠ []) :
 
 /-- Equal txids mean equal witness-free bodies — or two concrete byte strings
 witnessing a double-SHA-256 collision. -/
-theorem Tx.txid_faithful {t₁ t₂ : Tx} (h : t₁.txid = t₂.txid) :
+theorem Tx.txid_binding {t₁ t₂ : Tx} (h : t₁.txid = t₂.txid) :
     t₁.body = t₂.body ∨ Sha256.Collision := by
   by_cases hb : t₁.body = t₂.body
   · exact Or.inl hb
@@ -59,7 +59,7 @@ theorem Tx.txid_faithful {t₁ t₂ : Tx} (h : t₁.txid = t₂.txid) :
 
 /-- Equal wtxids mean equal transactions, witnesses included — or two
 concrete byte strings witnessing a double-SHA-256 collision. -/
-theorem Tx.wtxid_faithful {t₁ t₂ : Tx} (h : t₁.wtxid = t₂.wtxid) :
+theorem Tx.wtxid_binding {t₁ t₂ : Tx} (h : t₁.wtxid = t₂.wtxid) :
     t₁ = t₂ ∨ Sha256.Collision := by
   by_cases ht : t₁ = t₂
   · exact Or.inl ht

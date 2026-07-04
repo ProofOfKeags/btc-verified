@@ -202,12 +202,12 @@ two coincide by `rfl`.
 
 Checked claims:
 
-- `Tx.txid_faithful`: equal txids imply equal witness-free bodies — or two
+- `Tx.txid_binding`: equal txids imply equal witness-free bodies — or two
   concrete byte strings witnessing a double-SHA-256 collision. With
   `CollisionResistant.injective` (the generalized collision vocabulary in
   `BtcVerified.Collision`), a resistance hypothesis collapses this to outright
   injectivity.
-- `Tx.wtxid_faithful`: equal wtxids imply equal transactions, witnesses
+- `Tx.wtxid_binding`: equal wtxids imply equal transactions, witnesses
   included — or a concrete collision.
 - Golden vectors: the first Bitcoin payment's txid, the genesis coinbase txid
   (which is the genesis merkle root), and the SegWit coinbase's txid with
