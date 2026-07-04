@@ -9,16 +9,17 @@ import BtcVerified.Crypto.Sha256
   fixture tests computed inline into the library — the same move `Tx.txid`
   made for transactions.
 
-  As with `Tx.txid_faithful`, the injectivity theorem here is the
+  As with `Tx.txid_faithful`, the binding theorem here is the
   collision-disjunct idiom (`Merkle.root_inj_of_length_eq` is the same shape):
-  equal hashes force equal headers, or the two encodings exhibit a concrete
-  double-SHA-256 collision. Collision resistance is never assumed for the
-  concrete hash — only ever a hypothesis a caller supplies over the abstract
-  `Sha256.Collision` vocabulary.
+  the hash is a binding commitment to the header — equal hashes force equal
+  headers, or the two encodings exhibit a concrete double-SHA-256 collision.
+  Collision resistance is never assumed for the concrete hash — only ever a
+  hypothesis a caller supplies over the abstract `Sha256.Collision`
+  vocabulary.
 
   Checked claims:
 
-  * `BlockHeader.hash_inj`: equal block hashes mean equal headers — or a
+  * `BlockHeader.hash_binding`: equal block hashes mean equal headers — or a
     concrete double-SHA-256 collision.
 -/
 
@@ -35,7 +36,7 @@ def BlockHeader.hash (h : BlockHeader) : Hash256 :=
 
 /-- Equal block hashes mean equal headers — or two concrete byte strings
 witnessing a double-SHA-256 collision. -/
-theorem BlockHeader.hash_inj {h₁ h₂ : BlockHeader} (h : h₁.hash = h₂.hash) :
+theorem BlockHeader.hash_binding {h₁ h₂ : BlockHeader} (h : h₁.hash = h₂.hash) :
     h₁ = h₂ ∨ Sha256.Collision := by
   by_cases he : h₁ = h₂
   · exact Or.inl he

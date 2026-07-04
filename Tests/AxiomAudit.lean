@@ -101,7 +101,7 @@ elab "#assert_axioms " id:ident : command => do
 
 /-! ## Block hashes -/
 
-#assert_axioms BtcVerified.BlockHeader.hash_inj
+#assert_axioms BtcVerified.BlockHeader.hash_binding
 
 /-! ## The chain -/
 
