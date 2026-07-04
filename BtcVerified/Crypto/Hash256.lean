@@ -71,4 +71,8 @@ distinct hashes, which is all the synthetic test vectors need from it. -/
 instance (n : Nat) : OfNat Hash256 n :=
   ⟨⟨encodeBitVecLE 32 (BitVec.ofNat (8 * 32) n), encodeBitVecLE_length 32 _⟩⟩
 
+/-- Every 32-byte string is some `Hash256`'s encoding. -/
+theorem exists_encode_hash256 {L : List UInt8} (h : L.length = 32) :
+    ∃ d : Hash256, Codec.encode d = L := ⟨⟨L, h⟩, rfl⟩
+
 end BtcVerified

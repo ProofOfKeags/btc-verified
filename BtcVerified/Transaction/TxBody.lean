@@ -43,4 +43,24 @@ little-endian lock time. This is exactly the txid preimage. -/
 instance instCodecTxBody : Codec TxBody :=
   Codec.ofEquiv TxBody.equivProd inferInstance
 
+/-- A transaction body encodes to its 4-byte version, its input vector, its output
+vector, and its 4-byte lock time. -/
+theorem encode_txbody_length (b : TxBody) :
+    (Codec.encode b).length =
+      4 + (Codec.encode b.inputs).length + (Codec.encode b.outputs).length + 4 := by
+  change (Codec.encode b.version
+    ++ (Codec.encode b.inputs
+      ++ (Codec.encode b.outputs ++ Codec.encode b.lockTime))).length = _
+  rw [List.length_append, List.length_append, List.length_append,
+    encode_uint32_length, encode_uint32_length]
+  omega
+
+/-- The byte layout of a body: version, inputs, outputs, lock time. -/
+theorem encode_txbody_eq (b : TxBody) :
+    Codec.encode b = Codec.encode b.version ++ Codec.encode b.inputs
+      ++ Codec.encode b.outputs ++ Codec.encode b.lockTime := by
+  change Codec.encode b.version
+    ++ (Codec.encode b.inputs ++ (Codec.encode b.outputs ++ Codec.encode b.lockTime)) = _
+  simp only [List.append_assoc]
+
 end BtcVerified
