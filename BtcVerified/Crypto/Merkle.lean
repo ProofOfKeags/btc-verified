@@ -19,7 +19,7 @@ import Mathlib.Data.Nat.Log
   explicit constructor (`pad`, semantically a node with two equal children)
   instead of an artifact of iteration order.
 
-  Canonicality constrains exactly what threatens injectivity and nothing
+  Canonicality constrains exactly what threatens the root's binding and nothing
   more. Padding only ever duplicates trailing power-of-two-aligned blocks —
   the right spine — so a cross-length collision requires a trailing block
   duplicating its left sibling, and `Canonical` forbids precisely that
@@ -31,7 +31,7 @@ import Mathlib.Data.Nat.Log
   constructed disjunct, and intractability is the consumer's hypothesis.
 
   Known residual, documented not solved: equal *widths* are a hypothesis of
-  `root_inj_of_canonical`. Across widths, a 64-byte transaction whose
+  `root_binding_of_canonical`. Across widths, a 64-byte transaction whose
   serialization equals the concatenation of two digests confuses a leaf with
   an internal node (the SPV-grade ambiguity the Great Consensus Cleanup
   proposes to close by forbidding 64-byte transactions). For block validity
@@ -39,9 +39,9 @@ import Mathlib.Data.Nat.Log
 
   Checked claims:
 
-  * `root_inj_of_length_eq`: between equal-length lists, the root identifies
+  * `root_binding_of_length_eq`: between equal-length lists, the root identifies
     the list — or two concrete byte strings collide under double-SHA-256.
-  * `root_inj_of_canonical`: between canonical lists of equal enclosing
+  * `root_binding_of_canonical`: between canonical lists of equal enclosing
     width, the root identifies the list — or a concrete collision. This is
     the property the canonicality rule exists to restore.
 -/
@@ -57,7 +57,7 @@ def combine (l r : Hash256) : Hash256 :=
 
 /-- Equal merkle nodes have equal children — or their two 64-byte preimages
 collide under double-SHA-256. -/
-theorem combine_inj {l r l' r' : Hash256} (h : combine l r = combine l' r') :
+theorem combine_binding {l r l' r' : Hash256} (h : combine l r = combine l' r') :
     (l = l' ∧ r = r') ∨ Sha256.Collision := by
   have hd : Sha256.sha256d (l.1 ++ r.1) = Sha256.sha256d (l'.1 ++ r'.1) :=
     congrArg Subtype.val h
@@ -120,8 +120,8 @@ def root (xs : List Hash256) : Hash256 := (tree xs).root
 content side of every padding node and the right child of every interior
 node, no interior node may join two subtrees with identical materialized
 leaf sequences — that is exactly the shape a materialized padding suffix
-produces, and (`root_inj_of_canonical`) the only shape that threatens
-injectivity. -/
+produces, and (`root_binding_of_canonical`) the only shape that threatens
+the root's binding. -/
 def Tree.spineCanonical : Tree → Bool
   | .leaf _ => true
   | .pad t => t.spineCanonical
@@ -203,7 +203,8 @@ theorem virtualLeaves_ofList_append :
           ← List.append_assoc, List.take_append_drop]⟩
 
 /-- Equal roots at one width force equal materialized leaf sequences — or a
-concrete double-SHA-256 collision. The hashing direction of injectivity. -/
+concrete double-SHA-256 collision. The hashing direction of the root's
+binding. -/
 theorem virtualLeaves_eq_of_root_eq :
     ∀ (k : Nat) (xs ys : List Hash256),
       (ofList xs k).root = (ofList ys k).root →
@@ -220,7 +221,7 @@ theorem virtualLeaves_eq_of_root_eq :
     · rw [if_pos hx, if_pos hy] at h ⊢
       rw [Tree.root, Tree.root] at h
       rw [Tree.virtualLeaves, Tree.virtualLeaves]
-      rcases combine_inj h with ⟨ha, _⟩ | c
+      rcases combine_binding h with ⟨ha, _⟩ | c
       · rcases ih xs ys ha with hvl | c
         · exact Or.inl (by rw [hvl])
         · exact Or.inr c
@@ -228,7 +229,7 @@ theorem virtualLeaves_eq_of_root_eq :
     · rw [if_pos hx, if_neg hy] at h ⊢
       rw [Tree.root, Tree.root] at h
       rw [Tree.virtualLeaves, Tree.virtualLeaves]
-      rcases combine_inj h with ⟨hl, hr⟩ | c
+      rcases combine_binding h with ⟨hl, hr⟩ | c
       · rcases ih xs (ys.take (2 ^ k)) hl with hvl₁ | c
         · rcases ih xs (ys.drop (2 ^ k)) hr with hvl₂ | c
           · exact Or.inl (by rw [← hvl₁, ← hvl₂])
@@ -238,7 +239,7 @@ theorem virtualLeaves_eq_of_root_eq :
     · rw [if_neg hx, if_pos hy] at h ⊢
       rw [Tree.root, Tree.root] at h
       rw [Tree.virtualLeaves, Tree.virtualLeaves]
-      rcases combine_inj h with ⟨hl, hr⟩ | c
+      rcases combine_binding h with ⟨hl, hr⟩ | c
       · rcases ih (xs.take (2 ^ k)) ys hl with hvl₁ | c
         · rcases ih (xs.drop (2 ^ k)) ys hr with hvl₂ | c
           · exact Or.inl (by rw [hvl₁, hvl₂])
@@ -248,7 +249,7 @@ theorem virtualLeaves_eq_of_root_eq :
     · rw [if_neg hx, if_neg hy] at h ⊢
       rw [Tree.root, Tree.root] at h
       rw [Tree.virtualLeaves, Tree.virtualLeaves]
-      rcases combine_inj h with ⟨hl, hr⟩ | c
+      rcases combine_binding h with ⟨hl, hr⟩ | c
       · rcases ih (xs.take (2 ^ k)) (ys.take (2 ^ k)) hl with hvl₁ | c
         · rcases ih (xs.drop (2 ^ k)) (ys.drop (2 ^ k)) hr with hvl₂ | c
           · exact Or.inl (by rw [hvl₁, hvl₂])
@@ -257,7 +258,8 @@ theorem virtualLeaves_eq_of_root_eq :
       · exact Or.inr c
 
 /-- Equal materialized leaves of canonical-spine trees come from equal actual
-lists: the combinatorial direction of injectivity, no hashing involved. The
+lists: the combinatorial direction of the root's binding, no hashing
+involved. The
 spine conditions kill exactly the materialized-padding case. -/
 theorem eq_of_virtualLeaves_eq :
     ∀ (k : Nat) (xs ys : List Hash256),
@@ -330,7 +332,7 @@ theorem eq_of_virtualLeaves_eq :
 /-- Between equal-length lists the merkle root identifies the list — or two
 concrete byte strings collide under double-SHA-256. No canonicality needed:
 padding only appends, so equal lengths leave no room for ambiguity. -/
-theorem root_inj_of_length_eq {xs ys : List Hash256}
+theorem root_binding_of_length_eq {xs ys : List Hash256}
     (hlen : xs.length = ys.length) (hroot : root xs = root ys) :
     xs = ys ∨ Sha256.Collision := by
   unfold root tree at hroot
@@ -346,11 +348,11 @@ theorem root_inj_of_length_eq {xs ys : List Hash256}
 
 /-- Between canonical lists of equal enclosing width the merkle root
 identifies the list — or two concrete byte strings collide under
-double-SHA-256. This is the injectivity the canonicality rule exists to
+double-SHA-256. This is the binding the canonicality rule exists to
 restore: without `Canonical`, a list extended by its own materialized padding
 shares its root (CVE-2012-2459). Equal widths exclude the cross-height
 leaf/interior ambiguity (see the module header). -/
-theorem root_inj_of_canonical {xs ys : List Hash256}
+theorem root_binding_of_canonical {xs ys : List Hash256}
     (hcx : Canonical xs) (hcy : Canonical ys)
     (h0x : xs ≠ []) (h0y : ys ≠ [])
     (hk : Nat.clog 2 xs.length = Nat.clog 2 ys.length)
@@ -396,7 +398,7 @@ theorem root_inj_of_canonical {xs ys : List Hash256}
     rw [Canonical, canonicalCheck, tree, ← hk, hj] at hcy
     simp only [ofList, if_neg (by omega : ¬ xs.length ≤ 2 ^ j),
       if_neg (by omega : ¬ ys.length ≤ 2 ^ j), Tree.root] at hroot hcx hcy
-    rcases combine_inj hroot with ⟨hl, hr⟩ | c
+    rcases combine_binding hroot with ⟨hl, hr⟩ | c
     · rcases virtualLeaves_eq_of_root_eq j _ _ hl with hvl₁ | c
       · have htake : xs.take (2 ^ j) = ys.take (2 ^ j) := by
           rw [← virtualLeaves_ofList_of_length_eq j (xs.take (2 ^ j))

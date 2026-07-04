@@ -481,7 +481,7 @@ theorem canonical_of_not_mutated (xs : List Hash256)
 /-- If Bitcoin Core accepts two nonempty leaf lists of equal enclosing width (no
 mutation) and computes the same merkle root for both, the lists are equal — or
 two concrete byte strings collide under double-SHA-256. Core's single fused check
-recovers the injectivity `root_inj_of_canonical` provides. -/
+recovers the binding `root_binding_of_canonical` provides. -/
 theorem eq_of_computeMerkleRoot_eq_of_not_mutated {xs ys : List Hash256}
     (h0x : xs ≠ []) (h0y : ys ≠ [])
     (hk : Nat.clog 2 xs.length = Nat.clog 2 ys.length)
@@ -493,7 +493,7 @@ theorem eq_of_computeMerkleRoot_eq_of_not_mutated {xs ys : List Hash256}
     rw [computeMerkleRoot_fst, computeRoot_eq_root]
   have hry : (computeMerkleRoot ys).1 = root ys := by
     rw [computeMerkleRoot_fst, computeRoot_eq_root]
-  exact root_inj_of_canonical (canonical_of_not_mutated xs hmx)
+  exact root_binding_of_canonical (canonical_of_not_mutated xs hmx)
     (canonical_of_not_mutated ys hmy) h0x h0y hk (by rw [← hrx, ← hry, hroot])
 
 end BtcVerified.Impl.BitcoinCore

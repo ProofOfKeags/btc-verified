@@ -112,9 +112,9 @@ elab "#assert_axioms " id:ident : command => do
 
 /-! ## The merkle tree -/
 
-#assert_axioms BtcVerified.Merkle.combine_inj
-#assert_axioms BtcVerified.Merkle.root_inj_of_length_eq
-#assert_axioms BtcVerified.Merkle.root_inj_of_canonical
+#assert_axioms BtcVerified.Merkle.combine_binding
+#assert_axioms BtcVerified.Merkle.root_binding_of_length_eq
+#assert_axioms BtcVerified.Merkle.root_binding_of_canonical
 #assert_axioms BtcVerified.Block.merkleCommits
 
 /-! ## Bitcoin Core's ComputeMerkleRoot -/

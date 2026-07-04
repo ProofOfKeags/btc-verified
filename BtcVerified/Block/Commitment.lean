@@ -23,7 +23,7 @@ namespace BtcVerified
 
 /-- The merkle commitment a consensus-valid block satisfies: its transaction
 ids form a canonical list whose merkle root is the header's. With
-`Merkle.root_inj_of_canonical`, two such blocks sharing a header agree on
+`Merkle.root_binding_of_canonical`, two such blocks sharing a header agree on
 their txid lists — or exhibit a concrete double-SHA-256 collision. -/
 def Block.merkleCommits (b : Block) : Prop :=
   Merkle.Canonical (b.txs.val.map Tx.txid)
