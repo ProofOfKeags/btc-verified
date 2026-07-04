@@ -243,8 +243,8 @@ the genesis header's own `prevBlockHash`), not a special case. This is the
 
 Checked claims:
 
-- `BlockHeader.hash_inj`: the block hash is injective up to an exhibited
-  collision — equal block hashes mean equal headers, or a concrete
+- `BlockHeader.hash_binding`: the block hash is a binding commitment to the
+  header — equal block hashes mean equal headers, or a concrete
   double-SHA-256 collision, the same shape as `Merkle.root_inj_of_length_eq`.
 - `Chain.toList_append`: stacking chain segments concatenates their header
   lists — composition is compatible with the plain-list view.

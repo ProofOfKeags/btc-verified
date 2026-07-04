@@ -173,7 +173,7 @@ theorem Chain.isChain_toList {a : Hash256} :
 /-- Of two chains sharing a tip hash, the one with no more headers carries a
 prefix (tip-first) of the other's header list — or two concrete byte strings
 witness a double-SHA-256 collision. Peeling the tip (equal hashes give equal
-headers, via `BlockHeader.hash_inj`, or a collision) forces equal
+headers, via `BlockHeader.hash_binding`, or a collision) forces equal
 `prevBlockHash`es, and recursing identifies the chains one header at a time
 until the shorter one runs out. No relation between the anchors is assumed —
 a shorter chain anchored higher up the same history sees exactly a prefix of
@@ -189,7 +189,7 @@ theorem Chain.tip_commits_prefix {a₁ a₂ : Hash256} :
       exact absurd hlen (by omega)
   | _, _, .extend tip₁ rest₁, .extend tip₂ rest₂, heq, hlen => by
       simp only [Chain.toList, List.length_cons] at hlen
-      rcases BlockHeader.hash_inj heq with htip | hcol
+      rcases BlockHeader.hash_binding heq with htip | hcol
       · rcases Chain.tip_commits_prefix rest₁ rest₂
           (congrArg BlockHeader.prevBlockHash htip) (by omega) with hpre | hcol
         · exact Or.inl (by simpa only [Chain.toList, List.cons_prefix_cons]
