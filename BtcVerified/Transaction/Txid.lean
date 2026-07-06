@@ -31,12 +31,17 @@ namespace BtcVerified
 
 open BtcVerified.Serialize
 
-/-- The transaction id: the double-SHA-256 of the witness-free `TxBody`
-serialization, as its raw 32 digest bytes (the displayed hex is these bytes
-reversed). Both constructors hash only the body, so witness data never affects
-a txid. -/
+/-- The transaction id of a witness-free body: the double-SHA-256 of the
+`TxBody` serialization, as its raw 32 digest bytes (the displayed hex is these
+bytes reversed). The body alone determines the txid — this is the form the
+UTXO layer uses to key a transaction's outputs. -/
+def TxBody.txid (body : TxBody) : Hash256 :=
+  ⟨Sha256.sha256d (Codec.encode body), Sha256.sha256d_length _⟩
+
+/-- The transaction id: the txid of the witness-free body. Both constructors
+hash only the body, so witness data never affects a txid. -/
 def Tx.txid (tx : Tx) : Hash256 :=
-  ⟨Sha256.sha256d (Codec.encode tx.body), Sha256.sha256d_length _⟩
+  tx.body.txid
 
 /-- The witness transaction id (BIP141): the double-SHA-256 of the full
 serialization, witness included for the SegWit form. -/
