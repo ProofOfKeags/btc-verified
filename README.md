@@ -97,6 +97,8 @@ facts of the wire format into the types:
 - The `legacy` constructor carries a non-empty-inputs proof, because the SegWit
   serialization reserves a zero input count (the `0x00` marker), so a legacy
   transaction can never encode zero inputs.
+- Both transaction constructors carry a non-empty-outputs proof, matching the
+  one-or-more-output rule enforced by Bitcoin's transaction validity checks.
 - Every CompactSize-prefixed field — scripts, the input/output vectors, witness
   stacks, the block's transactions — is a `CountedList`.
 
@@ -127,7 +129,8 @@ disagree on order: `decode` reads the inputs and witnesses from their separate
 BIP144 regions and rebundles them (`zipInputs`); `encode` unzips. The
 legacy/SegWit dispatch turns on the marker byte, and a CompactSize first byte is
 `0x00` only for a zero count — which is what makes a non-empty legacy input count
-unambiguous against the marker. Packaged as `instCodecTx : Codec Tx`.
+unambiguous against the marker. Both branches reject an empty output vector.
+Packaged as `instCodecTx : Codec Tx`.
 
 Why it matters: a transaction is the unit a block commits to and the unit fork
 choice ultimately weighs. Verified round-trip and canonicality for both eras is

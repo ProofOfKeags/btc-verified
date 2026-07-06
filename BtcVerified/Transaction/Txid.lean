@@ -45,8 +45,9 @@ def Tx.wtxid (tx : Tx) : Hash256 :=
 
 /-- A legacy transaction's wtxid is its txid: its full serialization is its
 body's serialization. -/
-theorem Tx.wtxid_legacy (body : TxBody) (h : body.inputs.val ≠ []) :
-    (Tx.legacy body h).wtxid = (Tx.legacy body h).txid := rfl
+theorem Tx.wtxid_legacy (body : TxBody) (hin : body.inputs.val ≠ [])
+    (hout : body.outputs.val ≠ []) :
+    (Tx.legacy body hin hout).wtxid = (Tx.legacy body hin hout).txid := rfl
 
 /-- Equal txids mean equal witness-free bodies — or two concrete byte strings
 witnessing a double-SHA-256 collision. -/
