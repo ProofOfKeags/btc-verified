@@ -431,29 +431,33 @@ The point is to make a public, checked trail toward those larger artifacts.
 ## Roadmap
 
 The trail is tracked as [GitHub milestones](https://github.com/ProofOfKeags/btc-verified/milestones),
-in dependency order — each states its headline theorem, and the issues filed
-under it are the work items:
+in dependency order. Each milestone page states its claims precisely and
+tracks the work items; in outline:
 
 1. [Consensus guards: transaction and block validity](https://github.com/ProofOfKeags/btc-verified/milestone/1)
-   — the named rules over the chainstate machine: a block either violates a
-   named rule or acts on the UTXO set exactly as specified.
+   — Write down the rules that decide whether a transaction or block is
+   valid, and prove that every valid block updates the set of spendable
+   coins exactly as specified.
 2. [The supply limit theorem](https://github.com/ProofOfKeags/btc-verified/milestone/2)
-   — the block delta invariant, folded from genesis: total UTXO value stays
-   under 21 million BTC.
+   — Prove that under those validity rules, the total number of bitcoins
+   that can ever exist stays below 21 million.
 3. [Proof of work and cumulative work](https://github.com/ProofOfKeags/btc-verified/milestone/3)
-   — `nBits` targets, the target check, difficulty adjustment, and monotone
-   cumulative work along a chain.
+   — Define what it means for a block to prove work — the hash target its
+   header must meet — and prove how that work adds up along a chain.
 4. [The block tree and fork choice](https://github.com/ProofOfKeags/btc-verified/milestone/4)
-   — the selected tip is a valid chain of maximal cumulative work.
+   — Prove that when competing chains exist, Bitcoin's rule for choosing
+   between them selects the valid chain backed by the most total work.
 5. [The Core transcription track](https://github.com/ProofOfKeags/btc-verified/milestone/5)
-   — the consensus functions Bitcoin Core actually runs, transcribed and
-   proved against the spec, as `ComputeMerkleRoot` already is.
+   — Translate consensus-critical functions from Bitcoin Core's actual
+   source code into Lean and prove they satisfy the specification, as is
+   already done for its merkle-root computation.
 6. [Script: tokenization and the execution core](https://github.com/ProofOfKeags/btc-verified/milestone/6)
-   — the tokenizer, the stack machine, and standard-template characterizations
-   over an abstract signature predicate.
+   — Build a verified interpreter for the core of Bitcoin's Script
+   language, and prove the standard payment types accept exactly the
+   spends that present a correct signature.
 7. [ByteArray transport and the full-chain demo](https://github.com/ProofOfKeags/btc-verified/milestone/7)
-   — the proofs transported to efficient representations, and the verified
-   pipeline run over real mainnet history.
+   — Make the verified components efficient enough for real use, and
+   demonstrate it by checking actual Bitcoin mainnet history with them.
 
 ## Build
 
