@@ -2,14 +2,28 @@
 
 [![CI](https://github.com/ProofOfKeags/btc-verified/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ProofOfKeags/btc-verified/actions/workflows/ci.yml?query=branch%3Amaster)
 
-Small verified Bitcoin protocol components in Lean 4.
+Machine-checked components of the Bitcoin protocol, in Lean 4 (mathlib-based).
 
-This repository is an early public artifact for Bitcoin protocol verification:
-the goal is to build checked, reviewable cores around the parts of Bitcoin and
-Bitcoin-adjacent protocols where testing alone is the wrong tool.
+Consensus code is the kind of software testing alone cannot secure: every
+node must reach the same verdict on every byte, a divergence between
+implementations is a chain split, and the failures that matter are exactly
+the inputs no test suite thought to include. This repository builds Bitcoin's
+core in a proof assistant instead — the data structures, their serialization,
+the hash commitments that link them, the ledger they act on, and, ahead, the
+validity rules, the monetary guarantee, and fork choice — so that the
+properties Bitcoin depends on are theorems a machine re-checks on every
+build, not claims a reader has to take on trust.
 
-The current work is intentionally small. Each leaf should be understandable on
-its own, build cleanly, and make the next proof packet easier to state.
+The repo grows as small "proof leaves": each module builds cleanly, states
+exactly what it proves, and makes the next claim easier to state. The proofs
+stay anchored to the real network — the verified decoders and computable
+hashes run against actual mainnet blocks at build time, and an axiom audit
+fails CI if any headline theorem depends on an unproved assumption.
+
+The ambition, laid out in the roadmap below, is machine-checked proofs of
+the guarantees Bitcoin is valued for: that its rules cap issuance below 21
+million coins, and that the fork-choice rule selects the valid chain backed
+by the most work.
 
 ## Current proof leaves
 
