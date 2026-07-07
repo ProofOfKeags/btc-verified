@@ -45,20 +45,10 @@ statement of what stands.
   commitments, with a proof that equivocating on a committed bit yields a
   hash collision.
 
-## What this is not yet
-
-- Not a full Bitcoin Script semantics.
-- Not a *proof* that the SHA-256 implementation equals FIPS 180-4 — it is
-  concrete and computable, checked against published test vectors, not verified
-  bit-for-bit against the spec.
-- Not a full BitVM fraud-proof model.
-- Not a claim that the current leaves are important by themselves.
-
-The point is to make a public, checked trail toward those larger artifacts.
-
 ## Roadmap
 
-The trail is tracked as [GitHub milestones](https://github.com/ProofOfKeags/btc-verified/milestones),
+The trail toward the larger artifacts is tracked as
+[GitHub milestones](https://github.com/ProofOfKeags/btc-verified/milestones),
 in dependency order. Each milestone page states its claims precisely and
 tracks the work items; in outline:
 
