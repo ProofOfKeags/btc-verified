@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ProofOfKeags/btc-verified/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ProofOfKeags/btc-verified/actions/workflows/ci.yml?query=branch%3Amaster)
 
-Machine-checked components of the Bitcoin protocol, in Lean 4 (mathlib-based).
+Machine-checked components of the Bitcoin protocol, in Lean 4.
 
 Consensus code is the kind of software testing alone cannot secure: every
 node must reach the same verdict on every byte, a divergence between
