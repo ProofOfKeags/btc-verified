@@ -74,8 +74,9 @@ while iterating.
 
 ## 5. The README section
 
-Add to "Current proof leaves" in `README.md`, matching the existing sections
-exactly:
+Add to the module directory's `README.md` (e.g.
+`BtcVerified/Transaction/README.md`; create it if the directory is new),
+matching the existing sections exactly:
 
 ```markdown
 ### `BtcVerified.<Module>`
@@ -93,3 +94,9 @@ consensus validity → proof of work → fork choice).
 Keep claims honest: list only what is actually proved, and put modeling
 assumptions (abstract hashing, opaque scripts) in the description, not the
 claims.
+
+Then check the directory's one-line entry in the top-level `README.md`
+"Current proof leaves" index still covers the new leaf — it is a single
+plain-English sentence for readers who have never seen the repo, stating
+what is proved, never a claims list; update it if the leaf changes what the
+directory can claim.

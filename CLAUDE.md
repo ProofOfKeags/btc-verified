@@ -116,9 +116,15 @@ Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
    `Tests/BlockFixtures.lean` via `lake test` when the bytes run to
    kilobytes (downloaded by block hash on first run, cached under the
    gitignored `Tests/fixtures/` — never committed).
-4. Add a section to `README.md` under "Current proof leaves" in the house
-   format: short intro, `Checked claims:` bullets naming the theorems, and a
-   "Why it matters:" paragraph tying it to the fork-choice stack.
+4. Add a section to the module directory's `README.md` (e.g.
+   `BtcVerified/Transaction/README.md`; create it if the directory is new) in
+   the house format: short intro, `Checked claims:` bullets naming the
+   theorems, and a "Why it matters:" paragraph tying it to the fork-choice
+   stack. Then check the directory's one-line entry in the top-level
+   `README.md` "Current proof leaves" index still covers the leaf — it is a
+   single plain-English sentence for readers who have never seen the repo,
+   not a claims list; update it if the leaf changes what the directory can
+   claim.
 
 The `/proof-leaf` skill walks through this checklist.
 
