@@ -428,6 +428,33 @@ most the subsidy) it folds directly into the supply limit.
 
 The point is to make a public, checked trail toward those larger artifacts.
 
+## Roadmap
+
+The trail is tracked as [GitHub milestones](https://github.com/ProofOfKeags/btc-verified/milestones),
+in dependency order — each states its headline theorem, and the issues filed
+under it are the work items:
+
+1. [Consensus guards: transaction and block validity](https://github.com/ProofOfKeags/btc-verified/milestone/1)
+   — the named rules over the chainstate machine: a block either violates a
+   named rule or acts on the UTXO set exactly as specified.
+2. [The supply limit theorem](https://github.com/ProofOfKeags/btc-verified/milestone/2)
+   — the block delta invariant, folded from genesis: total UTXO value stays
+   under 21 million BTC.
+3. [Proof of work and cumulative work](https://github.com/ProofOfKeags/btc-verified/milestone/3)
+   — `nBits` targets, the target check, difficulty adjustment, and monotone
+   cumulative work along a chain.
+4. [The block tree and fork choice](https://github.com/ProofOfKeags/btc-verified/milestone/4)
+   — the selected tip is a valid chain of maximal cumulative work.
+5. [The Core transcription track](https://github.com/ProofOfKeags/btc-verified/milestone/5)
+   — the consensus functions Bitcoin Core actually runs, transcribed and
+   proved against the spec, as `ComputeMerkleRoot` already is.
+6. [Script: tokenization and the execution core](https://github.com/ProofOfKeags/btc-verified/milestone/6)
+   — the tokenizer, the stack machine, and standard-template characterizations
+   over an abstract signature predicate.
+7. [ByteArray transport and the full-chain demo](https://github.com/ProofOfKeags/btc-verified/milestone/7)
+   — the proofs transported to efficient representations, and the verified
+   pipeline run over real mainnet history.
+
 ## Build
 
 With Nix, enter the development shell first:
