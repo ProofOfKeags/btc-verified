@@ -99,6 +99,21 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Tx.wtxid_binding
 #assert_axioms BtcVerified.Tx.wtxid_legacy
 
+/-! ## The chainstate -/
+
+#assert_axioms Finmap.insert_erase
+#assert_axioms BtcVerified.UtxoSet.lookup_spend_of_mem
+#assert_axioms BtcVerified.UtxoSet.lookup_spend_of_notMem
+#assert_axioms BtcVerified.UtxoSet.spend_perm
+#assert_axioms BtcVerified.UtxoSet.lookup_create_of_mem
+#assert_axioms BtcVerified.UtxoSet.totalValue_spend
+#assert_axioms BtcVerified.UtxoSet.totalValue_create
+#assert_axioms BtcVerified.UtxoSet.lookup_apply_of_mem_creates
+#assert_axioms BtcVerified.UtxoSet.lookup_apply_output
+#assert_axioms BtcVerified.UtxoSet.lookup_apply_of_mem_spends
+#assert_axioms BtcVerified.UtxoSet.lookup_apply_of_notMem
+#assert_axioms BtcVerified.UtxoSet.totalValue_apply
+
 /-! ## Block hashes -/
 
 #assert_axioms BtcVerified.BlockHeader.hash_binding
