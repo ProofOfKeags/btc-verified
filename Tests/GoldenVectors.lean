@@ -128,7 +128,7 @@ def segwitCoinbaseHex : String :=
   tx.isSegWit
   && tx.body.lockTime == 0
   && (match tx with
-      | .segwit version ins outs _ =>
+      | .segwit version ins outs _ _ =>
         version == 1 && outs.val.length == 2
         && (match ins.val with
             | [si] =>
@@ -165,7 +165,7 @@ def firstSegwitSpendHex : String :=
   && tx.body.lockTime == 0
   && tx.body.outputs.val.length == 1
   && (match tx with
-      | .segwit _ ins _ _ =>
+      | .segwit _ ins _ _ _ =>
         (match ins.val with
          | [si] =>
            si.input.prevout.txid
@@ -177,6 +177,29 @@ def firstSegwitSpendHex : String :=
                | _ => false)
          | _ => false)
       | .legacy .. => false)
+
+/-! ## Empty-output transaction regression
+
+  BIP144 describes `txouts` as a list of one or more transaction outputs, and
+  Bitcoin Core's consensus checks reject an empty output vector with
+  `bad-txns-vout-empty`.
+
+  This synthetic vector is otherwise a parseable legacy transaction with one
+  input, zero outputs, and a lock time. The transaction decoder must reject it
+  instead of returning a `.legacy` value.
+-/
+
+/-- A legacy transaction with an empty output vector. -/
+def emptyOutputsHex : String :=
+  "0100000001000000000000000000000000000000000000000000000000000000\
+   0000000000ffffffff00ffffffff0000000000"
+
+#guard match hexBytes? emptyOutputsHex with
+  | none => false
+  | some bytes =>
+    match Codec.decode (α := Tx) bytes with
+    | none => true
+    | some _ => false
 
 /-! ## Blocks -/
 
