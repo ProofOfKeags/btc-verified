@@ -1,4 +1,5 @@
 import BtcVerified.Ext.List
+import BtcVerified.Ext.Finmap
 import BtcVerified.Serialize.Codec
 import BtcVerified.Serialize.WidthCast
 import BtcVerified.Serialize.CountedList
@@ -16,6 +17,10 @@ import BtcVerified.Transaction.SegwitInput
 import BtcVerified.Transaction.TxBody
 import BtcVerified.Transaction.Tx
 import BtcVerified.Transaction.Txid
+import BtcVerified.Chainstate.Provenance
+import BtcVerified.Chainstate.Coin
+import BtcVerified.Chainstate.UtxoSet
+import BtcVerified.Chainstate.Apply
 import BtcVerified.Block.BlockHeader
 import BtcVerified.Block.Block
 import BtcVerified.Block.Commitment
