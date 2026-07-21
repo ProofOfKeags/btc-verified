@@ -12,9 +12,12 @@ import Tests.GoldenVectors
   `Tests/fixtures/`, which is gitignored. The download is authenticated as
   far as the current leaves allow: the decoded header must double-SHA-256 to
   the requested block hash (so the 80 header bytes carry their proof of
-  work), and the spot-checks pin the transaction count and the embedded
-  transactions they name byte-for-byte. Full authentication of every
-  transaction byte is the merkle-commitment leaf's job, once it lands.
+  work), the merkle commitment pins every transaction's txid to that header,
+  and the spot-checks pin the embedded transactions they name byte-for-byte.
+  Txids exclude witness data (BIP141), so the SegWit witness bytes of
+  transactions not byte-pinned by a spot-check are the one region a
+  corrupted download could alter undetected; closing it is the
+  witness-commitment leaf's job, once it lands.
 
   The one fixture so far is block 481824, the SegWit activation block: 1866
   transactions mixing the legacy and SegWit serializations, the SegWit
@@ -82,8 +85,10 @@ def block481824Checks (b : Block) : Bool :=
   && (b.txs.val.any fun tx => !tx.isSegWit)
   -- The header commits to all 1866 transaction ids through the merkle root,
   -- and the txid list is canonical. With the header-hash check above, every
-  -- transaction byte in the fixture is now pinned: txids → merkle root →
-  -- header → proof-of-work hash.
+  -- non-witness transaction byte is pinned: txids → merkle root → header →
+  -- proof-of-work hash. Witness bytes are outside the txid preimage (BIP141),
+  -- so only the two byte-pinned transactions above have theirs checked,
+  -- until the witness-commitment leaf lands.
   && decide b.merkleCommits
   -- Bitcoin Core's own algorithm accepts the block: run on the real txid list,
   -- its `mutated` flag is clear — the model agrees with Core, which accepted
