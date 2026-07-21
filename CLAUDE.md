@@ -8,7 +8,7 @@ in its header, and makes the next proof packet easier to state.
 
 ```sh
 lake build                                  # everything (default targets: BtcVerified, Tests)
-lake build BtcVerified.Transaction.TxCodec  # one module — the fast iteration loop
+lake build BtcVerified.Transaction.Tx       # one module — the fast iteration loop
 lake build Tests                            # golden vectors + axiom audit only
 lake test                                   # fixture checks (block 481824; fetched on first run, cached gitignored)
 lake lint                                   # batteries runLinter, mathlib standard linter set
@@ -24,6 +24,8 @@ lake lint                                   # batteries runLinter, mathlib stand
 
 Dependency order, bottom-up:
 
+- `BtcVerified/Ext/` — small `List`/`Finmap` lemmas the layers below need;
+  upstreaming candidates.
 - `BtcVerified/Serialize/` — the codec discipline. `Codec.lean` defines the
   `Codec` typeclass: encoder, prefix-consuming decoder over `List UInt8`, and
   the two laws (`decode_encode` round-trip, `decode_canonical` canonicality).
@@ -33,19 +35,33 @@ Dependency order, bottom-up:
   (namespace `BtcVerified.CompactSize`); `CountedList.lean` the
   CompactSize-count-prefixed vector (`CountedList α` = list whose length fits
   `UInt64`).
-- `BtcVerified/Crypto/Hash256.lean` — `Hash256 := BitVec 256`. Hashing is
-  abstract everywhere; nothing computes SHA-256.
+- `BtcVerified/Crypto/` — `Hash256.lean`: a digest as its 32 raw bytes, the
+  one type txids, block hashes, and merkle nodes share. `Sha256.lean`: a
+  computable FIPS 180-4 SHA-256 and `sha256d` — the only place a hash is
+  computed; everything downstream calls it. `Collision.lean`: collisions as
+  concrete witnesses; collision resistance is a consumer hypothesis, never
+  an axiom. `Merkle.lean`: the abstract merkle root, its binding theorems,
+  and the CVE-2012-2459 canonicality predicate.
 - `BtcVerified/Script/Script.lean` — `Script`: a program as raw,
   CompactSize-prefixed bytes. Tokenization is part of execution, not
   deserialization (consensus never requires script fields to tokenize), so
   the wire layer keeps the bytes uninterpreted; the script-language layer
   grows here later.
 - `BtcVerified/Transaction/` — the data model (`OutPoint`, `TxIn`, `TxOut`,
-  `TxBody`, `SegwitInput`, `Tx`) and `TxCodec.lean`, the whole-transaction
-  codec with the legacy/SegWit marker dispatch.
-- `BtcVerified/Block/` — `BlockHeader`, `Block`.
+  `TxBody`, `SegwitInput`, `Tx`), `Tx.lean` — the whole-transaction codec
+  with the legacy/SegWit marker dispatch — and `Txid.lean`, txids and
+  wtxids as binding commitments.
+- `BtcVerified/Chainstate/` — the UTXO set (a `Finmap` over outpoints), coin
+  provenance, and the guard-free transaction action with its value
+  accounting. The machine consensus rules will be stated over, not the
+  rules themselves.
+- `BtcVerified/Block/` — `BlockHeader`, `Block`, the header's merkle
+  commitment to its txid list, the header hash, and hash-linked chains
+  (`Chain.lean`: the tip hash commits to the whole history).
 - `BtcVerified/BitVM/` — abstract bit-commitment model, independent of the
   serialization stack.
+- `BtcVerified/Impl/` — Bitcoin Core's own algorithms transcribed to Lean
+  and proved against the spec, starting with `BitcoinCore/Merkle.lean`.
 
 `BtcVerified.lean` is the root: every module must be imported there or CI
 doesn't build it.
@@ -58,7 +74,7 @@ doesn't build it.
    the codec for free: `instance instCodecFoo : Codec Foo :=
    Codec.ofEquiv Foo.equivProd inferInstance`. No hand-written proofs.
 3. Only write `encode`/`decode` by hand when the wire format and the model
-   genuinely disagree (e.g. `TxCodec.lean`, where BIP144 groups witnesses
+   genuinely disagree (e.g. `Tx.lean`, where BIP144 groups witnesses
    after inputs but the model bundles them per-input). Then prove both laws
    and package them as a `Codec` instance.
 4. Every CompactSize-prefixed wire field (scripts, vectors, witness stacks) is
@@ -79,8 +95,9 @@ Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
   (e.g. `instCodecUInt8…64` in `Serialize/Codec.lean`); sum-type arm-records may
   share a module if they never appear in an outside signature. Tightly-coupled
   clusters become a directory of one-type modules under an umbrella facade (see
-  `BitVM/BitCommitment/`). A `lake`-run introspection audit enforces this
-  (issue #9).
+  `BitVM/BitCommitment/`). A `lake`-run introspection audit to enforce this
+  mechanically is planned — tracked as issue #9; until it lands, review
+  enforces it.
 - **Naming**: rigid Lean/mathlib casing. `UpperCamelCase` for types, props,
   and predicates; `lowerCamelCase` for defs; theorem names describe the
   conclusion mathlib-style (`decode_encode`, `encodeBitVecLE_length`). Full
@@ -104,7 +121,8 @@ Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
 - **Lints**: `weak.linter.mathlibStandardSet` is on; code must be linter-clean
   (`lake lint`).
 - **No `sorry` on master.** New axioms require explicit discussion; the audit
-  allowlist is `propext`, `Classical.choice`, `Quot.sound`.
+  allowlist is `propext`, `Classical.choice`, `Quot.sound`, plus the
+  natively checked LRAT certificates `bv_decide` records.
 
 ## When a leaf lands
 

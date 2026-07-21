@@ -28,7 +28,9 @@ format into the types:
   transaction can never encode zero inputs.
 - Every CompactSize-prefixed field — scripts, the input/output vectors, witness
   stacks — is a `CountedList`; witness items are opaque byte strings; scripts
-  are `Script` (see `../Script/`); hashing stays abstract.
+  are `Script` (see `../Script/`); hash-valued fields are opaque `Hash256`
+  digests — nothing in the data model computes a hash (ids are computed in
+  `Txid.lean`, below).
 
 Why it matters: consensus validity, proof of work, and fork choice presuppose
 an actual representation of the substructures that carry their invariants.

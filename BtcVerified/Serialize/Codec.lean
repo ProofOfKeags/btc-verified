@@ -283,7 +283,9 @@ instance instCodecUInt32 : Codec UInt32 :=
 instance instCodecUInt64 : Codec UInt64 :=
   Codec.ofEquiv ⟨UInt64.toBitVec, UInt64.ofBitVec, fun _ => rfl, fun _ => rfl⟩ (bitVecCodecLE 8)
 
-/-- The 256-bit hash type is exactly 32 little-endian bytes. -/
+/-- A 256-bit word is exactly 32 little-endian bytes. (Hashes are not this:
+`Hash256` is 32 raw digest bytes with no endianness step — this instance is
+for numeric 256-bit fields.) -/
 instance instCodecBitVec256 : Codec (BitVec 256) := bitVecCodecLE 32
 
 end BtcVerified.Serialize
