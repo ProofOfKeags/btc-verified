@@ -6,8 +6,9 @@ import Lean
   `lake build` succeeds even when a proof uses `sorry` — it is only a warning.
   This file is what turns "it builds" into "it is proved": `#assert_axioms`
   fails elaboration if a registered constant depends on any axiom outside the
-  standard three (`propext`, `Classical.choice`, `Quot.sound`) — in particular
-  on `sorryAx`.
+  standard three (`propext`, `Classical.choice`, `Quot.sound`) and the
+  natively checked `bv_decide` LRAT certificates — in particular on
+  `sorryAx`.
 
   Every headline theorem and codec instance must be registered here when its
   leaf lands. Auditing a `Codec` instance covers both of its law fields and
@@ -27,9 +28,14 @@ def allowedAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 checked LRAT certificate as a per-declaration axiom named
 `<decl>._native.bv_decide.ax_*`. Those proofs trust the SAT pipeline (solver +
 native LRAT checker), which we accept; this recognizes them so the audit can
-allow them while still rejecting `sorryAx` and any other stray axiom. -/
+allow them while still rejecting `sorryAx` and any other stray axiom. The
+match is on the exact last three name components (`._native.bv_decide.ax_*`),
+not a substring, so an unrelated declaration whose name merely mentions
+`bv_decide` cannot slip through. -/
 def isBvDecideCertificate (ax : Name) : Bool :=
-  (ax.toString.splitOn ".bv_decide.ax").length > 1
+  match ax with
+  | .str (.str (.str _ "_native") "bv_decide") s => s.startsWith "ax_"
+  | _ => false
 
 /-- Fail elaboration if the named constant depends on any axiom outside
 `allowedAxioms` (plus `bv_decide` certificates) — in particular on `sorryAx`. -/
@@ -105,7 +111,12 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.UtxoSet.lookup_spend_of_mem
 #assert_axioms BtcVerified.UtxoSet.lookup_spend_of_notMem
 #assert_axioms BtcVerified.UtxoSet.spend_perm
+#assert_axioms BtcVerified.UtxoSet.mem_spend
+#assert_axioms BtcVerified.UtxoSet.lookup_create_of_notMem
 #assert_axioms BtcVerified.UtxoSet.lookup_create_of_mem
+#assert_axioms BtcVerified.UtxoSet.mem_create
+#assert_axioms BtcVerified.UtxoSet.totalValue_insert
+#assert_axioms BtcVerified.UtxoSet.totalValue_erase
 #assert_axioms BtcVerified.UtxoSet.totalValue_spend
 #assert_axioms BtcVerified.UtxoSet.totalValue_create
 #assert_axioms BtcVerified.UtxoSet.lookup_apply_of_mem_creates
