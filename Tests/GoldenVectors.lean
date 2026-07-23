@@ -462,4 +462,85 @@ def block1HeaderHex : String :=
   | some (b, _) => decide b.merkleCommits
   | none => false
 
+/-! ## The transaction rules on the first payment
+
+  The block-9 coinbase funds the set, and the first Bitcoin payment spends
+  it at height 170 — the transaction rules and the strict interface run on
+  real mainnet data end to end. The setup authenticates itself: the
+  coinbase's *computed* txid must equal the prevout the first-payment
+  vector already pins byte-for-byte.
+-/
+
+/-- Raw wire bytes of the block-9 coinbase `0437cd…97c9` (2009-01-09), the
+transaction the first Bitcoin payment spends, fetched from
+blockstream.info. -/
+def block9CoinbaseHex : String :=
+  "0100000001000000000000000000000000000000000000000000000000000000\
+   0000000000ffffffff0704ffff001d0134ffffffff0100f2052a010000004341\
+   0411db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a\
+   5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412\
+   a3ac00000000"
+
+/-- The context block 170 admits its transactions in: height 170, header
+timestamp `1231731025`. -/
+def block170Context : TxContext := ⟨170, 1231731025⟩
+
+#guard checksOut block9CoinbaseHex fun coinbase =>
+  -- The computed txid is exactly the prevout the first-payment vector pins.
+  coinbase.txid
+    == hashOfDisplay "0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"
+  -- One 50 BTC output.
+  && (coinbase.body.outputs.val.map (·.value)) == [5_000_000_000]
+  -- A coinbase fails the regular-transaction rules by design: its input
+  -- claims the null outpoint. Coinbase structure is a block rule (#37).
+  && !coinbase.isWellFormed
+
+#guard match hexBytes? block9CoinbaseHex >>= Codec.decode (α := Tx),
+    hexBytes? firstBitcoinPaymentHex >>= Codec.decode (α := Tx) with
+  | some (coinbase, _), some (payment, _) =>
+    -- The block-9 coinbase's output as the whole UTXO set: created at
+    -- height 9, in coinbase position.
+    let utxos : UtxoSet := UtxoSet.create ∅
+      (coinbase.body.creates.map fun entry => (entry.1, ⟨entry.2, ⟨9, true⟩⟩))
+    payment.isWellFormed
+    -- Admissible at block 170 under the always-true script judgment: the
+    -- coinbase matured at height 109, and 50 BTC in covers 10 + 40 out.
+    && payment.isAdmissible (fun _ _ _ => true) utxos block170Context
+    -- Not at height 105: the coinbase is four blocks short of maturity.
+    && !payment.isAdmissible (fun _ _ _ => true) utxos ⟨105, 1231731025⟩
+    -- A rejecting script judgment fails the bundle.
+    && !payment.isAdmissible (fun _ _ _ => false) utxos block170Context
+    -- The strict interface applies it: the spent outpoint is gone, the two
+    -- created outpoints carry 10 and 40 BTC stamped ⟨170, regular⟩, and
+    -- the zero-fee total is conserved.
+    && (match UtxoSet.applyChecked (fun _ _ _ => true) utxos block170Context
+          payment with
+        | some next =>
+          (next.lookup ⟨coinbase.txid, 0⟩).isNone
+          && ((next.lookup ⟨payment.txid, 0⟩).map fun coin =>
+              (coin.output.value, coin.provenance))
+            == some (1_000_000_000, ⟨170, false⟩)
+          && ((next.lookup ⟨payment.txid, 1⟩).map fun coin =>
+              (coin.output.value, coin.provenance))
+            == some (4_000_000_000, ⟨170, false⟩)
+          && next.totalValue == 5_000_000_000
+        | none => false)
+  | _, _ => false
+
+-- Duplicating the payment's input trips the duplicate-spends rule — the
+-- stateless negative real history cannot exhibit.
+#guard match hexBytes? firstBitcoinPaymentHex >>= Codec.decode (α := Tx) with
+  | some (payment, _) =>
+    (match payment.body.inputs.val with
+     | [input] =>
+       let doubled : TxBody := { payment.body with
+         inputs := ⟨[input, input], by simp⟩ }
+       !(Tx.legacy doubled (List.cons_ne_nil input [input])).isWellFormed
+     | _ => false)
+  | none => false
+
+-- The SegWit arm of the stateless checker: the first SegWit spend is
+-- well-formed.
+#guard checksOut firstSegwitSpendHex fun tx => tx.isWellFormed
+
 end Tests.GoldenVectors
