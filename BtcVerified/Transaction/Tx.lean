@@ -147,6 +147,21 @@ def Tx.body : Tx → TxBody
       outputs := outputs
       lockTime := lockTime }
 
+/-- Every transaction has at least one input: a legacy transaction carries the
+proof outright, and a SegWit transaction's witness-bearing input is in
+particular an input. Core's empty-`vin` check is a type invariant here, not a
+consensus rule. -/
+theorem Tx.body_inputs_ne_nil (tx : Tx) : tx.body.inputs.val ≠ [] := by
+  cases tx with
+  | legacy body inputsNonempty => exact inputsNonempty
+  | segwit version inputs outputs lockTime hWitness =>
+      obtain ⟨input, hmem, -⟩ := hWitness
+      simp only [Tx.body]
+      intro hnil
+      rw [List.map_eq_nil_iff] at hnil
+      rw [hnil] at hmem
+      cases hmem
+
 /-! ## Bundling and unbundling SegWit inputs -/
 
 /-- The underlying inputs of a SegWit transaction, witnesses dropped — the input
