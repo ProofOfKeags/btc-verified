@@ -52,6 +52,10 @@ statement of what stands.
 - [`Chainstate/`](BtcVerified/Chainstate/README.md) — The set of spendable
   coins and the single action every transaction performs on it, with the
   accounting identity the supply-limit theorem will be built on.
+- [`Consensus/`](BtcVerified/Consensus/README.md) — The validity rules
+  Bitcoin enforces on individual transactions, stated as runnable checks
+  proved to guarantee exactly the facts the ledger accounting needs, and run
+  against the first Bitcoin payment ever made.
 - [`Impl/`](BtcVerified/Impl/README.md) — Functions transcribed from Bitcoin
   Core's own source code and proved to satisfy the specification, starting
   with its merkle-root computation.
