@@ -36,4 +36,9 @@ def OutPoint.equivProd : OutPoint ≃ (Hash256 × UInt32) where
 instance instCodecOutPoint : Codec OutPoint :=
   Codec.ofEquiv OutPoint.equivProd inferInstance
 
+/-- The outpoint a coinbase input carries: zero txid, all-ones index. It names
+no real output — the one outpoint a regular input may never claim (Core's
+`COutPoint::IsNull`). -/
+def OutPoint.null : OutPoint := ⟨0, 0xffffffff⟩
+
 end BtcVerified
