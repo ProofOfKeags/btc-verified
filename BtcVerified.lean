@@ -29,5 +29,6 @@ import BtcVerified.Block.Chain
 import BtcVerified.Consensus.Limits
 import BtcVerified.Consensus.TxContext
 import BtcVerified.Consensus.ScriptCheck
+import BtcVerified.Consensus.TxStateless
 import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle
