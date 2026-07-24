@@ -53,8 +53,9 @@ statement of what stands.
   transaction ids are binding commitments to the transaction.
 - [`Block/`](BtcVerified/Block/README.md) — Every byte of a block parses
   through a verified codec (checked against real mainnet blocks), block
-  hashes are proved binding, and a chain's tip hash provably commits to the
-  entire history behind it.
+  hashes are proved binding, the coinbase's SegWit witness commitment
+  provably binds every witness in the block, and a chain's tip hash provably
+  commits to the entire history behind it.
 - [`Script/`](BtcVerified/Script/README.md) — Bitcoin Script programs
   modeled as the raw bytes consensus actually validates, with the boundary
   between parsing and execution drawn where the protocol draws it.

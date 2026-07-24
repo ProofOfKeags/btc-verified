@@ -135,6 +135,7 @@ elab "#assert_axioms " id:ident : command => do
 
 #assert_axioms BtcVerified.Tx.txid_binding
 #assert_axioms BtcVerified.Tx.wtxid_binding
+#assert_axioms BtcVerified.Tx.map_wtxid_binding
 #assert_axioms BtcVerified.Tx.wtxid_legacy
 #assert_axioms BtcVerified.Tx.wtxid_empty
 
@@ -193,6 +194,13 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Merkle.root_binding_of_length_eq
 #assert_axioms BtcVerified.Merkle.root_binding_of_canonical
 #assert_axioms BtcVerified.Block.merkleCommits
+
+/-! ## The witness commitment -/
+
+#assert_axioms BtcVerified.witnessCommitment_binding
+#assert_axioms BtcVerified.Block.witnessRoot_binding
+#assert_axioms BtcVerified.Block.witnessCommits_binding
+#assert_axioms BtcVerified.Block.witnessCommits
 
 /-! ## Bitcoin Core's ComputeMerkleRoot -/
 

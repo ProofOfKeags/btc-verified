@@ -11,7 +11,8 @@ import BtcVerified.Crypto.Merkle
   demands canonicality of the list itself.
 
   The SegWit witness commitment — the wtxid merkle root committed in the
-  coinbase — is the next leaf, not this one.
+  coinbase — is `WitnessCommitment.lean`, the sibling leaf built on the
+  same pattern.
 
   Checked claims:
 

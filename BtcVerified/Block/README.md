@@ -44,6 +44,43 @@ block's body to its header: a canonical txid list whose merkle root is the
 header's. The tree spec it is stated over, and its binding theorems, live in
 `../Crypto/` (see that README's `BtcVerified.Merkle` section).
 
+## The witness commitment
+
+SegWit moves witness data outside the txid preimage, so the txid tree no
+longer covers it; BIP141 restores the commitment through the coinbase.
+`Block.witnessCommits` (`WitnessCommitment.lean`) is the condition: the
+wtxids form a second merkle tree — the coinbase's leaf zeroed, since its own
+witness sits beneath the commitment it carries — and the coinbase records
+the double-SHA-256 of that root and the 32-byte witness reserved value (its
+input's single witness item) in the last output opening `6a24aa21a9ed`.
+Unlike the txid tree, no canonicality condition is needed: the transaction
+count is already pinned by the txid tree, and between equal-length lists the
+merkle root binds outright.
+
+Checked claims:
+
+- `witnessCommitment_binding`: equal commitments imply equal witness roots
+  and equal reserved values — or a concrete double-SHA-256 collision.
+- `Block.witnessRoot_binding`: between blocks with equally many
+  transactions, equal witness roots imply equal transactions beyond the
+  coinbase, witnesses included — or a concrete collision.
+- `Block.witnessCommits_binding`: two blocks satisfying the condition that
+  record the same commitment and have equally many transactions agree on
+  every transaction beyond the coinbase — or a concrete collision.
+- Golden vectors: the SegWit activation coinbase's real commitment output
+  and reserved value, the recognition rules (minimum length, exact header,
+  trailing bytes, last-match-wins), and `witnessCommits` itself over all
+  1866 transactions of block 481824 in the `lake test` fixture — which now
+  authenticates every byte of the fixture download, up to double-SHA-256
+  collisions.
+
+Why it matters: the txid tree binds every transaction body and misses
+exactly the witnesses; the witness tree binds every witness and misses
+exactly the coinbase's own — the reserved value, which sits in the
+commitment preimage. Together the two commitments make a block's header
+(plus its coinbase) a binding commitment to every byte of the block, which
+is what block validity will demand of witness-carrying blocks.
+
 ## Block hashes and the chain
 
 `BlockHeader.hash` — the double-SHA-256 of a header's 80-byte encoding, the

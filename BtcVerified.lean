@@ -25,6 +25,7 @@ import BtcVerified.Chainstate.Apply
 import BtcVerified.Block.BlockHeader
 import BtcVerified.Block.Block
 import BtcVerified.Block.Commitment
+import BtcVerified.Block.WitnessCommitment
 import BtcVerified.Block.BlockHash
 import BtcVerified.Block.Chain
 import BtcVerified.Consensus.Limits

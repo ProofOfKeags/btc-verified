@@ -89,6 +89,9 @@ Checked claims:
   injectivity.
 - `Tx.wtxid_binding`: equal wtxids imply equal transactions, witnesses
   included — or a concrete collision.
+- `Tx.map_wtxid_binding`: equal wtxid *lists* imply equal transaction lists,
+  witnesses included — or a concrete collision; the form the witness
+  commitment (`../Block/`) lifts through the merkle layer.
 - Golden vectors: the first Bitcoin payment's txid, the genesis coinbase txid
   (which is the genesis merkle root), and the SegWit coinbase's txid with
   `wtxid ≠ txid`.
