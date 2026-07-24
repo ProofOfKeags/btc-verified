@@ -675,10 +675,12 @@ def txWithOutputs (outs : List TxOut) (h : outs.length < 2 ^ 64 := by decide) :
     [outWithScript (commitmentHeader ++ List.replicate 32 0x11),
      outWithScript []]).recordedWitnessCommitment?
   == some (List.replicate 32 0x11)
--- Pre-SegWit blocks record no commitment and carry no reserved value.
+-- Pre-SegWit blocks record no commitment, carry no reserved value, and do
+-- not satisfy the commitment condition.
 #guard match hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
   | some (b, _) =>
     b.recordedWitnessCommitment? == none && b.witnessReservedValue? == none
+    && !decide b.witnessCommits
   | none => false
 
 end Tests.GoldenVectors
