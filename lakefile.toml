@@ -18,6 +18,11 @@ name = "Tests"
 name = "tests"
 root = "TestsMain"
 
+[[lean_exe]]
+name = "module-audit"
+root = "ModuleAuditMain"
+supportInterpreter = true
+
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"

@@ -12,6 +12,7 @@ lake build BtcVerified.Transaction.Tx       # one module — the fast iteration 
 lake build Tests                            # golden vectors + axiom audit only
 lake test                                   # fixture checks (block 481824; fetched on first run, cached gitignored)
 lake lint                                   # batteries runLinter, mathlib standard linter set
+lake exe module-audit                       # module discipline: one type per module, instances with their type
 ```
 
 - After changing `lean-toolchain` or the mathlib pin, run `lake exe cache get`
@@ -95,9 +96,9 @@ Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
   (e.g. `instCodecUInt8…64` in `Serialize/Codec.lean`); sum-type arm-records may
   share a module if they never appear in an outside signature. Tightly-coupled
   clusters become a directory of one-type modules under an umbrella facade (see
-  `BitVM/BitCommitment/`). A `lake`-run introspection audit to enforce this
-  mechanically is planned — tracked as issue #9; until it lands, review
-  enforces it.
+  `BitVM/BitCommitment/`). Enforced by `lake exe module-audit`, an
+  environment-introspection executable run in CI; the arm-record-cluster
+  allowlist lives in `ModuleAuditMain.lean`.
 - **Naming**: rigid Lean/mathlib casing. `UpperCamelCase` for types, props,
   and predicates; `lowerCamelCase` for defs; theorem names describe the
   conclusion mathlib-style (`decode_encode`, `encodeBitVecLE_length`). Full

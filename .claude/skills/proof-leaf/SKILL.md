@@ -21,7 +21,8 @@ every step is done.
   `instCodecBitVec256` sit in `Serialize/Codec.lean`; (B) record arms of a sum
   type may share a module *only if* those arm types never appear in a
   signature outside it (so `SegwitInput`, which appears in `Tx`'s constructor
-  and codec, earns its own module). The audit (issue #9) enforces this.
+  and codec, earns its own module). `lake exe module-audit` enforces this;
+  exception B's allowlist lives in `ModuleAuditMain.lean`.
 - Files sit under the matching directory (`Serialize/`, `Transaction/`,
   `Block/`, `Crypto/`, `BitVM/`); a leaf with several tightly-coupled types
   becomes a directory of one-type modules under an umbrella facade that

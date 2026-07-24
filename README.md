@@ -113,10 +113,11 @@ nix develop
 ```
 
 ```
-lake exe cache get   # fetch the mathlib cache (first build only)
-lake build           # the library, plus the golden vectors and axiom audit
-lake test            # block 481824 through the block codec (fetched on first run)
+lake exe cache get     # fetch the mathlib cache (first build only)
+lake build             # the library, plus the golden vectors and axiom audit
+lake test              # block 481824 through the block codec (fetched on first run)
 lake lint
+lake exe module-audit  # module discipline: one type per module
 ```
 
 `lake build` also elaborates `Tests/`: golden vectors that run the verified
