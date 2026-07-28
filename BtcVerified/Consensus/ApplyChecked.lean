@@ -7,8 +7,10 @@ import BtcVerified.Consensus.TxContextual
   rule-passing transaction's `creates_absent` into the exact absence-after-
   spend hypothesis the action theorems carry, and the gated conservation
   theorems specialize `UtxoSet.totalValue_apply` with every machine
-  hypothesis supplied by a rule — except the output-count bound, which the
-  block-size rule provides (#37), so it stays a hypothesis here.
+  hypothesis supplied by a rule. In particular, the stateless stripped-size
+  rule implies the output-count bound that keeps `UInt32` output indices
+  injective, so the checked interface leaves no root-level transaction
+  property to its caller.
 
   Fees are not spec objects (#37): the conservation statement is the
   accounting identity itself, and "the total drops by exactly the fee" is
@@ -27,7 +29,7 @@ import BtcVerified.Consensus.TxContextual
     outpoints are absent even after its spends are erased.
   * `UtxoSet.totalValue_apply_of_admissible`: for a rule-passing
     transaction the accounting identity holds, every machine hypothesis
-    discharged by a rule (the output-count bound by #37).
+    discharged by a rule.
   * `UtxoSet.totalValue_apply_le_of_admissible`: a rule-passing transaction
     never increases the total value the set holds.
   * `UtxoSet.applyChecked_eq_some_iff`: the strict interface succeeds on
@@ -48,17 +50,18 @@ theorem Tx.creates_absent_spend {scriptOk : ScriptCheck} {utxos : UtxoSet}
 
 /-- For a rule-passing transaction the accounting identity holds: total
 value after application plus the value spent equals total value before plus
-the value created. Every machine hypothesis is discharged by a rule, except
-the output-count bound the block-size rule supplies (#37). -/
+the value created. Every machine hypothesis is discharged by a root-level
+transaction rule, including output-index injectivity via the stripped-size
+guard. -/
 theorem UtxoSet.totalValue_apply_of_admissible {scriptOk : ScriptCheck}
     {utxos : UtxoSet} {ctx : TxContext} {provenance : Provenance} {tx : Tx}
-    (houtputs : tx.body.outputs.val.length ≤ 2 ^ 32)
     (hwf : tx.WellFormed) (hadm : Tx.Admissible scriptOk utxos ctx tx) :
     totalValue (utxos.apply provenance tx.body)
         + (tx.body.spends.map utxos.valueAt).sum
       = utxos.totalValue
         + (tx.body.outputs.val.map fun output => output.value.toNat).sum :=
-  totalValue_apply houtputs hwf.spends_nodup hadm.spends_mem
+  totalValue_apply (Tx.WellFormed.outputs_length_le hwf)
+    hwf.spends_nodup hadm.spends_mem
     (Tx.creates_absent_spend hadm)
 
 /-- A rule-passing transaction never increases the total value the set
@@ -66,10 +69,9 @@ holds: the total drops by exactly the value the inputs carry beyond the
 outputs — the fee, in English; fees are not spec objects (#37). -/
 theorem UtxoSet.totalValue_apply_le_of_admissible {scriptOk : ScriptCheck}
     {utxos : UtxoSet} {ctx : TxContext} {provenance : Provenance} {tx : Tx}
-    (houtputs : tx.body.outputs.val.length ≤ 2 ^ 32)
     (hwf : tx.WellFormed) (hadm : Tx.Admissible scriptOk utxos ctx tx) :
     totalValue (utxos.apply provenance tx.body) ≤ utxos.totalValue := by
-  have hidentity := totalValue_apply_of_admissible houtputs hwf hadm
+  have hidentity := totalValue_apply_of_admissible hwf hadm
     (provenance := provenance)
   have hcover := hadm.values_cover
   omega

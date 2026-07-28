@@ -22,7 +22,8 @@ theorems only, never runtime checks.
 ## The shape of a rule
 
 `Limits.lean` holds the numeric constants (`maxMoney`, `coinbaseMaturity`,
-`lockTimeThreshold`, `sequenceFinal`), each citing its Core counterpart.
+`maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
+`sequenceFinal`), each citing its Core counterpart.
 `TxContext.lean` is the evaluation context — height and measuring time;
 BIP113 changed which clock Core passes without changing any rule, so the
 clock choice belongs to the activation layer. `ScriptCheck.lean` is the
@@ -38,14 +39,20 @@ to every spent output — with widening combinators (`ofCoinFree`,
 state is consulted — Core's `CheckTransaction`. Empty inputs need no rule
 (the transaction type cannot represent them), negative amounts are
 unrepresentable, and in `Nat` one total-value bound subsumes Core's
-per-output and running-total `MoneyRange` checks; oversize and the coinbase's
-structural checks are block rules (#37).
+per-output and running-total `MoneyRange` checks. The stripped-size ceiling is
+also a transaction-local rule: although Core expresses it in block-weight
+units, it reads only the transaction. The coinbase's positional structural
+checks remain block rules (#37).
 
 Checked claims:
 
 - `Tx.isWellFormed_iff`: the stateless checker accepts a transaction exactly
   when some output exists, no outpoint is spent twice, no input claims the
-  null outpoint, and the outputs create at most `maxMoney` satoshis.
+  null outpoint, the outputs create at most `maxMoney` satoshis, and the
+  stripped serialization fits within the per-transaction weight ceiling.
+- `Tx.WellFormed.outputs_length_le`: that stripped-size rule implies every
+  accepted transaction has at most `2 ^ 32` outputs, so its `UInt32` output
+  indices cannot wrap.
 - `Tx.body_inputs_ne_nil` (with the `Tx` type): every transaction has at
   least one input — Core's empty-`vin` check as a type invariant.
 
@@ -90,10 +97,10 @@ exactly the vocabulary the ledger accounting consumes.
 `ApplyChecked.lean`: where rules meet machine. The discharge lemma converts
 a rule-passing transaction's guarantees into the action theorems'
 hypotheses, the gated conservation theorems specialize the accounting
-identity with everything discharged (the output-count bound arrives with the
-block-size rule, #37), and `applyChecked` is the strict rules-then-act
-interface. Fees are not spec objects: conservation is the accounting
-identity, and "the total drops by exactly the fee" is its English reading.
+identity with every root-level transaction property discharged, and
+`applyChecked` is the strict rules-then-act interface. Fees are not spec
+objects: conservation is the accounting identity, and "the total drops by
+exactly the fee" is its English reading.
 
 Checked claims:
 

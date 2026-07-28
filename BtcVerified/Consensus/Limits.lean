@@ -23,6 +23,15 @@ def maxMoney : Nat := 21_000_000 * 100_000_000
 spent (Core's `COINBASE_MATURITY`, `src/consensus/consensus.h`). -/
 def coinbaseMaturity : Nat := 100
 
+/-- The maximum total weight of a block, and the ceiling Core reuses for one
+transaction's stripped serialization multiplied by `witnessScaleFactor`
+([Bitcoin Core v28.0, `consensus.h` line 15](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L15)). -/
+def maxBlockWeight : Nat := 4_000_000
+
+/-- The multiplier that converts a stripped byte to weight units
+([Bitcoin Core v28.0, `consensus.h` line 21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L21)). -/
+def witnessScaleFactor : Nat := 4
+
 /-- The lock-time axis switch: lock times below it are block heights, at or
 above it UNIX timestamps (Core's `LOCKTIME_THRESHOLD`, `src/script/script.h`). -/
 def lockTimeThreshold : Nat := 500_000_000
