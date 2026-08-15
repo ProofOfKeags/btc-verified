@@ -502,6 +502,13 @@ def block170Context : TxContext := ⟨170, 1231731025⟩
     -- height 9, in coinbase position.
     let utxos : UtxoSet := UtxoSet.create ∅
       (coinbase.body.creates.map fun entry => (entry.1, ⟨entry.2, ⟨9, true⟩⟩))
+    -- The machine admits arbitrary states, including an impossible coin over
+    -- MAX_MONEY; the contextual rules must reject a spend from such a state.
+    let outOfRangeUtxos : UtxoSet := UtxoSet.create ∅
+      (coinbase.body.creates.map fun entry =>
+        (entry.1, ⟨{ entry.2 with
+          value := UInt64.ofNat
+            (Consensus.maxMoney + 5_000_000_001) }, ⟨9, true⟩⟩))
     payment.isWellFormed
     -- Admissible at block 170 under the always-true script judgment: the
     -- coinbase matured at height 109, and 50 BTC in covers 10 + 40 out.
@@ -510,6 +517,10 @@ def block170Context : TxContext := ⟨170, 1231731025⟩
     && !payment.isAdmissible (fun _ _ _ => true) utxos ⟨105, 1231731025⟩
     -- A rejecting script judgment fails the bundle.
     && !payment.isAdmissible (fun _ _ _ => false) utxos block170Context
+    -- Input-value and fee MoneyRange checks reject the otherwise admissible
+    -- transaction over the deliberately impossible abstract state.
+    && !payment.isAdmissible (fun _ _ _ => true) outOfRangeUtxos
+      block170Context
     -- The strict interface applies it: the spent outpoint is gone, the two
     -- created outpoints carry 10 and 40 BTC stamped ⟨170, regular⟩, and
     -- the zero-fee total is conserved.

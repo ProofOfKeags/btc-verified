@@ -16,7 +16,8 @@
 namespace BtcVerified.Consensus
 
 /-- The most satoshis consensus ever admits in an amount or a sum of amounts:
-21 million bitcoin (Core's `MAX_MONEY`, `src/consensus/amount.h`). -/
+21 million bitcoin ([Bitcoin Core v28.0, `amount.h` lines
+17–27](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/amount.h#L17-L27)). -/
 def maxMoney : Nat := 21_000_000 * 100_000_000
 
 /-- How many blocks deep a coinbase-created coin must be before it may be

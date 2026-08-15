@@ -16,13 +16,14 @@ import BtcVerified.Consensus.ScriptCheck
   specification it is proved to enforce (`Tx.isAdmissible_iff`), and its
   named fields are exactly the facts the action theorems consume.
 
-  Two Core checks have no rule here, and why:
+  Core's `MoneyRange` checks on value-in and fee remain explicit here even
+  though `Nat` eliminates arithmetic overflow: this checker ranges over an
+  arbitrary `UtxoSet`, not only states reachable from genesis. Issue #50
+  tracks proving these checks redundant under the supply invariant once #37
+  provides it.
 
-  * the `MoneyRange` re-checks on value-in and fee are `int64` overflow
-    armor; in `Nat` there is no overflow, and the sub-`maxMoney` bound on
-    any honest set's values is the supply theorem's business (#37).
-  * BIP68 relative lock times need per-coin median-time-past history that
-    no leaf provides yet; deferred to its own leaf.
+  One contextual Core rule remains deferred: BIP68 relative lock times need
+  per-coin median-time-past history that no leaf provides yet.
 
   `creates_absent` is BIP30's content in current-state vocabulary: a
   transaction may not create an outpoint that *currently* holds an unspent
@@ -41,10 +42,10 @@ import BtcVerified.Consensus.ScriptCheck
   * `Tx.spentCoins_length`: under the existence rule, the spent-coin list
     has one coin per input.
   * `Tx.isAdmissible_iff`: the checker accepts a transaction exactly when it
-    satisfies the six contextual rules — inputs exist, coinbase spends are
-    mature, inputs cover outputs, the transaction is final, no created
-    outpoint is currently unspent, and every input passes the script
-    judgment.
+    satisfies the eight contextual rules — inputs exist, coinbase spends are
+    mature, input value and fee stay within `maxMoney`, inputs cover outputs,
+    the transaction is final, no created outpoint is currently unspent, and
+    every input passes the script judgment.
 -/
 
 namespace BtcVerified
@@ -124,16 +125,21 @@ theorem Tx.spentCoins_length {tx : Tx} {utxos : UtxoSet}
 
 /-- Decide the chain-contextual validity of a regular transaction over the
 UTXO set, script validity supplied as a parameter: inputs exist, coinbase
-spends are mature, inputs cover outputs, the transaction is final, no
-created outpoint is currently unspent, and every input passes the script
-judgment. -/
+spends are mature, input value and fee stay within `maxMoney`, inputs cover
+outputs, the transaction is final, no created outpoint is currently unspent,
+and every input passes the script judgment. -/
 def Tx.isAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
     (ctx : TxContext) (tx : Tx) : Bool :=
   tx.body.spends.all (fun o => (utxos.lookup o).isSome)
     && tx.body.spends.all
         (fun o => ((utxos.lookup o).map (·.isMature ctx.height)).getD true)
+    && decide ((tx.body.spends.map utxos.valueAt).sum
+        ≤ Consensus.maxMoney)
     && decide ((tx.body.outputs.val.map fun o => o.value.toNat).sum
         ≤ (tx.body.spends.map utxos.valueAt).sum)
+    && decide ((tx.body.spends.map utxos.valueAt).sum
+        - (tx.body.outputs.val.map fun o => o.value.toNat).sum
+        ≤ Consensus.maxMoney)
     && tx.body.isFinal ctx
     && tx.body.creates.all (fun entry => (utxos.lookup entry.1).isNone)
     && (List.range tx.body.inputs.val.length).all
@@ -151,10 +157,22 @@ structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
   (`bad-txns-premature-spend-of-coinbase`). -/
   spends_mature : ∀ o ∈ tx.body.spends, ∀ coin,
     utxos.lookup o = some coin → coin.Mature ctx.height
+  /-- The total input value stays within `maxMoney`; in `Nat` this one total
+  bound subsumes Core's per-coin and running-total `MoneyRange` checks
+  ([Bitcoin Core v28.0, `tx_verify.cpp` lines
+  184–188](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L184-L188)). -/
+  input_values_bounded : (tx.body.spends.map utxos.valueAt).sum
+    ≤ Consensus.maxMoney
   /-- The inputs cover the outputs: value out ≤ value in, in `Nat` — fee
   non-negativity is this same fact (`bad-txns-in-belowout`). -/
   values_cover : (tx.body.outputs.val.map fun o => o.value.toNat).sum
     ≤ (tx.body.spends.map utxos.valueAt).sum
+  /-- The fee — input value minus output value in `Nat` — stays within
+  `maxMoney` ([Bitcoin Core v28.0, `tx_verify.cpp` lines
+  197–200](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L197-L200)). -/
+  fee_bounded : (tx.body.spends.map utxos.valueAt).sum
+      - (tx.body.outputs.val.map fun o => o.value.toNat).sum
+    ≤ Consensus.maxMoney
   /-- The transaction is final for the admitting block (`non-final`). -/
   final : tx.body.Final ctx
   /-- No created outpoint currently holds an unspent coin — BIP30's content;
@@ -174,9 +192,10 @@ theorem Tx.isAdmissible_iff {scriptOk : ScriptCheck} {utxos : UtxoSet}
   simp only [isAdmissible, Bool.and_eq_true, List.all_eq_true,
     decide_eq_true_eq, TxBody.isFinal_iff, List.mem_range]
   constructor
-  · rintro ⟨⟨⟨⟨⟨hmem, hmature⟩, hcover⟩, hfinal⟩, habsent⟩, hscripts⟩
-    refine ⟨fun o ho => Finmap.lookup_isSome.mp (hmem o ho), ?_, hcover,
-      hfinal, ?_, fun i hi => hscripts i hi⟩
+  · rintro ⟨⟨⟨⟨⟨⟨⟨hmem, hmature⟩, hinputBound⟩, hcover⟩, hfee⟩,
+      hfinal⟩, habsent⟩, hscripts⟩
+    refine ⟨fun o ho => Finmap.lookup_isSome.mp (hmem o ho), ?_,
+      hinputBound, hcover, hfee, hfinal, ?_, fun i hi => hscripts i hi⟩
     · intro o ho coin hcoin
       have hgetD := hmature o ho
       rw [hcoin] at hgetD
@@ -186,9 +205,11 @@ theorem Tx.isAdmissible_iff {scriptOk : ScriptCheck} {utxos : UtxoSet}
       have hnone := habsent entry hentry
       rw [Option.isNone_iff_eq_none, Finmap.lookup_eq_none] at hnone
       exact hnone
-  · rintro ⟨hmem, hmature, hcover, hfinal, habsent, hscripts⟩
-    refine ⟨⟨⟨⟨⟨fun o ho => Finmap.lookup_isSome.mpr (hmem o ho), ?_⟩,
-      hcover⟩, hfinal⟩, ?_⟩, fun i hi => hscripts i hi⟩
+  · rintro ⟨hmem, hmature, hinputBound, hcover, hfee, hfinal, habsent,
+      hscripts⟩
+    refine ⟨⟨⟨⟨⟨⟨⟨fun o ho => Finmap.lookup_isSome.mpr (hmem o ho), ?_⟩,
+      hinputBound⟩, hcover⟩, hfee⟩, hfinal⟩, ?_⟩,
+      fun i hi => hscripts i hi⟩
     · intro o ho
       cases hcoin : utxos.lookup o with
       | none => rfl

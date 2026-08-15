@@ -66,12 +66,14 @@ regular transactions judged here.
 `TxContextual.lean`: what a regular transaction must satisfy relative to the
 UTXO set and the admitting block — Core's `Consensus::CheckTxInputs` and
 `IsFinalTx`, script validity as the parameter, plus `creates_absent`: no
-created outpoint may currently hold an unspent coin. That last rule is
-BIP30's content in current-state vocabulary — recreating a fully-spent
-outpoint stays legal; the two 2010 duplicate-coinbase blocks and Core's
-post-BIP34 skip of the scan are activation history (#38/#39), not rule
-content. BIP68 relative lock times need median-time-past history no leaf
-provides yet and are deferred.
+created outpoint may currently hold an unspent coin. Input value and fee
+retain Core's explicit `MoneyRange` checks over arbitrary UTXO sets; #50
+tracks proving them redundant on reachable states once #37 supplies the
+supply invariant. The no-overwrite rule is BIP30's content in current-state
+vocabulary — recreating a fully-spent outpoint stays legal; the two 2010
+duplicate-coinbase blocks and Core's post-BIP34 skip of the scan are
+activation history (#38/#39), not rule content. BIP68 relative lock times
+need median-time-past history no leaf provides yet and are deferred.
 
 Checked claims:
 
@@ -84,9 +86,10 @@ Checked claims:
 - `Tx.spentCoins_length`: under the existence rule, the spent-coin list
   aligns with the inputs — one coin per input, in order.
 - `Tx.isAdmissible_iff`: the contextual checker accepts exactly when inputs
-  exist, coinbase spends are mature, inputs cover outputs, the transaction
-  is final, no created outpoint is currently unspent, and every input passes
-  the script judgment.
+  exist, coinbase spends are mature, cumulative input value and fee remain
+  within `maxMoney`, inputs cover outputs, the transaction is final, no
+  created outpoint is currently unspent, and every input passes the script
+  judgment.
 
 Why it matters: the specification record's fields are, by construction,
 the hypotheses of the machine's action theorems — the rules are stated in
