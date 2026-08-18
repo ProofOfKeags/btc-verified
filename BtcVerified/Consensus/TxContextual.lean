@@ -46,17 +46,17 @@ import BtcVerified.Consensus.ScriptCheck
 
   * `Coin.isMature_iff`: the maturity checker accepts a coin at a height
     exactly when the coin is non-coinbase or `coinbaseMaturity` blocks deep.
-  * `TxBody.isFinal_iff`: for an explicitly selected finality clock, the
-    checker accepts exactly when the interpreted absolute lock is disabled or
-    past, or every input carries the final sequence.
+  * `TxBody.isLockTimeSatisfied_iff`: for an explicitly selected lock-time
+    clock, the checker accepts exactly when the interpreted absolute lock is
+    disabled or past, or every input carries the `sequenceFinal` sentinel.
   * `Tx.spentCoins_aligned`: under the existence rule, each spent coin is the
     lookup of the outpoint named by the corresponding input.
   * `Tx.spentCoins_length`: the aligned lists have equal length.
   * `Tx.isAdmissible_iff`: the checker accepts a transaction exactly when it
     satisfies the eight contextual rules — inputs exist, coinbase spends are
     mature, input value and fee stay within `maxMoney`, inputs cover outputs,
-    the transaction is final, no created outpoint is currently unspent, and
-    every input passes the script judgment.
+    the transaction's absolute lock-time condition is satisfied, no created
+    outpoint is currently unspent, and every input passes the script judgment.
 -/
 
 namespace BtcVerified
@@ -96,46 +96,53 @@ field. Relative lock times are per-input sequence semantics deferred to #46. -/
 def TxBody.interpretedLockTime (body : TxBody) : Consensus.LockTime :=
   Consensus.LockTime.ofUInt32 body.lockTime
 
-/-- Decide lock-time finality under an explicitly selected finality clock
-(Core's `IsFinalTx`): the interpreted absolute lock is disabled or already
-past, or every input overrides it with the final sequence value ([Bitcoin Core
+/-- Decide whether the transaction's absolute lock-time condition is satisfied
+under an explicitly selected clock (Core calls this `IsFinalTx`): the
+interpreted absolute lock is disabled or already
+past, or every input overrides it with the `sequenceFinal` value ([Bitcoin Core
 v28.0, `tx_verify.cpp` lines
 17–37](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L17-L37)).
 The height-indexed ruleset in #38 selects `.blockTime` before BIP113 and
 `.medianTimePast` after it. -/
-def TxBody.isFinal (body : TxBody) (clock : FinalityClock)
+def TxBody.isLockTimeSatisfied (body : TxBody) (clock : LockTimeClock)
     (ctx : TxContext) : Bool :=
   body.interpretedLockTime.isPast ctx.height (ctx.timeFor clock)
     || body.inputs.val.all (·.sequence == Consensus.sequenceFinal)
 
-/-- The specification `TxBody.isFinal` enforces: the interpreted absolute
-lock has passed under the selected clock, or every input's sequence is final. -/
-def TxBody.Final (body : TxBody) (clock : FinalityClock)
+/-- The specification `TxBody.isLockTimeSatisfied` enforces: the interpreted
+absolute lock has passed under the selected clock, or every input carries the
+`sequenceFinal` sentinel. -/
+def TxBody.LockTimeSatisfied (body : TxBody) (clock : LockTimeClock)
     (ctx : TxContext) : Prop :=
   body.interpretedLockTime.Past ctx.height (ctx.timeFor clock)
     ∨ ∀ input ∈ body.inputs.val, input.sequence = Consensus.sequenceFinal
 
-/-- The finality checker enforces exactly its specification: `isFinal`
-accepts a body in a context iff the body is `Final` there. -/
-theorem TxBody.isFinal_iff {body : TxBody} {clock : FinalityClock}
+/-- The lock-time checker enforces exactly its specification:
+`isLockTimeSatisfied` accepts a body in a context iff its `LockTimeSatisfied`
+proposition holds there. -/
+theorem TxBody.isLockTimeSatisfied_iff {body : TxBody} {clock : LockTimeClock}
     {ctx : TxContext} :
-    body.isFinal clock ctx = true ↔ body.Final clock ctx := by
-  simp [isFinal, Final, Consensus.LockTime.isPast_iff, List.all_eq_true]
+    body.isLockTimeSatisfied clock ctx = true ↔
+      body.LockTimeSatisfied clock ctx := by
+  simp [isLockTimeSatisfied, LockTimeSatisfied,
+    Consensus.LockTime.isPast_iff, List.all_eq_true]
 
-/-- The semantic finality specification is equivalent to Core's wire-shaped
-three-arm statement: zero lock time, raw threshold-selected comparison, or the
-all-final sequence override ([Bitcoin Core v28.0, `tx_verify.cpp` lines
+/-- The semantic lock-time specification is equivalent to Core's wire-shaped
+`IsFinalTx` statement: zero lock time, raw threshold-selected comparison, or
+the all-`sequenceFinal` override ([Bitcoin Core v28.0, `tx_verify.cpp` lines
 17–37](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L17-L37)). -/
-theorem TxBody.final_iff_core {body : TxBody} {clock : FinalityClock}
+theorem TxBody.lockTimeSatisfied_iff_core {body : TxBody}
+    {clock : LockTimeClock}
     {ctx : TxContext} :
-    body.Final clock ctx ↔
+    body.LockTimeSatisfied clock ctx ↔
       body.lockTime = 0
         ∨ body.lockTime.toNat <
           (if body.lockTime.toNat < Consensus.lockTimeThreshold
            then ctx.height else ctx.timeFor clock)
         ∨ ∀ input ∈ body.inputs.val,
           input.sequence = Consensus.sequenceFinal := by
-  simp only [Final, interpretedLockTime, Consensus.LockTime.ofUInt32_past_iff]
+  simp only [LockTimeSatisfied, interpretedLockTime,
+    Consensus.LockTime.ofUInt32_past_iff]
   tauto
 
 /-- The coins a transaction's inputs consume, in input order — total via
@@ -189,10 +196,10 @@ theorem Tx.spentCoins_length {tx : Tx} {utxos : UtxoSet}
 /-- Decide the contextual admissibility premises for one regular-transaction
 step over the UTXO set, script validity supplied as a parameter: inputs exist,
 coinbase spends are mature, input value and fee stay within `maxMoney`, inputs
-cover outputs, the transaction is final, no created outpoint is currently
-overwritten, and every input passes the script judgment. -/
+cover outputs, the absolute lock-time condition is satisfied, no created
+outpoint is currently overwritten, and every input passes the script judgment. -/
 def Tx.isAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
-    (clock : FinalityClock) (ctx : TxContext) (tx : Tx) : Bool :=
+    (clock : LockTimeClock) (ctx : TxContext) (tx : Tx) : Bool :=
   tx.body.spends.all (fun o => (utxos.lookup o).isSome)
     && tx.body.spends.all
         (fun o => ((utxos.lookup o).map (·.isMature ctx.height)).getD true)
@@ -203,7 +210,7 @@ def Tx.isAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
     && decide ((tx.body.spends.map utxos.valueAt).sum
         - (tx.body.outputs.val.map fun o => o.value.toNat).sum
         ≤ Consensus.maxMoney)
-    && tx.body.isFinal clock ctx
+    && tx.body.isLockTimeSatisfied clock ctx
     && tx.body.creates.all (fun entry => (utxos.lookup entry.1).isNone)
     && (List.range tx.body.inputs.val.length).all
         (fun i => scriptOk (tx.spentCoins utxos) i tx)
@@ -214,7 +221,7 @@ fields are the facts the action theorems consume ([Bitcoin Core v28.0,
 `tx_verify.cpp` lines
 164–204](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L204)). -/
 structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
-    (clock : FinalityClock) (ctx : TxContext) (tx : Tx) : Prop where
+    (clock : LockTimeClock) (ctx : TxContext) (tx : Tx) : Prop where
   /-- Every input's outpoint is an unspent coin
   (`bad-txns-inputs-missingorspent`; [Bitcoin Core v28.0, `tx_verify.cpp` lines
   164–170](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L170)). -/
@@ -242,10 +249,11 @@ structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
   fee_bounded : (tx.body.spends.map utxos.valueAt).sum
       - (tx.body.outputs.val.map fun o => o.value.toNat).sum
     ≤ Consensus.maxMoney
-  /-- The transaction is final for the admitting block (`bad-txns-nonfinal`;
+  /-- The transaction's absolute lock-time condition is satisfied for the
+  admitting block (`bad-txns-nonfinal`;
   [Bitcoin Core v28.0, `validation.cpp` lines
   4231–4239](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L4231-L4239)). -/
-  final : tx.body.Final clock ctx
+  lock_time_satisfied : tx.body.LockTimeSatisfied clock ctx
   /-- Creating this transaction's outputs does not overwrite any currently
   unspent outpoint — BIP30's content; its historical carve-outs are the
   activation layer's business (#38/#39; [Bitcoin Core v28.0, `validation.cpp`
@@ -262,16 +270,16 @@ structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
 /-- The checker enforces exactly its specification: `isAdmissible` accepts a
 transaction iff it is `Admissible`. -/
 theorem Tx.isAdmissible_iff {scriptOk : ScriptCheck} {utxos : UtxoSet}
-    {clock : FinalityClock} {ctx : TxContext} {tx : Tx} :
+    {clock : LockTimeClock} {ctx : TxContext} {tx : Tx} :
     tx.isAdmissible scriptOk utxos clock ctx = true
       ↔ Tx.Admissible scriptOk utxos clock ctx tx := by
   simp only [isAdmissible, Bool.and_eq_true, List.all_eq_true,
-    decide_eq_true_eq, TxBody.isFinal_iff, List.mem_range]
+    decide_eq_true_eq, TxBody.isLockTimeSatisfied_iff, List.mem_range]
   constructor
   · rintro ⟨⟨⟨⟨⟨⟨⟨hmem, hmature⟩, hinputBound⟩, hcover⟩, hfee⟩,
-      hfinal⟩, habsent⟩, hscripts⟩
+      hlock⟩, habsent⟩, hscripts⟩
     refine ⟨fun o ho => Finmap.lookup_isSome.mp (hmem o ho), ?_,
-      hinputBound, hcover, hfee, hfinal, ?_, fun i hi => hscripts i hi⟩
+      hinputBound, hcover, hfee, hlock, ?_, fun i hi => hscripts i hi⟩
     · intro o ho coin hcoin
       have hgetD := hmature o ho
       rw [hcoin] at hgetD
@@ -281,10 +289,10 @@ theorem Tx.isAdmissible_iff {scriptOk : ScriptCheck} {utxos : UtxoSet}
       have hnone := habsent entry hentry
       rw [Option.isNone_iff_eq_none, Finmap.lookup_eq_none] at hnone
       exact hnone
-  · rintro ⟨hmem, hmature, hinputBound, hcover, hfee, hfinal, habsent,
+  · rintro ⟨hmem, hmature, hinputBound, hcover, hfee, hlock, habsent,
       hscripts⟩
     refine ⟨⟨⟨⟨⟨⟨⟨fun o ho => Finmap.lookup_isSome.mpr (hmem o ho), ?_⟩,
-      hinputBound⟩, hcover⟩, hfee⟩, hfinal⟩, ?_⟩,
+      hinputBound⟩, hcover⟩, hfee⟩, hlock⟩, ?_⟩,
       fun i hi => hscripts i hi⟩
     · intro o ho
       cases hcoin : utxos.lookup o with
@@ -296,7 +304,7 @@ theorem Tx.isAdmissible_iff {scriptOk : ScriptCheck} {utxos : UtxoSet}
       exact habsent _ (List.mem_map_of_mem hentry)
 
 instance instDecidableAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
-    (clock : FinalityClock) (ctx : TxContext) :
+    (clock : LockTimeClock) (ctx : TxContext) :
     DecidablePred (Tx.Admissible scriptOk utxos clock ctx) :=
   fun _ => decidable_of_iff _ Tx.isAdmissible_iff
 

@@ -21,7 +21,7 @@ boundary — accepted block extensions and the state transitions they produce �
 and other implementations or forks can be compared against the same object.
 Second, no premise embeds an activation height: premises take evaluation
 context (the admitting block's height, block time, and median-time-past) plus
-an explicit finality-clock choice, and "which rules are in force when" is an
+an explicit lock-time-clock choice, and "which rules are in force when" is an
 external mapping, a later leaf (#38). Third, an enforced premise is a runnable `Bool` checker (the
 definition), a `Prop` specification record naming its structural content, and a
 proved equivalence between them; derived properties (conservation, the supply
@@ -35,7 +35,7 @@ limit) are theorems only, never runtime checks.
 the raw transaction lock-time field as disabled, an absolute block height, or
 an absolute time; BIP68 relative locks remain the separate sequence-field leaf
 #46. `TxContext.lean` carries the admitting height plus separately named block
-time and median-time-past values. `FinalityClock` selects which one measures
+time and median-time-past values. `LockTimeClock` selects which one measures
 absolute time locks: BIP113 changed that choice without changing `IsFinalTx`
 ([Bitcoin Core v28.0, `validation.cpp` lines
 4224–4238](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L4224-L4238)),
@@ -112,17 +112,17 @@ Checked claims:
 - `Coin.isMature_iff`: the maturity checker accepts a coin at a height
   exactly when it is non-coinbase or at least `coinbaseMaturity` blocks
   deep.
-- `TxBody.isFinal_iff`: the finality checker accepts exactly when the lock
-  time is zero, already past on the axis it selects, or overridden by every
-  input carrying the final sequence.
+- `TxBody.isLockTimeSatisfied_iff`: the absolute lock-time checker accepts
+  exactly when the lock is disabled, already past on its selected axis, or
+  overridden by every input carrying `sequenceFinal`.
 - `Tx.spentCoins_aligned`: under the existence premise, each spent coin is
   exactly the lookup of the outpoint named by the corresponding input.
 - `Tx.spentCoins_length`: the aligned input and coin lists have equal length.
 - `Tx.isAdmissible_iff`: the contextual checker accepts exactly when inputs
   exist, coinbase spends are mature, cumulative input value and fee remain
-  within `maxMoney`, inputs cover outputs, the transaction is final, no
-  created outpoint is currently unspent, and every input passes the script
-  judgment.
+  within `maxMoney`, inputs cover outputs, the absolute lock-time condition is
+  satisfied, no created outpoint is currently unspent, and every input passes
+  the script judgment.
 
 Why it matters: the specification record's fields are, by construction, the
 hypotheses of the machine's action theorems. They are the contextual premises

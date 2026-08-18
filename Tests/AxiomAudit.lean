@@ -145,8 +145,8 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Coin.isMature_iff
 #assert_axioms BtcVerified.Consensus.LockTime.isPast_iff
 #assert_axioms BtcVerified.Consensus.LockTime.ofUInt32_past_iff
-#assert_axioms BtcVerified.TxBody.isFinal_iff
-#assert_axioms BtcVerified.TxBody.final_iff_core
+#assert_axioms BtcVerified.TxBody.isLockTimeSatisfied_iff
+#assert_axioms BtcVerified.TxBody.lockTimeSatisfied_iff_core
 #assert_axioms BtcVerified.Tx.spentCoins_aligned
 #assert_axioms BtcVerified.Tx.spentCoins_length
 #assert_axioms BtcVerified.Tx.isAdmissible_iff

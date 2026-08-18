@@ -516,7 +516,7 @@ def block170Context : TxContext :=
     medianTimePast := 1231715347 }
 
 -- The semantic lock-time interpretation exposes the selected axis, and the
--- two named clocks can produce different finality results.
+-- two named clocks can produce different lock-time satisfaction results.
 #guard Consensus.LockTime.ofUInt32 0 == .disabled
 #guard Consensus.LockTime.ofUInt32 499_999_999 == .blockHeight 499_999_999
 #guard Consensus.LockTime.ofUInt32 500_000_000 == .blockTime 500_000_000
