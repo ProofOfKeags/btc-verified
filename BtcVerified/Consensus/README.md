@@ -30,7 +30,7 @@ limit) are theorems only, never runtime checks.
 ## The shape of a rule
 
 `Limits.lean` holds the numeric constants (`maxMoney`, `coinbaseMaturity`,
-`maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
+`maxLegacySerializedSize`, `maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
 `sequenceFinal`), each citing its Core counterpart. `LockTime.lean` interprets
 the raw transaction lock-time field as disabled, an absolute block height, or
 an absolute time; BIP68 relative locks remain the separate sequence-field leaf
@@ -61,16 +61,20 @@ empty-input/output object Core's witness-aware decoder accepts
 220–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L220-L252)).
 Negative amounts remain unrepresentable, and in `Nat` one total-value bound
 subsumes Core's per-output and running-total `MoneyRange` checks. The
-stripped-size ceiling is also a transaction-local rule: although Core expresses
-it in block-weight units, it reads only the transaction. The coinbase's
+legacy one-million-byte stripped-size ceiling is also a transaction-local
+rule. Current Core expresses the equivalent predicate in block-weight units;
+`Tx.stripped_size_bound_iff_core` records that implementation correspondence
+without making the semantic rule depend on SegWit constants. The coinbase's
 positional structural checks remain block rules (#37).
 
 Checked claims:
 
+- `Tx.stripped_size_bound_iff_core`: the semantic legacy serialized-size
+  bound is exactly equivalent to Core v28's weight-unit expression.
 - `Tx.isWellFormed_iff`: the stateless checker accepts a transaction exactly
   when some input and output exist, no outpoint is spent twice, no input claims
   the null outpoint, the outputs create at most `maxMoney` satoshis, and the
-  stripped serialization fits within the per-transaction weight ceiling.
+  stripped serialization fits within the legacy one-million-byte ceiling.
 - `Tx.WellFormed.outputs_length_le`: that stripped-size rule implies every
   accepted transaction has at most `2 ^ 32` outputs, so its `UInt32` output
   indices cannot wrap.

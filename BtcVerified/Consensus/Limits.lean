@@ -25,12 +25,22 @@ spent ([Bitcoin Core v28.0, `COINBASE_MATURITY`, `consensus.h` lines
 18–19](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L18-L19)). -/
 def coinbaseMaturity : Nat := 100
 
-/-- The maximum total weight of a block, and the ceiling Core reuses for one
-transaction's stripped serialization multiplied by `witnessScaleFactor`
+/-- The historical ceiling on legacy serialized size: one million bytes.
+Before SegWit, Core applied `MAX_BLOCK_SIZE` directly to each transaction's
+serialization ([Bitcoin Core v0.12.1, `main.cpp` lines
+940–946](https://github.com/bitcoin/bitcoin/blob/v0.12.1/src/main.cpp#L940-L946)),
+with the constant defined at [`consensus.h` lines
+9–10](https://github.com/bitcoin/bitcoin/blob/v0.12.1/src/consensus/consensus.h#L9-L10).
+Current Core preserves the same rule on the stripped serialization, expressed
+indirectly in weight units; `Tx.stripped_size_bound_iff_core` proves the two
+statements equivalent. -/
+def maxLegacySerializedSize : Nat := 1_000_000
+
+/-- The maximum total weight of a block under SegWit
 ([Bitcoin Core v28.0, `consensus.h` line 15](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L15)). -/
 def maxBlockWeight : Nat := 4_000_000
 
-/-- The multiplier that converts a stripped byte to weight units
+/-- The scale factor in Bitcoin's weight calculation
 ([Bitcoin Core v28.0, `consensus.h` line 21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L21)). -/
 def witnessScaleFactor : Nat := 4
 

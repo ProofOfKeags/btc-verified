@@ -140,6 +140,7 @@ elab "#assert_axioms " id:ident : command => do
 /-! ## Consensus: transaction premises -/
 
 #assert_axioms BtcVerified.Tx.isWellFormed_iff
+#assert_axioms BtcVerified.Tx.stripped_size_bound_iff_core
 #assert_axioms BtcVerified.Tx.WellFormed.outputs_length_le
 #assert_axioms BtcVerified.Coin.isMature_iff
 #assert_axioms BtcVerified.Consensus.LockTime.isPast_iff
