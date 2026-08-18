@@ -19,8 +19,12 @@ import BtcVerified.Chainstate.Coin
   the `Tx` argument last so widening is argument-prepending, never
   reshuffling.
 
-  This module ships the type and the combinators only; actual judgments
-  arrive with the script layer.
+  This module ships the type and the combinators only; no formal script
+  judgment exists yet. A zipper or other focus-by-construction interface is
+  therefore deliberately deferred until the script model can determine the
+  interface it actually needs. For the present indexed parameter,
+  `Tx.spentCoins_aligned` proves that the coin at each checked index is the
+  lookup of the corresponding input's outpoint.
 -/
 
 namespace BtcVerified

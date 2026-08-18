@@ -2,19 +2,23 @@
 
 The rules layer: the central, legible statement of what Bitcoin consensus
 demands, stated over the `Chainstate/` machine and never inside it (rules
-import the machine; the machine never imports rules). Rules separate along
-two axes — what they judge (transactions vs blocks) and what they need
-(nothing beyond the object vs chain state and position). This directory
-currently fills the two transaction buckets; block rules are next (#37).
+import the machine; the machine never imports rules). The root consensus
+judgment is whether a candidate block extends a parent-chain state under the
+active ruleset, not whether a transaction is valid in isolation. Rules
+therefore separate along two axes — their scope (transaction-local premises
+vs block-wide conditions) and what they need (nothing beyond the object vs
+chain state and position). This directory currently supplies the reusable
+transaction premises and regular-transaction transition step; the block fold
+that composes them into extension validity is next (#37).
 
 Three disciplines hold everywhere. Every rule corresponds 1:1 to a check in
 Bitcoin Core's consensus module and its doc-string says which; the *checkers*
 are stated at whatever level of abstraction reads best, with equivalence to
 Core's literal control flow left to `Impl/` transcriptions if ever wanted.
-No rule embeds an activation height — rules take evaluation context (the
+No premise embeds an activation height — premises take evaluation context (the
 admitting block's height, the time lock times are measured against), and
 "which rules are in force when" is an external mapping, a later leaf (#38).
-An enforced rule is a runnable `Bool` checker (the definition), a `Prop`
+An enforced premise is a runnable `Bool` checker (the definition), a `Prop`
 specification record naming its structural content, and a proved equivalence
 between them; derived properties (conservation, the supply limit) are
 theorems only, never runtime checks.
@@ -27,13 +31,16 @@ theorems only, never runtime checks.
 `TxContext.lean` is the evaluation context — height and measuring time;
 BIP113 changed which clock Core passes without changing any rule, so the
 clock choice belongs to the activation layer. `ScriptCheck.lean` is the
-script-validity parameter: consensus does not execute scripts yet, so the
-rules take a judgment over (all spent coins, input index, spending
-transaction) — wide in the coin list because taproot signature hashes commit
-to every spent output — with widening combinators (`ofCoinFree`,
-`ofPerInput`) so narrower judgments are stated at their natural scope.
+script-validity parameter: no formal script model exists yet, so these
+premises take an abstract judgment over (all spent coins, input index,
+spending transaction) — wide in the coin list because taproot signature
+hashes commit to every spent output — with widening combinators (`ofCoinFree`,
+`ofPerInput`) so narrower judgments are stated at their natural scope. A
+zipper or other focus-by-construction API is deliberately deferred until the
+script model can determine the interface it actually needs; the current
+indexed interface is backed by a pointwise alignment theorem.
 
-## Stateless transaction rules
+## Transaction-local premises
 
 `TxStateless.lean`: what a regular transaction must satisfy before any chain
 state is consulted — Core's `CheckTransaction`. Empty inputs need no rule
@@ -56,18 +63,19 @@ Checked claims:
 - `Tx.body_inputs_ne_nil` (with the `Tx` type): every transaction has at
   least one input — Core's empty-`vin` check as a type invariant.
 
-Why it matters: these are the rules a block validator runs on every
-transaction before it ever reads the UTXO set, and the null-outpoint rule is
-what separates the coinbase (judged positionally, by block rules) from the
-regular transactions judged here.
+Why it matters: these are reusable premises a block validator establishes for
+every transaction before it ever reads the UTXO set, and the null-outpoint
+rule is what separates the coinbase (judged positionally, by block rules) from
+the regular transactions judged here.
 
-## Contextual transaction rules
+## Contextual transaction premises
 
 `TxContextual.lean`: what a regular transaction must satisfy relative to the
 UTXO set and the admitting block — Core's `Consensus::CheckTxInputs` and
-`IsFinalTx`, script validity as the parameter, plus `creates_absent`: no
-created outpoint may currently hold an unspent coin. Input value and fee
-retain Core's explicit `MoneyRange` checks over arbitrary UTXO sets; #50
+`IsFinalTx`, script validity as the parameter, plus
+`creates_do_not_overwrite`: no created outpoint may currently hold an unspent
+coin. Input value and fee retain Core's explicit `MoneyRange` checks over
+arbitrary UTXO sets; #50
 tracks proving them redundant on reachable states once #37 supplies the
 supply invariant. The no-overwrite rule is BIP30's content in current-state
 vocabulary — recreating a fully-spent outpoint stays legal; the two 2010
@@ -83,40 +91,44 @@ Checked claims:
 - `TxBody.isFinal_iff`: the finality checker accepts exactly when the lock
   time is zero, already past on the axis it selects, or overridden by every
   input carrying the final sequence.
-- `Tx.spentCoins_length`: under the existence rule, the spent-coin list
-  aligns with the inputs — one coin per input, in order.
+- `Tx.spentCoins_aligned`: under the existence premise, each spent coin is
+  exactly the lookup of the outpoint named by the corresponding input.
+- `Tx.spentCoins_length`: the aligned input and coin lists have equal length.
 - `Tx.isAdmissible_iff`: the contextual checker accepts exactly when inputs
   exist, coinbase spends are mature, cumulative input value and fee remain
   within `maxMoney`, inputs cover outputs, the transaction is final, no
   created outpoint is currently unspent, and every input passes the script
   judgment.
 
-Why it matters: the specification record's fields are, by construction,
-the hypotheses of the machine's action theorems — the rules are stated in
-exactly the vocabulary the ledger accounting consumes.
+Why it matters: the specification record's fields are, by construction, the
+hypotheses of the machine's action theorems. They are the contextual premises
+the block fold consumes, stated in exactly the vocabulary the ledger
+accounting uses.
 
-## Guarded application
+## Guarded regular-transaction step
 
-`ApplyChecked.lean`: where rules meet machine. The discharge lemma converts
-a rule-passing transaction's guarantees into the action theorems'
+`ApplyChecked.lean`: where transaction premises meet the machine. The
+discharge lemma converts an admissible transaction's guarantees into the
+action theorems'
 hypotheses, the gated conservation theorems specialize the accounting
-identity with every root-level transaction property discharged, and
-`applyChecked` is the strict rules-then-act interface. Fees are not spec
-objects: conservation is the accounting identity, and "the total drops by
-exactly the fee" is its English reading.
+identity with every local machine obligation discharged, and `applyChecked`
+is the internal regular-transaction step that #37's block fold will iterate.
+It is not a root consensus interface: only the complete fold, coinbase
+epilogue, and block-wide premises establish a valid extension. Fees are not
+spec objects: conservation is the accounting identity, and "the total drops
+by exactly the fee" is its English reading.
 
 Checked claims:
 
-- `Tx.creates_absent_spend`: a rule-passing transaction's created outpoints
-  are absent even after its spends are erased.
-- `UtxoSet.totalValue_apply_of_admissible`: for a rule-passing transaction,
+- `Tx.creates_do_not_overwrite_after_spend`: an admissible transaction's
+  created outpoints remain fresh after its spends are erased.
+- `UtxoSet.totalValue_apply_of_admissible`: for a premise-passing transaction,
   total value after plus value spent equals total value before plus value
   created.
-- `UtxoSet.totalValue_apply_le_of_admissible`: a rule-passing transaction
+- `UtxoSet.totalValue_apply_le_of_admissible`: a premise-passing transaction
   never increases the total value the set holds.
-- `UtxoSet.applyChecked_eq_some_iff`: the strict interface succeeds on
-  exactly the rule-passing transactions and then agrees with the guard-free
-  action.
+- `UtxoSet.applyChecked_eq_some_iff`: the internal step succeeds exactly when
+  its transaction premises hold and then agrees with the guard-free action.
 
 Why it matters: this is the per-transaction step the block fold (#37)
 iterates. The delta invariant — a block grows the total by at most the

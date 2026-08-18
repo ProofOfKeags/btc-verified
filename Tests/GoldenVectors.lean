@@ -462,11 +462,11 @@ def block1HeaderHex : String :=
   | some (b, _) => decide b.merkleCommits
   | none => false
 
-/-! ## The transaction rules on the first payment
+/-! ## The transaction premises on the first payment
 
   The block-9 coinbase funds the set, and the first Bitcoin payment spends
-  it at height 170 — the transaction rules and the strict interface run on
-  real mainnet data end to end. The setup authenticates itself: the
+  it at height 170 — the transaction premises and guarded block-fold step run
+  on real mainnet data end to end. The setup authenticates itself: the
   coinbase's *computed* txid must equal the prevout the first-payment
   vector already pins byte-for-byte.
 -/
@@ -521,9 +521,9 @@ def block170Context : TxContext := ⟨170, 1231731025⟩
     -- transaction over the deliberately impossible abstract state.
     && !payment.isAdmissible (fun _ _ _ => true) outOfRangeUtxos
       block170Context
-    -- The strict interface applies it: the spent outpoint is gone, the two
-    -- created outpoints carry 10 and 40 BTC stamped ⟨170, regular⟩, and
-    -- the zero-fee total is conserved.
+    -- The guarded regular-transaction step applies it: the spent outpoint is
+    -- gone, the two created outpoints carry 10 and 40 BTC stamped
+    -- ⟨170, regular⟩, and the zero-fee total is conserved.
     && (match UtxoSet.applyChecked (fun _ _ _ => true) utxos block170Context
           payment with
         | some next =>

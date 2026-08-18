@@ -3,14 +3,15 @@ import BtcVerified.Consensus.Limits
 import BtcVerified.Consensus.TxContext
 import BtcVerified.Consensus.ScriptCheck
 /-!
-  # Contextual transaction rules
+  # Contextual transaction premises
 
-  The chain-contextual bucket: what consensus demands of a regular
-  transaction relative to the UTXO set and the admitting block — Core's
+  The chain-contextual premises a regular transaction must establish while a
+  candidate block is being checked against the UTXO set — Core's
   `Consensus::CheckTxInputs` (`src/consensus/tx_verify.cpp`) and `IsFinalTx`,
   plus the rule that keeps the machine's insert-replaces path unreachable.
-  Script validity is the `ScriptCheck` parameter; every rule here is
-  script-agnostic.
+  These predicates are reusable steps inside block-extension validity, not a
+  standalone consensus verdict for a transaction. Script validity is the
+  `ScriptCheck` parameter; every rule here is script-agnostic.
 
   The enforced rule is the checker `Tx.isAdmissible`; `Tx.Admissible` is the
   specification it is proved to enforce (`Tx.isAdmissible_iff`), and its
@@ -25,7 +26,7 @@ import BtcVerified.Consensus.ScriptCheck
   One contextual Core rule remains deferred: BIP68 relative lock times need
   per-coin median-time-past history that no leaf provides yet.
 
-  `creates_absent` is BIP30's content in current-state vocabulary: a
+  `creates_do_not_overwrite` is BIP30's content in current-state vocabulary: a
   transaction may not create an outpoint that *currently* holds an unspent
   coin (recreating a fully-spent outpoint is legal — it happened before
   BIP34). The two 2010 duplicate-coinbase blocks and Core's post-BIP34 skip
@@ -39,8 +40,9 @@ import BtcVerified.Consensus.ScriptCheck
   * `TxBody.isFinal_iff`: the finality checker accepts exactly when the lock
     is zero, already past on the axis the lock time selects, or overridden
     by every input carrying the final sequence.
-  * `Tx.spentCoins_length`: under the existence rule, the spent-coin list
-    has one coin per input.
+  * `Tx.spentCoins_aligned`: under the existence rule, each spent coin is the
+    lookup of the outpoint named by the corresponding input.
+  * `Tx.spentCoins_length`: the aligned lists have equal length.
   * `Tx.isAdmissible_iff`: the checker accepts a transaction exactly when it
     satisfies the eight contextual rules — inputs exist, coinbase spends are
     mature, input value and fee stay within `maxMoney`, inputs cover outputs,
@@ -112,22 +114,53 @@ theorem TxBody.isFinal_iff {body : TxBody} {ctx : TxContext} :
 def Tx.spentCoins (tx : Tx) (utxos : UtxoSet) : List Coin :=
   tx.body.spends.filterMap fun o => utxos.lookup o
 
-/-- Under the existence rule the spent-coin list is aligned with the inputs:
-one coin per input, in order. -/
+/-- Under the existence rule, the spent-coin list is pointwise aligned with
+the inputs: each coin is exactly the lookup of the outpoint named by the
+corresponding input. -/
+theorem Tx.spentCoins_aligned {tx : Tx} {utxos : UtxoSet}
+    (h : ∀ o ∈ tx.body.spends, o ∈ utxos) :
+    List.Forall₂ (fun input coin =>
+      utxos.lookup input.prevout = some coin)
+      tx.body.inputs.val (tx.spentCoins utxos) := by
+  have aligned : ∀ inputs : List TxIn,
+      (∀ input ∈ inputs, input.prevout ∈ utxos) →
+      List.Forall₂ (fun input coin =>
+        utxos.lookup input.prevout = some coin)
+        inputs ((inputs.map fun input => input.prevout).filterMap utxos.lookup) := by
+    intro inputs
+    induction inputs with
+    | nil =>
+        intro _
+        exact .nil
+    | cons input inputs ih =>
+        intro hinputs
+        have hmem : input.prevout ∈ utxos := hinputs input (by simp)
+        have hsome := Finmap.lookup_isSome.mpr hmem
+        cases hlookup : utxos.lookup input.prevout with
+        | none => simp [hlookup] at hsome
+        | some coin =>
+            simp only [List.map_cons, List.filterMap_cons, hlookup]
+            exact .cons hlookup
+              (ih fun next hnext => hinputs next (by simp [hnext]))
+  unfold spentCoins
+  rw [TxBody.spends]
+  exact aligned tx.body.inputs.val fun input hinput =>
+    h input.prevout (by
+      rw [TxBody.spends]
+      exact List.mem_map.mpr ⟨input, hinput, rfl⟩)
+
+/-- Under the existence rule there is one spent coin per input. This is the
+length consequence of `Tx.spentCoins_aligned`. -/
 theorem Tx.spentCoins_length {tx : Tx} {utxos : UtxoSet}
     (h : ∀ o ∈ tx.body.spends, o ∈ utxos) :
-    (tx.spentCoins utxos).length = tx.body.inputs.val.length := by
-  have hlen : (tx.body.spends.filterMap fun o => utxos.lookup o).length
-      = tx.body.spends.length :=
-    List.filterMap_length_eq_length.mpr
-      fun o ho => Finmap.lookup_isSome.mpr (h o ho)
-  rw [spentCoins, hlen, TxBody.spends, List.length_map]
+    (tx.spentCoins utxos).length = tx.body.inputs.val.length :=
+  (Tx.spentCoins_aligned h).length_eq.symm
 
-/-- Decide the chain-contextual validity of a regular transaction over the
-UTXO set, script validity supplied as a parameter: inputs exist, coinbase
-spends are mature, input value and fee stay within `maxMoney`, inputs cover
-outputs, the transaction is final, no created outpoint is currently unspent,
-and every input passes the script judgment. -/
+/-- Decide the contextual admissibility premises for one regular-transaction
+step over the UTXO set, script validity supplied as a parameter: inputs exist,
+coinbase spends are mature, input value and fee stay within `maxMoney`, inputs
+cover outputs, the transaction is final, no created outpoint is currently
+overwritten, and every input passes the script judgment. -/
 def Tx.isAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
     (ctx : TxContext) (tx : Tx) : Bool :=
   tx.body.spends.all (fun o => (utxos.lookup o).isSome)
@@ -175,9 +208,11 @@ structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
     ≤ Consensus.maxMoney
   /-- The transaction is final for the admitting block (`non-final`). -/
   final : tx.body.Final ctx
-  /-- No created outpoint currently holds an unspent coin — BIP30's content;
-  its historical carve-outs are the activation layer's business (#38/#39). -/
-  creates_absent : ∀ o ∈ tx.body.creates.map Prod.fst, o ∉ utxos
+  /-- Creating this transaction's outputs does not overwrite any currently
+  unspent outpoint — BIP30's content; its historical carve-outs are the
+  activation layer's business (#38/#39). -/
+  creates_do_not_overwrite :
+    ∀ o ∈ tx.body.creates.map Prod.fst, o ∉ utxos
   /-- Every input satisfies the script judgment against the coins the
   transaction spends. -/
   scripts_ok : ∀ i < tx.body.inputs.val.length,

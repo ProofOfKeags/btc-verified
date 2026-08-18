@@ -136,16 +136,17 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Chain.tip_commits_prefix
 #assert_axioms BtcVerified.Chain.tip_commits
 
-/-! ## Consensus: transaction rules -/
+/-! ## Consensus: transaction premises -/
 
 #assert_axioms BtcVerified.Tx.body_inputs_ne_nil
 #assert_axioms BtcVerified.Tx.isWellFormed_iff
 #assert_axioms BtcVerified.Tx.WellFormed.outputs_length_le
 #assert_axioms BtcVerified.Coin.isMature_iff
 #assert_axioms BtcVerified.TxBody.isFinal_iff
+#assert_axioms BtcVerified.Tx.spentCoins_aligned
 #assert_axioms BtcVerified.Tx.spentCoins_length
 #assert_axioms BtcVerified.Tx.isAdmissible_iff
-#assert_axioms BtcVerified.Tx.creates_absent_spend
+#assert_axioms BtcVerified.Tx.creates_do_not_overwrite_after_spend
 #assert_axioms BtcVerified.UtxoSet.totalValue_apply_of_admissible
 #assert_axioms BtcVerified.UtxoSet.totalValue_apply_le_of_admissible
 #assert_axioms BtcVerified.UtxoSet.applyChecked_eq_some_iff

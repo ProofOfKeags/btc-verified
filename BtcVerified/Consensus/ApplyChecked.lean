@@ -3,56 +3,55 @@ import BtcVerified.Consensus.TxContextual
 /-!
   # Guarded application
 
-  Where the rules meet the machine. The discharge lemma turns a
-  rule-passing transaction's `creates_absent` into the exact absence-after-
-  spend hypothesis the action theorems carry, and the gated conservation
-  theorems specialize `UtxoSet.totalValue_apply` with every machine
-  hypothesis supplied by a rule. In particular, the stateless stripped-size
-  rule implies the output-count bound that keeps `UInt32` output indices
-  injective, so the checked interface leaves no root-level transaction
-  property to its caller.
+  Where transaction premises meet the machine. The discharge lemma turns
+  `creates_do_not_overwrite` into the exact absence-after-spend hypothesis
+  the action theorems carry, and the gated conservation theorems specialize
+  `UtxoSet.totalValue_apply` with every machine hypothesis supplied by a
+  premise. In particular, the transaction-local stripped-size premise implies
+  the output-count bound that keeps `UInt32` output indices injective.
 
   Fees are not spec objects (#37): the conservation statement is the
   accounting identity itself, and "the total drops by exactly the fee" is
   its English reading, not a definition in the model.
 
-  `applyChecked` is the strict interface — rules first, act on success —
-  provably agreeing with the guard-free action whenever it returns `some`.
-  A convenience in `Consensus/`, never structure in `Chainstate/`: every
-  transaction acts identically; only the rules differ. It stamps the
+  `applyChecked` is the internal regular-transaction step that the block fold
+  in #37 will iterate: check its local and contextual premises, then act on
+  success. It is not a root consensus interface; only the complete block fold,
+  coinbase epilogue, and block-wide premises establish a valid extension. A
+  convenience in `Consensus/`, never structure in `Chainstate/`, it stamps the
   provenance a regular transaction earns — created at the admitting height,
-  not in coinbase position (the coinbase epilogue is a block rule, #37).
+  not in coinbase position.
 
   Checked claims:
 
-  * `Tx.creates_absent_spend`: a rule-passing transaction's created
-    outpoints are absent even after its spends are erased.
-  * `UtxoSet.totalValue_apply_of_admissible`: for a rule-passing
+  * `Tx.creates_do_not_overwrite_after_spend`: a premise-passing
+    transaction's created outpoints remain fresh after its spends are erased.
+  * `UtxoSet.totalValue_apply_of_admissible`: for a premise-passing
     transaction the accounting identity holds, every machine hypothesis
     discharged by a rule.
-  * `UtxoSet.totalValue_apply_le_of_admissible`: a rule-passing transaction
+  * `UtxoSet.totalValue_apply_le_of_admissible`: a premise-passing transaction
     never increases the total value the set holds.
-  * `UtxoSet.applyChecked_eq_some_iff`: the strict interface succeeds on
-    exactly the rule-passing transactions, and then agrees with the
-    guard-free action.
+  * `UtxoSet.applyChecked_eq_some_iff`: the internal step succeeds exactly
+    when its transaction premises hold, and then agrees with the guard-free
+    action.
 -/
 
 namespace BtcVerified
 
-/-- A rule-passing transaction's created outpoints are absent even after its
-spends are erased — `creates_absent` survives the spend because spending
-only shrinks the set. This is the exact absence hypothesis the action
-theorems carry. -/
-theorem Tx.creates_absent_spend {scriptOk : ScriptCheck} {utxos : UtxoSet}
+/-- If a transaction's creations do not overwrite the current set, they remain
+fresh after its spends are erased because spending only shrinks the set. This
+is the exact absence hypothesis the action theorems carry. -/
+theorem Tx.creates_do_not_overwrite_after_spend
+    {scriptOk : ScriptCheck} {utxos : UtxoSet}
     {ctx : TxContext} {tx : Tx} (h : Tx.Admissible scriptOk utxos ctx tx) :
     ∀ o ∈ tx.body.creates.map Prod.fst, o ∉ utxos.spend tx.body.spends :=
-  fun o ho hmem => h.creates_absent o ho (UtxoSet.mem_spend.mp hmem).1
+  fun o ho hmem =>
+    h.creates_do_not_overwrite o ho (UtxoSet.mem_spend.mp hmem).1
 
-/-- For a rule-passing transaction the accounting identity holds: total
+/-- For a premise-passing transaction the accounting identity holds: total
 value after application plus the value spent equals total value before plus
-the value created. Every machine hypothesis is discharged by a root-level
-transaction rule, including output-index injectivity via the stripped-size
-guard. -/
+the value created. Every machine hypothesis is discharged by a transaction
+premise, including output-index injectivity via the stripped-size premise. -/
 theorem UtxoSet.totalValue_apply_of_admissible {scriptOk : ScriptCheck}
     {utxos : UtxoSet} {ctx : TxContext} {provenance : Provenance} {tx : Tx}
     (hwf : tx.WellFormed) (hadm : Tx.Admissible scriptOk utxos ctx tx) :
@@ -62,9 +61,9 @@ theorem UtxoSet.totalValue_apply_of_admissible {scriptOk : ScriptCheck}
         + (tx.body.outputs.val.map fun output => output.value.toNat).sum :=
   totalValue_apply (Tx.WellFormed.outputs_length_le hwf)
     hwf.spends_nodup hadm.spends_mem
-    (Tx.creates_absent_spend hadm)
+    (Tx.creates_do_not_overwrite_after_spend hadm)
 
-/-- A rule-passing transaction never increases the total value the set
+/-- A premise-passing transaction never increases the total value the set
 holds: the total drops by exactly the value the inputs carry beyond the
 outputs — the fee, in English; fees are not spec objects (#37). -/
 theorem UtxoSet.totalValue_apply_le_of_admissible {scriptOk : ScriptCheck}
@@ -76,19 +75,20 @@ theorem UtxoSet.totalValue_apply_le_of_admissible {scriptOk : ScriptCheck}
   have hcover := hadm.values_cover
   omega
 
-/-- Run the regular-transaction rules, then act: `some` of the guard-free
-application on success, `none` on any rule failure. Stamps the provenance a
-regular transaction earns — created at the admitting height, not in
-coinbase position (the coinbase epilogue is a block rule, #37). -/
+/-- Run the premises for one regular-transaction step, then act: `some` of the
+guard-free application on success, `none` on any premise failure. This is the
+internal step of #37's block fold, not a standalone consensus verdict. It
+stamps the provenance a regular transaction earns — created at the admitting
+height, not in coinbase position. -/
 def UtxoSet.applyChecked (scriptOk : ScriptCheck) (utxos : UtxoSet)
     (ctx : TxContext) (tx : Tx) : Option UtxoSet :=
   if tx.isWellFormed && tx.isAdmissible scriptOk utxos ctx
   then some (utxos.apply ⟨ctx.height, false⟩ tx.body)
   else none
 
-/-- The strict interface succeeds on exactly the rule-passing transactions,
-and then agrees with the guard-free action under the regular-transaction
-provenance stamp. -/
+/-- The internal regular-transaction step succeeds exactly when its local and
+contextual premises hold, then agrees with the guard-free action under the
+regular-transaction provenance stamp. -/
 theorem UtxoSet.applyChecked_eq_some_iff {scriptOk : ScriptCheck}
     {utxos next : UtxoSet} {ctx : TxContext} {tx : Tx} :
     utxos.applyChecked scriptOk ctx tx = some next

@@ -2,14 +2,17 @@ import BtcVerified.Transaction.Tx
 import BtcVerified.Chainstate.Apply
 import BtcVerified.Consensus.Limits
 /-!
-  # Stateless transaction rules
+  # Transaction-local premises
 
-  The context-free bucket: what consensus demands of a regular transaction
-  before looking at any chain state — Core's `CheckTransaction`
+  The transaction-local premises used while checking a regular transaction
+  inside a candidate block, before looking at any chain state — Core's
+  `CheckTransaction`
   (`src/consensus/tx_check.cpp`), restricted to a transaction with real
   inputs. A transaction in coinbase position is judged by block rules (#37),
   because coinbase-ness is positional; here its null prevout simply fails
-  `spends_ne_null`.
+  `spends_ne_null`. Passing these premises is not a standalone consensus
+  verdict; block-extension validity composes them with contextual and
+  block-wide premises.
 
   The enforced rule is the checker `Tx.isWellFormed`; `Tx.WellFormed` is the
   specification it is proved to enforce (`Tx.isWellFormed_iff`). Downstream
@@ -32,8 +35,9 @@ import BtcVerified.Consensus.Limits
     spent twice, no input claims the null outpoint, the outputs create at
     most `maxMoney` satoshis in total, and the stripped serialization fits
     within the per-transaction weight ceiling.
-  * `Tx.WellFormed.outputs_length_le`: a stateless-valid transaction has at
-    most `2 ^ 32` outputs, so its `UInt32` output indices cannot wrap.
+  * `Tx.WellFormed.outputs_length_le`: a transaction satisfying the local
+    premises has at most `2 ^ 32` outputs, so its `UInt32` output indices
+    cannot wrap.
 -/
 
 namespace BtcVerified
@@ -44,10 +48,11 @@ serialization. -/
 def Tx.strippedSize (tx : Tx) : Nat :=
   (Serialize.Codec.encode tx.body).length
 
-/-- Decide the context-free validity of a regular transaction: some output
-exists, no outpoint is spent twice, no input claims the null outpoint, and
-the outputs create at most `maxMoney` satoshis in total, and the stripped
-serialization fits within Core's per-transaction weight ceiling
+/-- Decide the transaction-local admissibility premises for a regular
+transaction: some output exists, no outpoint is spent twice, no input claims
+the null outpoint, the outputs create at most `maxMoney` satoshis in total,
+and the stripped serialization fits within Core's per-transaction weight
+ceiling
 ([Bitcoin Core v28.0, `tx_check.cpp` lines 18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
 def Tx.isWellFormed (tx : Tx) : Bool :=
   decide (tx.body.outputs.val ≠ [])
@@ -108,9 +113,9 @@ private theorem TxOut.list_length_le_encodeElems_length (outputs : List TxOut) :
     have houtput := TxOut.one_le_encode_length output
     omega
 
-/-- A stateless-valid transaction has at most `2 ^ 32` outputs: Core's
-stripped-size rule is far tighter than the width of an outpoint's `vout`, so
-the `UInt32` indices used by the UTXO action cannot wrap. -/
+/-- A transaction satisfying the local premises has at most `2 ^ 32` outputs:
+Core's stripped-size rule is far tighter than the width of an outpoint's
+`vout`, so the `UInt32` indices used by the UTXO action cannot wrap. -/
 theorem Tx.WellFormed.outputs_length_le {tx : Tx} (h : tx.WellFormed) :
     tx.body.outputs.val.length ≤ 2 ^ 32 := by
   have helems := TxOut.list_length_le_encodeElems_length tx.body.outputs.val
