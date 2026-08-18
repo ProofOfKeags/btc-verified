@@ -43,7 +43,8 @@ fresh after its spends are erased because spending only shrinks the set. This
 is the exact absence hypothesis the action theorems carry. -/
 theorem Tx.creates_do_not_overwrite_after_spend
     {scriptOk : ScriptCheck} {utxos : UtxoSet}
-    {ctx : TxContext} {tx : Tx} (h : Tx.Admissible scriptOk utxos ctx tx) :
+    {clock : FinalityClock} {ctx : TxContext} {tx : Tx}
+    (h : Tx.Admissible scriptOk utxos clock ctx tx) :
     ∀ o ∈ tx.body.creates.map Prod.fst, o ∉ utxos.spend tx.body.spends :=
   fun o ho hmem =>
     h.creates_do_not_overwrite o ho (UtxoSet.mem_spend.mp hmem).1
@@ -53,8 +54,9 @@ value after application plus the value spent equals total value before plus
 the value created. Every machine hypothesis is discharged by a transaction
 premise, including output-index injectivity via the stripped-size premise. -/
 theorem UtxoSet.totalValue_apply_of_admissible {scriptOk : ScriptCheck}
-    {utxos : UtxoSet} {ctx : TxContext} {provenance : Provenance} {tx : Tx}
-    (hwf : tx.WellFormed) (hadm : Tx.Admissible scriptOk utxos ctx tx) :
+    {utxos : UtxoSet} {clock : FinalityClock} {ctx : TxContext}
+    {provenance : Provenance} {tx : Tx} (hwf : tx.WellFormed)
+    (hadm : Tx.Admissible scriptOk utxos clock ctx tx) :
     totalValue (utxos.apply provenance tx.body)
         + (tx.body.spends.map utxos.valueAt).sum
       = utxos.totalValue
@@ -67,8 +69,9 @@ theorem UtxoSet.totalValue_apply_of_admissible {scriptOk : ScriptCheck}
 holds: the total drops by exactly the value the inputs carry beyond the
 outputs — the fee, in English; fees are not spec objects (#37). -/
 theorem UtxoSet.totalValue_apply_le_of_admissible {scriptOk : ScriptCheck}
-    {utxos : UtxoSet} {ctx : TxContext} {provenance : Provenance} {tx : Tx}
-    (hwf : tx.WellFormed) (hadm : Tx.Admissible scriptOk utxos ctx tx) :
+    {utxos : UtxoSet} {clock : FinalityClock} {ctx : TxContext}
+    {provenance : Provenance} {tx : Tx} (hwf : tx.WellFormed)
+    (hadm : Tx.Admissible scriptOk utxos clock ctx tx) :
     totalValue (utxos.apply provenance tx.body) ≤ utxos.totalValue := by
   have hidentity := totalValue_apply_of_admissible hwf hadm
     (provenance := provenance)
@@ -81,8 +84,8 @@ internal step of #37's block fold, not a standalone consensus verdict. It
 stamps the provenance a regular transaction earns — created at the admitting
 height, not in coinbase position. -/
 def UtxoSet.applyChecked (scriptOk : ScriptCheck) (utxos : UtxoSet)
-    (ctx : TxContext) (tx : Tx) : Option UtxoSet :=
-  if tx.isWellFormed && tx.isAdmissible scriptOk utxos ctx
+    (clock : FinalityClock) (ctx : TxContext) (tx : Tx) : Option UtxoSet :=
+  if tx.isWellFormed && tx.isAdmissible scriptOk utxos clock ctx
   then some (utxos.apply ⟨ctx.height, false⟩ tx.body)
   else none
 
@@ -90,9 +93,9 @@ def UtxoSet.applyChecked (scriptOk : ScriptCheck) (utxos : UtxoSet)
 contextual premises hold, then agrees with the guard-free action under the
 regular-transaction provenance stamp. -/
 theorem UtxoSet.applyChecked_eq_some_iff {scriptOk : ScriptCheck}
-    {utxos next : UtxoSet} {ctx : TxContext} {tx : Tx} :
-    utxos.applyChecked scriptOk ctx tx = some next
-      ↔ tx.WellFormed ∧ Tx.Admissible scriptOk utxos ctx tx
+    {utxos next : UtxoSet} {clock : FinalityClock} {ctx : TxContext} {tx : Tx} :
+    utxos.applyChecked scriptOk clock ctx tx = some next
+      ↔ tx.WellFormed ∧ Tx.Admissible scriptOk utxos clock ctx tx
           ∧ next = utxos.apply ⟨ctx.height, false⟩ tx.body := by
   unfold applyChecked
   split

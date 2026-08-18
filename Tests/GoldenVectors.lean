@@ -507,8 +507,23 @@ def block9CoinbaseHex : String :=
    a3ac00000000"
 
 /-- The context block 170 admits its transactions in: height 170, header
-timestamp `1231731025`. -/
-def block170Context : TxContext := ⟨170, 1231731025⟩
+timestamp `1231731025`, and preceding-block MTP `1231715347`. The MTP is the
+median timestamp of blocks 159–169; both values can be checked from the exact
+preceding [block 169 on mempool.space](https://mempool.space/block/000000002a22cfee1f2c846adbd12b3e183d4f97683f85dad08a79780a84bd55). -/
+def block170Context : TxContext :=
+  { height := 170
+    blockTime := 1231731025
+    medianTimePast := 1231715347 }
+
+-- The semantic lock-time interpretation exposes the selected axis, and the
+-- two named clocks can produce different finality results.
+#guard Consensus.LockTime.ofUInt32 0 == .disabled
+#guard Consensus.LockTime.ofUInt32 499_999_999 == .blockHeight 499_999_999
+#guard Consensus.LockTime.ofUInt32 500_000_000 == .blockTime 500_000_000
+#guard (Consensus.LockTime.ofUInt32 1_231_716_000).isPast
+  block170Context.height (block170Context.timeFor .blockTime)
+#guard !(Consensus.LockTime.ofUInt32 1_231_716_000).isPast
+  block170Context.height (block170Context.timeFor .medianTimePast)
 
 #guard checksOut block9CoinbaseHex fun coinbase =>
   -- The computed txid is exactly the prevout the first-payment vector pins.
@@ -537,20 +552,23 @@ def block170Context : TxContext := ⟨170, 1231731025⟩
     payment.isWellFormed
     -- Admissible at block 170 under the always-true script judgment: the
     -- coinbase matured at height 109, and 50 BTC in covers 10 + 40 out.
-    && payment.isAdmissible (fun _ _ _ => true) utxos block170Context
+    && payment.isAdmissible (fun _ _ _ => true) utxos .blockTime
+      block170Context
     -- Not at height 105: the coinbase is four blocks short of maturity.
-    && !payment.isAdmissible (fun _ _ _ => true) utxos ⟨105, 1231731025⟩
+    && !payment.isAdmissible (fun _ _ _ => true) utxos .blockTime
+      { block170Context with height := 105 }
     -- A rejecting script judgment fails the bundle.
-    && !payment.isAdmissible (fun _ _ _ => false) utxos block170Context
+    && !payment.isAdmissible (fun _ _ _ => false) utxos .blockTime
+      block170Context
     -- Input-value and fee MoneyRange checks reject the otherwise admissible
     -- transaction over the deliberately impossible abstract state.
-    && !payment.isAdmissible (fun _ _ _ => true) outOfRangeUtxos
+    && !payment.isAdmissible (fun _ _ _ => true) outOfRangeUtxos .blockTime
       block170Context
     -- The guarded regular-transaction step applies it: the spent outpoint is
     -- gone, the two created outpoints carry 10 and 40 BTC stamped
     -- ⟨170, regular⟩, and the zero-fee total is conserved.
-    && (match UtxoSet.applyChecked (fun _ _ _ => true) utxos block170Context
-          payment with
+    && (match UtxoSet.applyChecked (fun _ _ _ => true) utxos .blockTime
+          block170Context payment with
         | some next =>
           (next.lookup ⟨coinbase.txid, 0⟩).isNone
           && ((next.lookup ⟨payment.txid, 0⟩).map fun coin =>

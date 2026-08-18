@@ -20,9 +20,9 @@ release-pinned source citation. Implementation-shaped transcriptions belong in
 boundary — accepted block extensions and the state transitions they produce —
 and other implementations or forks can be compared against the same object.
 Second, no premise embeds an activation height: premises take evaluation
-context (the admitting block's height, the time lock times are measured
-against), and "which rules are in force when" is an external mapping, a later
-leaf (#38). Third, an enforced premise is a runnable `Bool` checker (the
+context (the admitting block's height, block time, and median-time-past) plus
+an explicit finality-clock choice, and "which rules are in force when" is an
+external mapping, a later leaf (#38). Third, an enforced premise is a runnable `Bool` checker (the
 definition), a `Prop` specification record naming its structural content, and a
 proved equivalence between them; derived properties (conservation, the supply
 limit) are theorems only, never runtime checks.
@@ -31,12 +31,15 @@ limit) are theorems only, never runtime checks.
 
 `Limits.lean` holds the numeric constants (`maxMoney`, `coinbaseMaturity`,
 `maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
-`sequenceFinal`), each citing its Core counterpart.
-`TxContext.lean` is the evaluation context — height and measuring time;
-BIP113 changed which clock Core passes without changing `IsFinalTx`
+`sequenceFinal`), each citing its Core counterpart. `LockTime.lean` interprets
+the raw transaction lock-time field as disabled, an absolute block height, or
+an absolute time; BIP68 relative locks remain the separate sequence-field leaf
+#46. `TxContext.lean` carries the admitting height plus separately named block
+time and median-time-past values. `FinalityClock` selects which one measures
+absolute time locks: BIP113 changed that choice without changing `IsFinalTx`
 ([Bitcoin Core v28.0, `validation.cpp` lines
 4224–4238](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L4224-L4238)),
-so the clock choice belongs to the activation layer. `ScriptCheck.lean` is the
+so #38's ruleset mapping owns the explicit clock choice. `ScriptCheck.lean` is the
 script-validity parameter: no formal script model exists yet, so these
 premises take an abstract judgment over (all spent coins, input index,
 spending transaction) — wide in the coin list because taproot signature
