@@ -139,7 +139,8 @@ def segwitCoinbaseHex : String :=
                   | [item] => item.val == List.replicate 32 (0 : UInt8)
                   | _ => false)
             | _ => false)
-      | .legacy .. => false)
+      | .legacy .. => false
+      | .empty .. => false)
 
 /-! ## The first SegWit spend
 
@@ -176,14 +177,16 @@ def firstSegwitSpendHex : String :=
                | [sig, pubkey] => sig.val.length == 72 && pubkey.val.length == 33
                | _ => false)
          | _ => false)
-      | .legacy .. => false)
+      | .legacy .. => false
+      | .empty .. => false)
 
 /-! ## BIP144 superfluous-witness regression
 
   BIP144's serialization section requires the old transaction serialization
   when the witness is empty. Bitcoin Core enforces the same rule by rejecting a
   marker/flag transaction whose witness stacks are all empty with
-  "Superfluous witness record".
+  "Superfluous witness record" ([Bitcoin Core v28.0, `transaction.h` lines
+  237–245](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L237-L245)).
 
   This synthetic vector is otherwise a parseable marker/flag transaction with
   one input, one output, and the single per-input witness field encoded as
@@ -202,6 +205,28 @@ def superfluousWitnessHex : String :=
     match Codec.decode (α := Tx) bytes with
     | none => true
     | some _ => false
+
+/-! ## Core-compatible empty transaction
+
+  Core's witness-aware decoder accepts the ten-byte sequence `version ‖ 00 ‖
+  00 ‖ locktime`: the first zero produces an empty input vector, the second is
+  an empty optional-data flag, the output vector remains empty, and the decoder
+  reads lock time next ([Bitcoin Core v28.0, `transaction.h` lines
+  220–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L220-L252)).
+  `CheckTransaction` then rejects the decoded object for empty inputs and
+  outputs ([`tx_check.cpp` lines
+  14–17](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L14-L17)).
+-/
+
+/-- Core's minimal decoded transaction: version 1, empty inputs and outputs,
+lock time zero. -/
+def coreEmptyTxHex : String := "01000000000000000000"
+
+#guard checksOut coreEmptyTxHex fun tx =>
+  tx == Tx.empty 1 0
+    && tx.body.inputs.val == []
+    && tx.body.outputs.val == []
+    && !tx.isWellFormed
 
 /-! ## Blocks -/
 

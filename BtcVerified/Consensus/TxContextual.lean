@@ -7,7 +7,10 @@ import BtcVerified.Consensus.ScriptCheck
 
   The chain-contextual premises a regular transaction must establish while a
   candidate block is being checked against the UTXO set — Core's
-  `Consensus::CheckTxInputs` (`src/consensus/tx_verify.cpp`) and `IsFinalTx`,
+  [`Consensus::CheckTxInputs`, Bitcoin Core v28.0, `tx_verify.cpp` lines
+  164–204](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L204)
+  and [`IsFinalTx`, lines
+  17–37](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L17-L37),
   plus the rule that keeps the machine's insert-replaces path unreachable.
   These predicates are reusable steps inside block-extension validity, not a
   standalone consensus verdict for a transaction. Script validity is the
@@ -19,19 +22,24 @@ import BtcVerified.Consensus.ScriptCheck
 
   Core's `MoneyRange` checks on value-in and fee remain explicit here even
   though `Nat` eliminates arithmetic overflow: this checker ranges over an
-  arbitrary `UtxoSet`, not only states reachable from genesis. Issue #50
+  arbitrary `UtxoSet`, not only states reachable from genesis ([Bitcoin Core
+  v28.0, `tx_verify.cpp` lines
+  184–200](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L184-L200)). Issue #50
   tracks proving these checks redundant under the supply invariant once #37
   provides it.
 
   One contextual Core rule remains deferred: BIP68 relative lock times need
-  per-coin median-time-past history that no leaf provides yet.
+  per-coin median-time-past history that no leaf provides yet ([Bitcoin Core
+  v28.0, `tx_verify.cpp` lines
+  39–109](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L39-L109)).
 
   `creates_do_not_overwrite` is BIP30's content in current-state vocabulary: a
   transaction may not create an outpoint that *currently* holds an unspent
   coin (recreating a fully-spent outpoint is legal — it happened before
   BIP34). The two 2010 duplicate-coinbase blocks and Core's post-BIP34 skip
-  of this check are activation history, owned by the ruleset mapping
-  (#38/#39); the rule itself is height-free.
+  of this check are activation history ([Bitcoin Core v28.0, `validation.cpp`
+  lines 2495–2575](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L2495-L2575)),
+  owned by the ruleset mapping (#38/#39); the rule itself is height-free.
 
   Checked claims:
 
@@ -54,7 +62,8 @@ namespace BtcVerified
 
 /-- Decide that a coin is spendable at `height`: immediately, unless it was
 created in coinbase position — then only once `coinbaseMaturity` blocks
-deep. -/
+deep ([Bitcoin Core v28.0, `tx_verify.cpp` lines
+178–181](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L178-L181)). -/
 def Coin.isMature (coin : Coin) (height : Nat) : Bool :=
   !coin.provenance.coinbase
     || decide (coin.provenance.height + Consensus.coinbaseMaturity ≤ height)
@@ -84,7 +93,8 @@ theorem Coin.isMature_iff {coin : Coin} {height : Nat} :
 /-- Decide lock-time finality for an evaluation context (Core's `IsFinalTx`):
 the lock is disabled (zero), already past — the lock time itself selecting
 the height or time axis by `lockTimeThreshold` — or overridden by every
-input carrying the final sequence. -/
+input carrying the final sequence ([Bitcoin Core v28.0, `tx_verify.cpp` lines
+17–37](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L17-L37)). -/
 def TxBody.isFinal (body : TxBody) (ctx : TxContext) : Bool :=
   body.lockTime == 0
     || decide (body.lockTime.toNat <
@@ -178,16 +188,20 @@ def Tx.isAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
     && (List.range tx.body.inputs.val.length).all
         (fun i => scriptOk (tx.spentCoins utxos) i tx)
 
-/-- The specification `Tx.isAdmissible` enforces — Core's contextual checks
-for a regular transaction, one field per rule; the fields are the facts the
-action theorems consume. -/
+/-- The specification `Tx.isAdmissible` enforces — an abstract factoring of
+Core's contextual checks for a regular transaction, one field per rule; the
+fields are the facts the action theorems consume ([Bitcoin Core v28.0,
+`tx_verify.cpp` lines
+164–204](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L204)). -/
 structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
     (ctx : TxContext) (tx : Tx) : Prop where
   /-- Every input's outpoint is an unspent coin
-  (`bad-txns-inputs-missingorspent`). -/
+  (`bad-txns-inputs-missingorspent`; [Bitcoin Core v28.0, `tx_verify.cpp` lines
+  164–170](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L170)). -/
   spends_mem : ∀ o ∈ tx.body.spends, o ∈ utxos
   /-- Every coinbase coin spent is at least `coinbaseMaturity` blocks deep
-  (`bad-txns-premature-spend-of-coinbase`). -/
+  (`bad-txns-premature-spend-of-coinbase`; [Bitcoin Core v28.0,
+  `tx_verify.cpp` lines 178–181](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L178-L181)). -/
   spends_mature : ∀ o ∈ tx.body.spends, ∀ coin,
     utxos.lookup o = some coin → coin.Mature ctx.height
   /-- The total input value stays within `maxMoney`; in `Nat` this one total
@@ -197,7 +211,9 @@ structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
   input_values_bounded : (tx.body.spends.map utxos.valueAt).sum
     ≤ Consensus.maxMoney
   /-- The inputs cover the outputs: value out ≤ value in, in `Nat` — fee
-  non-negativity is this same fact (`bad-txns-in-belowout`). -/
+  non-negativity is this same fact (`bad-txns-in-belowout`; [Bitcoin Core
+  v28.0, `tx_verify.cpp` lines
+  191–195](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L191-L195)). -/
   values_cover : (tx.body.outputs.val.map fun o => o.value.toNat).sum
     ≤ (tx.body.spends.map utxos.valueAt).sum
   /-- The fee — input value minus output value in `Nat` — stays within
@@ -206,15 +222,20 @@ structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
   fee_bounded : (tx.body.spends.map utxos.valueAt).sum
       - (tx.body.outputs.val.map fun o => o.value.toNat).sum
     ≤ Consensus.maxMoney
-  /-- The transaction is final for the admitting block (`non-final`). -/
+  /-- The transaction is final for the admitting block (`bad-txns-nonfinal`;
+  [Bitcoin Core v28.0, `validation.cpp` lines
+  4231–4239](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L4231-L4239)). -/
   final : tx.body.Final ctx
   /-- Creating this transaction's outputs does not overwrite any currently
   unspent outpoint — BIP30's content; its historical carve-outs are the
-  activation layer's business (#38/#39). -/
+  activation layer's business (#38/#39; [Bitcoin Core v28.0, `validation.cpp`
+  lines 2495–2575](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L2495-L2575)). -/
   creates_do_not_overwrite :
     ∀ o ∈ tx.body.creates.map Prod.fst, o ∉ utxos
   /-- Every input satisfies the script judgment against the coins the
-  transaction spends. -/
+  transaction spends; Core invokes `CheckInputScripts` for every regular
+  transaction while connecting a block ([Bitcoin Core v28.0, `validation.cpp`
+  lines 2659–2671](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L2659-L2671)). -/
   scripts_ok : ∀ i < tx.body.inputs.val.length,
     scriptOk (tx.spentCoins utxos) i tx = true
 

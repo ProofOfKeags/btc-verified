@@ -11,17 +11,21 @@ chain state and position). This directory currently supplies the reusable
 transaction premises and regular-transaction transition step; the block fold
 that composes them into extension validity is next (#37).
 
-Three disciplines hold everywhere. Every rule corresponds 1:1 to a check in
-Bitcoin Core's consensus module and its doc-string says which; the *checkers*
-are stated at whatever level of abstraction reads best, with equivalence to
-Core's literal control flow left to `Impl/` transcriptions if ever wanted.
-No premise embeds an activation height — premises take evaluation context (the
-admitting block's height, the time lock times are measured against), and
-"which rules are in force when" is an external mapping, a later leaf (#38).
-An enforced premise is a runnable `Bool` checker (the definition), a `Prop`
-specification record naming its structural content, and a proved equivalence
-between them; derived properties (conservation, the supply limit) are
-theorems only, never runtime checks.
+Three disciplines hold everywhere. First, this is an abstract reasoning model:
+its rules are factored to make protocol behavior and Bitcoin-level theorems
+legible, not to reproduce Core's C++ control flow definitionally. Core strongly
+influences the initial boundaries, and every claim about its behavior carries a
+release-pinned source citation. Implementation-shaped transcriptions belong in
+`Impl/`, where they can be proved equivalent to this model at the observable
+boundary — accepted block extensions and the state transitions they produce —
+and other implementations or forks can be compared against the same object.
+Second, no premise embeds an activation height: premises take evaluation
+context (the admitting block's height, the time lock times are measured
+against), and "which rules are in force when" is an external mapping, a later
+leaf (#38). Third, an enforced premise is a runnable `Bool` checker (the
+definition), a `Prop` specification record naming its structural content, and a
+proved equivalence between them; derived properties (conservation, the supply
+limit) are theorems only, never runtime checks.
 
 ## The shape of a rule
 
@@ -29,8 +33,10 @@ theorems only, never runtime checks.
 `maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
 `sequenceFinal`), each citing its Core counterpart.
 `TxContext.lean` is the evaluation context — height and measuring time;
-BIP113 changed which clock Core passes without changing any rule, so the
-clock choice belongs to the activation layer. `ScriptCheck.lean` is the
+BIP113 changed which clock Core passes without changing `IsFinalTx`
+([Bitcoin Core v28.0, `validation.cpp` lines
+4224–4238](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L4224-L4238)),
+so the clock choice belongs to the activation layer. `ScriptCheck.lean` is the
 script-validity parameter: no formal script model exists yet, so these
 premises take an abstract judgment over (all spent coins, input index,
 spending transaction) — wide in the coin list because taproot signature
@@ -43,26 +49,28 @@ indexed interface is backed by a pointwise alignment theorem.
 ## Transaction-local premises
 
 `TxStateless.lean`: what a regular transaction must satisfy before any chain
-state is consulted — Core's `CheckTransaction`. Empty inputs need no rule
-(the transaction type cannot represent them), negative amounts are
-unrepresentable, and in `Nat` one total-value bound subsumes Core's
-per-output and running-total `MoneyRange` checks. The stripped-size ceiling is
-also a transaction-local rule: although Core expresses it in block-weight
-units, it reads only the transaction. The coinbase's positional structural
-checks remain block rules (#37).
+state is consulted — Core's [`CheckTransaction`, Bitcoin Core v28.0,
+`tx_check.cpp` lines
+11–59](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L11-L59).
+Empty inputs are an explicit premise: the syntax now admits the degenerate
+empty-input/output object Core's witness-aware decoder accepts
+([`transaction.h` lines
+220–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L220-L252)).
+Negative amounts remain unrepresentable, and in `Nat` one total-value bound
+subsumes Core's per-output and running-total `MoneyRange` checks. The
+stripped-size ceiling is also a transaction-local rule: although Core expresses
+it in block-weight units, it reads only the transaction. The coinbase's
+positional structural checks remain block rules (#37).
 
 Checked claims:
 
 - `Tx.isWellFormed_iff`: the stateless checker accepts a transaction exactly
-  when some output exists, no outpoint is spent twice, no input claims the
-  null outpoint, the outputs create at most `maxMoney` satoshis, and the
+  when some input and output exist, no outpoint is spent twice, no input claims
+  the null outpoint, the outputs create at most `maxMoney` satoshis, and the
   stripped serialization fits within the per-transaction weight ceiling.
 - `Tx.WellFormed.outputs_length_le`: that stripped-size rule implies every
   accepted transaction has at most `2 ^ 32` outputs, so its `UInt32` output
   indices cannot wrap.
-- `Tx.body_inputs_ne_nil` (with the `Tx` type): every transaction has at
-  least one input — Core's empty-`vin` check as a type invariant.
-
 Why it matters: these are reusable premises a block validator establishes for
 every transaction before it ever reads the UTXO set, and the null-outpoint
 rule is what separates the coinbase (judged positionally, by block rules) from
@@ -71,17 +79,26 @@ the regular transactions judged here.
 ## Contextual transaction premises
 
 `TxContextual.lean`: what a regular transaction must satisfy relative to the
-UTXO set and the admitting block — Core's `Consensus::CheckTxInputs` and
-`IsFinalTx`, script validity as the parameter, plus
+UTXO set and the admitting block — Core's [`Consensus::CheckTxInputs`, Bitcoin
+Core v28.0, `tx_verify.cpp` lines
+164–204](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L204)
+and [`IsFinalTx`, lines
+17–37](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L17-L37),
+script validity as the parameter, plus
 `creates_do_not_overwrite`: no created outpoint may currently hold an unspent
 coin. Input value and fee retain Core's explicit `MoneyRange` checks over
-arbitrary UTXO sets; #50
+arbitrary UTXO sets ([Bitcoin Core v28.0, `tx_verify.cpp` lines
+184–200](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L184-L200)); #50
 tracks proving them redundant on reachable states once #37 supplies the
 supply invariant. The no-overwrite rule is BIP30's content in current-state
 vocabulary — recreating a fully-spent outpoint stays legal; the two 2010
-duplicate-coinbase blocks and Core's post-BIP34 skip of the scan are
-activation history (#38/#39), not rule content. BIP68 relative lock times
-need median-time-past history no leaf provides yet and are deferred.
+duplicate-coinbase blocks and Core's post-BIP34 skip of the scan are activation
+history ([Bitcoin Core v28.0, `validation.cpp` lines
+2495–2575](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L2495-L2575))
+(#38/#39), not rule content. BIP68 relative lock times need median-time-past
+history no leaf provides yet and are deferred ([Bitcoin Core v28.0,
+`tx_verify.cpp` lines
+39–109](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L39-L109)).
 
 Checked claims:
 

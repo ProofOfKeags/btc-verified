@@ -104,6 +104,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Tx.txid_binding
 #assert_axioms BtcVerified.Tx.wtxid_binding
 #assert_axioms BtcVerified.Tx.wtxid_legacy
+#assert_axioms BtcVerified.Tx.wtxid_empty
 
 /-! ## The chainstate -/
 
@@ -138,7 +139,6 @@ elab "#assert_axioms " id:ident : command => do
 
 /-! ## Consensus: transaction premises -/
 
-#assert_axioms BtcVerified.Tx.body_inputs_ne_nil
 #assert_axioms BtcVerified.Tx.isWellFormed_iff
 #assert_axioms BtcVerified.Tx.WellFormed.outputs_length_le
 #assert_axioms BtcVerified.Coin.isMature_iff

@@ -5,29 +5,41 @@ import BtcVerified.Ext.List
 /-!
   # The transaction type and its codec
 
-  A transaction is era-aware from the start: an inductive with a `legacy` and a
-  `segwit` constructor over a shared, witness-free `TxBody`. SegWit is a soft
+  A transaction is era-aware from the start: an inductive with ordinary
+  `legacy`, degenerate `empty`, and `segwit` constructors over a shared,
+  witness-free `TxBody`. The `empty` case is the zero-input, zero-output object
+  Bitcoin Core's witness-aware decoder accepts when it reads a zero input count
+  followed by a zero optional-data flag ([Bitcoin Core v28.0,
+  `transaction.h` lines 220–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L220-L252)).
+
+  This remains an abstract syntax object rather than Core's `CTransaction`, but
+  its admitted wire domain is chosen to be compatible with that decoder instead
+  of silently moving Core's empty-input rejection into parsing. SegWit is a soft
   fork — a restriction of the legacy ruleset — so the body is exactly what a txid
   commits to, exactly the legacy serialization, and exactly the witness-stripped
   form a SegWit transaction shows the pre-SegWit world; `Tx.body` recovers it
-  from either form. A SegWit transaction bundles each input with the witness that
+  from every form. A SegWit transaction bundles each input with the witness that
   unlocks it (`SegwitInput`), so the one-witness-per-input arity is structural
   rather than a side condition.
 
   ## Serialization
 
-  A transaction serializes in one of two forms, and the decoder tells them apart
-  from the bytes alone. After the 4-byte version:
+  A transaction serializes in one of three accepted forms, and the decoder tells
+  them apart from the bytes alone. After the 4-byte version:
 
-  * the **legacy** form is its `TxBody` — input vector, output vector, lock time;
+  * the ordinary **legacy** form is its `TxBody` — a non-empty input vector,
+    output vector, lock time;
+  * the degenerate **empty** form is zero inputs, zero outputs, and lock time;
   * the **SegWit** (BIP144) form interposes the marker `0x00` and flag `0x01`,
     then serializes the inputs (scriptSigs only), the outputs, one witness stack
     per input (no separate count — the count *is* the number of inputs), and the
     lock time.
 
-  The marker `0x00` is the reserved "zero inputs" encoding, never a valid legacy
-  transaction — which is what lets the decoder dispatch on it, and why the
-  `legacy` constructor carries a non-empty-inputs proof.
+  Core first reads `0x00` as an empty input vector, then reads the next byte as
+  optional-data flags. Flag `0x00` leaves both vectors empty; flag `0x01` selects
+  the SegWit body; other flags are rejected. The ordinary `legacy` constructor
+  retains its non-empty-input proof, while `empty` names the one canonical
+  empty-input result of this witness-aware dispatch.
 
   BIP144 also says that if the witness is empty, the old serialization format
   must be used. Therefore the SegWit constructor carries the corresponding
@@ -43,12 +55,15 @@ import BtcVerified.Ext.List
 
   Checked claims:
 
-  * `decodeTx_encodeTx`: every transaction round-trips, tail preserved.
+  * `decodeTx_encodeTx`: every transaction, including Core's empty object,
+    round-trips with its tail preserved.
   * `decodeTx_canonical`: an accepted parse consumed exactly the canonical
-    encoding — including taking the legacy/SegWit branch the value's own form
-    dictates.
+    encoding — including taking the legacy, empty, or SegWit branch the value's
+    own form dictates.
 
-  Both are packaged as `instCodecTx : Codec Tx`.
+  Both are packaged as `instCodecTx : Codec Tx`. Exact equivalence to a
+  transcription of Core's decoder belongs in `Impl/`; this type supplies the
+  implementation-independent syntax and reasoning substrate it must refine to.
 -/
 
 namespace BtcVerified
@@ -61,7 +76,8 @@ namespace WitnessStack
 
 /-- A witness stack contains actual witness data exactly when it has at least
 one stack item. The item itself may be empty; Bitcoin Core's null-witness test
-is about the stack item count. -/
+is about the stack item count ([Bitcoin Core v28.0, `transaction.h` lines
+237–245](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L237-L245)). -/
 def NonEmpty (wit : WitnessStack) : Prop :=
   wit.val ≠ []
 
@@ -106,12 +122,19 @@ instance (inputs : List SegwitInput) :
               | tail _ hmemTail =>
                 exact htail ⟨found, hmemTail, hnonempty⟩)
 
-/-- A Bitcoin transaction in one of its two serialization forms.
+/-- A Bitcoin transaction in one of the serialization forms accepted by the
+witness-aware wire decoder.
 
 `legacy` is the pre-SegWit form: a witness-free `TxBody`. Its inputs are
 non-empty because the SegWit serialization reserves a zero input count (the
 `0x00` marker byte), so a legacy transaction can never encode zero inputs on the
 wire.
+
+`empty` is the degenerate no-witness result Core accepts when both the initially
+read input vector and the following optional-data flag are zero. Its derived
+body has no inputs and no outputs; the transaction-local premises reject it
+([Bitcoin Core v28.0, `transaction.h` lines
+220–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L220-L252)).
 
 `segwit` is the BIP144 form, where each input carries its own witness. The
 arity rule — one witness stack per input — is structural here (it *is* a list of
@@ -122,6 +145,10 @@ inductive Tx where
   /-- A legacy (pre-SegWit) transaction: a witness-free body with non-empty
   inputs. -/
   | legacy (body : TxBody) (inputsNonempty : body.inputs.val ≠ [])
+  /-- The zero-input, zero-output no-witness transaction accepted by Core's
+  witness-aware decoder ([Bitcoin Core v28.0, `transaction.h` lines
+  220–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L220-L252)). -/
+  | empty (version : UInt32) (lockTime : UInt32)
   /-- A BIP144 SegWit transaction: each input bundled with its witness, and at
   least one witness stack non-empty so the marker/flag serialization is
   canonical. -/
@@ -133,34 +160,26 @@ inductive Tx where
 /-- Whether a transaction is in SegWit (witnessed) serialization form. -/
 def Tx.isSegWit : Tx → Bool
   | .legacy .. => false
+  | .empty .. => false
   | .segwit .. => true
 
 /-- The witness-free body of a transaction: its txid preimage and its legacy
-interpretation. A legacy transaction *is* its body; a SegWit transaction's body
-drops each input's witness. -/
+interpretation. An ordinary legacy transaction *is* its body; an empty
+transaction derives the zero-vector body; a SegWit transaction's body drops
+each input's witness. -/
 def Tx.body : Tx → TxBody
   | .legacy body _ => body
+  | .empty version lockTime =>
+    { version := version
+      inputs := ⟨[], by simp⟩
+      outputs := ⟨[], by simp⟩
+      lockTime := lockTime }
   | .segwit version inputs outputs lockTime _ =>
     { version := version
       inputs := ⟨inputs.val.map SegwitInput.input, by
         rw [List.length_map]; exact inputs.property⟩
       outputs := outputs
       lockTime := lockTime }
-
-/-- Every transaction has at least one input: a legacy transaction carries the
-proof outright, and a SegWit transaction's witness-bearing input is in
-particular an input. Core's empty-`vin` check is a type invariant here, not a
-consensus rule. -/
-theorem Tx.body_inputs_ne_nil (tx : Tx) : tx.body.inputs.val ≠ [] := by
-  cases tx with
-  | legacy body inputsNonempty => exact inputsNonempty
-  | segwit version inputs outputs lockTime hWitness =>
-      obtain ⟨input, hmem, -⟩ := hWitness
-      simp only [Tx.body]
-      intro hnil
-      rw [List.map_eq_nil_iff] at hnil
-      rw [hnil] at hmem
-      cases hmem
 
 /-! ## Bundling and unbundling SegWit inputs -/
 
@@ -252,17 +271,22 @@ def encodeSegwitBody (ins : CountedList SegwitInput) (outs : CountedList TxOut)
   Codec.encode (segwitInputs ins) ++ Codec.encode outs
     ++ encodeElems (segwitWitnesses ins) ++ Codec.encode lockTime
 
-/-- Serialize a transaction. Legacy is its `TxBody`; SegWit is the version, the
-marker `0x00` and flag `0x01`, then the SegWit body. -/
+/-- Serialize a transaction. Ordinary legacy is its `TxBody`; empty is the two
+zero vectors; SegWit is the version, marker `0x00`, flag `0x01`, and SegWit
+body. -/
 def encodeTx : Tx → List UInt8
   | .legacy body _ => Codec.encode body
+  | .empty version lockTime =>
+    Codec.encode version ++ 0x00 :: 0x00 :: Codec.encode lockTime
   | .segwit version ins outs lockTime _ =>
     Codec.encode version ++ 0x00 :: 0x01 :: encodeSegwitBody ins outs lockTime
 
 /-- Decode the SegWit body (everything after version, marker, and flag),
 rebundling the separately-read inputs and witnesses. BIP144 requires old
 serialization when the transaction's witness is empty, so all-empty witness
-stacks are rejected instead of producing a SegWit transaction. -/
+stacks are rejected instead of producing a SegWit transaction ([Bitcoin Core
+v28.0, `transaction.h` lines
+237–245](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L237-L245)). -/
 def decodeSegwit (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8) := do
   let (txins, r1) ← Codec.decode (α := CountedList TxIn) bs
   let (outs, r2) ← Codec.decode (α := CountedList TxOut) r1
@@ -283,11 +307,20 @@ def decodeLegacy (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8
   let tx ← Tx.legacy? ⟨version, inputs, outputs, lockTime⟩
   return (tx, r3)
 
+/-- Decode Core's degenerate no-witness path after the zero input count and
+zero optional-data flag. The output vector remains empty and only lock time is
+read ([Bitcoin Core v28.0, `transaction.h` lines
+224–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L224-L252)). -/
+def decodeEmpty (version : UInt32) (bs : List UInt8) : Option (Tx × List UInt8) := do
+  let (lockTime, rest) ← Codec.decode (α := UInt32) bs
+  return (.empty version lockTime, rest)
+
 /-- Decode a transaction: read the version, then dispatch on the marker byte. -/
 def decodeTx (bs : List UInt8) : Option (Tx × List UInt8) := do
   let (version, rest1) ← Codec.decode (α := UInt32) bs
   match rest1 with
   | 0x00 :: 0x01 :: rest3 => decodeSegwit version rest3
+  | 0x00 :: 0x00 :: rest3 => decodeEmpty version rest3
   | 0x00 :: _ => none
   | _ => decodeLegacy version rest1
 
@@ -319,6 +352,13 @@ theorem decodeLegacy_encode (body : TxBody) (hne : body.inputs.val ≠ [])
   rw [Tx.legacy?_eq_some hne]
   rfl
 
+/-- The empty transaction encoding decodes to the corresponding `Tx.empty`,
+tail preserved. -/
+theorem decodeEmpty_encode (version lockTime : UInt32) (rest : List UInt8) :
+    decodeEmpty version (Codec.encode lockTime ++ rest)
+      = some (.empty version lockTime, rest) := by
+  simp [decodeEmpty, Codec.decode_encode]
+
 /-- When the byte after the version is not the marker `0x00`, `decodeTx`
 dispatches to the legacy decoder. -/
 theorem decodeTx_legacy_eq (version : UInt32) (inputs : CountedList TxIn)
@@ -341,6 +381,11 @@ theorem decodeTx_encodeTx (tx : Tx) (rest : List UInt8) :
     simp only [List.append_assoc, List.cons_append, Option.bind_eq_bind,
       Codec.decode_encode, Option.bind_some]
     exact decodeSegwit_encode version ins outs lockTime hWitness rest
+  | empty version lockTime =>
+    unfold encodeTx decodeTx
+    simp only [List.append_assoc, List.cons_append, Option.bind_eq_bind,
+      Codec.decode_encode, Option.bind_some]
+    exact decodeEmpty_encode version lockTime rest
   | legacy body hne =>
     obtain ⟨b, t, hbt, hb0⟩ := CompactSize.encode_head (UInt64.ofNat body.inputs.val.length)
     have hb : b ≠ 0x00 := hb0 (ofNat_length_ne_zero hne body.inputs.property)
@@ -412,8 +457,21 @@ theorem decodeLegacy_canonical (version : UInt32) (bs : List UInt8) (tx : Tx)
   rw [eti, eto, elt]
   simp only [List.append_assoc]
 
+/-- If the empty-path decoder accepts `bs`, it returns `Tx.empty` at the given
+version and `bs` is exactly the canonical lock-time encoding followed by the
+tail. -/
+theorem decodeEmpty_canonical (version : UInt32) (bs : List UInt8) (tx : Tx)
+    (rest : List UInt8) (h : decodeEmpty version bs = some (tx, rest)) :
+    ∃ lockTime, tx = .empty version lockTime ∧
+      bs = Codec.encode lockTime ++ rest := by
+  unfold decodeEmpty at h
+  simp only [Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+    Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨⟨lockTime, tail⟩, hlt, rfl, rfl⟩ := h
+  exact ⟨lockTime, rfl, Codec.decode_canonical bs lockTime tail hlt⟩
+
 /-- Canonicality: an accepted parse consumed exactly the canonical encoding,
-including the legacy/SegWit branch the value's own form dictates. -/
+including the legacy, empty, or SegWit branch the value's own form dictates. -/
 theorem decodeTx_canonical (bs : List UInt8) (tx : Tx) (rest : List UInt8)
     (h : decodeTx bs = some (tx, rest)) : bs = encodeTx tx ++ rest := by
   unfold decodeTx at h
@@ -427,6 +485,11 @@ theorem decodeTx_canonical (bs : List UInt8) (tx : Tx) (rest : List UInt8)
       decodeSegwit_canonical version rest3 tx rest h
     rw [ev, hbody]
     simp only [encodeTx, List.append_assoc, List.cons_append]
+  · rename_i rest3
+    obtain ⟨lockTime, rfl, hbody⟩ :=
+      decodeEmpty_canonical version rest3 tx rest h
+    rw [ev, hbody]
+    simp only [encodeTx, List.append_assoc, List.cons_append]
   · simp at h
   · obtain ⟨inputs, outputs, lockTime, hne, rfl, hbody⟩ :=
       decodeLegacy_canonical version rest1 tx rest h
@@ -437,8 +500,8 @@ theorem decodeTx_canonical (bs : List UInt8) (tx : Tx) (rest : List UInt8)
           ++ (Codec.encode outputs ++ Codec.encode lockTime)) from rfl]
     simp only [List.append_assoc]
 
-/-- The transaction codec: legacy and SegWit forms, dispatched on the BIP144
-marker byte. -/
+/-- The transaction codec: ordinary legacy, degenerate empty, and SegWit forms,
+dispatched through the BIP144 marker/flags path. -/
 instance instCodecTx : Codec Tx where
   encode := encodeTx
   decode := decodeTx

@@ -21,7 +21,8 @@ namespace BtcVerified.Consensus
 def maxMoney : Nat := 21_000_000 * 100_000_000
 
 /-- How many blocks deep a coinbase-created coin must be before it may be
-spent (Core's `COINBASE_MATURITY`, `src/consensus/consensus.h`). -/
+spent ([Bitcoin Core v28.0, `COINBASE_MATURITY`, `consensus.h` lines
+18–19](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L18-L19)). -/
 def coinbaseMaturity : Nat := 100
 
 /-- The maximum total weight of a block, and the ceiling Core reuses for one
@@ -34,11 +35,13 @@ def maxBlockWeight : Nat := 4_000_000
 def witnessScaleFactor : Nat := 4
 
 /-- The lock-time axis switch: lock times below it are block heights, at or
-above it UNIX timestamps (Core's `LOCKTIME_THRESHOLD`, `src/script/script.h`). -/
+above it UNIX timestamps ([Bitcoin Core v28.0, `LOCKTIME_THRESHOLD`, `script.h`
+lines 44–46](https://github.com/bitcoin/bitcoin/blob/v28.0/src/script/script.h#L44-L46)). -/
 def lockTimeThreshold : Nat := 500_000_000
 
 /-- The sequence value that opts an input out of lock-time enforcement
-(Core's `CTxIn::SEQUENCE_FINAL`, `src/primitives/transaction.h`). -/
+([Bitcoin Core v28.0, `CTxIn::SEQUENCE_FINAL`, `transaction.h` lines
+74–87](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L74-L87)). -/
 def sequenceFinal : UInt32 := 0xffffffff
 
 end BtcVerified.Consensus

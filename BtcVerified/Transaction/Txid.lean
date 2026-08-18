@@ -53,6 +53,11 @@ body's serialization. -/
 theorem Tx.wtxid_legacy (body : TxBody) (h : body.inputs.val ≠ []) :
     (Tx.legacy body h).wtxid = (Tx.legacy body h).txid := rfl
 
+/-- The degenerate empty transaction is also witness-free, so its wtxid is
+its txid. -/
+theorem Tx.wtxid_empty (version lockTime : UInt32) :
+    (Tx.empty version lockTime).wtxid = (Tx.empty version lockTime).txid := rfl
+
 /-- Equal txids mean equal witness-free bodies — or two concrete byte strings
 witnessing a double-SHA-256 collision. -/
 theorem Tx.txid_binding {t₁ t₂ : Tx} (h : t₁.txid = t₂.txid) :
