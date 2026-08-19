@@ -13,6 +13,8 @@ import BtcVerified.Serialize.Codec
 
   Checked claims:
 
+  * reversal preserves width, is involutive, and exchanges left padding with
+    right padding of the reversed input;
   * padding and truncation success depend only on input width, not direction;
   * for either direction, exactly one list constructor succeeds: padding when
     the input is short, exact conversion when widths agree, or truncation when
@@ -28,6 +30,16 @@ abbrev Bytes (n : Nat) := { bytes : List UInt8 // bytes.length = n }
 
 /-- The underlying bytes, in their original order. -/
 @[reducible] def Bytes.bytes {n : Nat} (bs : Bytes n) : List UInt8 := bs.1
+
+/-- Reverse byte order while preserving width. -/
+def Bytes.reverse {n : Nat} (bs : Bytes n) : Bytes n :=
+  ⟨bs.1.reverse, by simpa only [List.length_reverse] using bs.2⟩
+
+/-- Reversing a width-indexed byte string twice returns the original value. -/
+@[simp] theorem Bytes.reverse_reverse {n : Nat} (bs : Bytes n) :
+    bs.reverse.reverse = bs := by
+  apply Subtype.ext
+  simp [Bytes.reverse]
 
 /-- Refine a list when it has exactly the required width. -/
 def Bytes.ofListExact? {n : Nat} (bs : List UInt8) : Option (Bytes n) :=
@@ -48,6 +60,14 @@ def Bytes.ofListPadRight? {n : Nat} (padding : UInt8) (bs : List UInt8) :
   if h : bs.length < n then
     some ⟨bs ++ List.replicate (n - bs.length) padding, by simp; omega⟩
   else none
+
+/-- Reversing a left-padded result is right padding of the reversed input. -/
+theorem Bytes.ofListPadLeft?_map_reverse {n : Nat} (padding : UInt8) (bs : List UInt8) :
+    (Bytes.ofListPadLeft? (n := n) padding bs).map Bytes.reverse =
+      Bytes.ofListPadRight? (n := n) padding bs.reverse := by
+  by_cases h : bs.length < n
+  · simp [Bytes.ofListPadLeft?, Bytes.ofListPadRight?, Bytes.reverse, h]
+  · simp [Bytes.ofListPadLeft?, Bytes.ofListPadRight?, h]
 
 /-- Truncate a list on the left to the required width: drop its prefix and keep
 the rightmost `n` bytes. Succeeds only when the input is strictly longer. -/
