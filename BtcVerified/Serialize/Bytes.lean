@@ -13,6 +13,7 @@ import BtcVerified.Serialize.Codec
 
   Checked claims:
 
+  * padding and truncation success depend only on input width, not direction;
   * for either direction, exactly one list constructor succeeds: padding when
     the input is short, exact conversion when widths agree, or truncation when
     the input is long;
@@ -61,6 +62,20 @@ def Bytes.ofListTruncateRight? {n : Nat} (bs : List UInt8) : Option (Bytes n) :=
   if h : n < bs.length then
     some ⟨bs.take n, by rw [List.length_take]; omega⟩
   else none
+
+/-- Left and right padding succeed on exactly the same inputs. -/
+theorem Bytes.ofListPad_isSome_eq {n : Nat} (padding : UInt8) (bs : List UInt8) :
+    (Bytes.ofListPadLeft? (n := n) padding bs).isSome =
+      (Bytes.ofListPadRight? (n := n) padding bs).isSome := by
+  by_cases h : bs.length < n <;>
+    simp [Bytes.ofListPadLeft?, Bytes.ofListPadRight?, h]
+
+/-- Left and right truncation succeed on exactly the same inputs. -/
+theorem Bytes.ofListTruncate_isSome_eq {n : Nat} (bs : List UInt8) :
+    (Bytes.ofListTruncateLeft? (n := n) bs).isSome =
+      (Bytes.ofListTruncateRight? (n := n) bs).isSome := by
+  by_cases h : n < bs.length <;>
+    simp [Bytes.ofListTruncateLeft?, Bytes.ofListTruncateRight?, h]
 
 /-- For left-oriented conversion, exactly one of padding, exact conversion,
 and truncation succeeds. -/

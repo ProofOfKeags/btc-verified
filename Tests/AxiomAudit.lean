@@ -59,6 +59,8 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Serialize.instCodecBytes
 #assert_axioms BtcVerified.Bytes.ofList_left_exactly_one
 #assert_axioms BtcVerified.Bytes.ofList_right_exactly_one
+#assert_axioms BtcVerified.Bytes.ofListPad_isSome_eq
+#assert_axioms BtcVerified.Bytes.ofListTruncate_isSome_eq
 #assert_axioms BtcVerified.CompactSize.decode_encode
 #assert_axioms BtcVerified.CompactSize.decode_canonical
 #assert_axioms BtcVerified.CompactSize.encode_length_le
