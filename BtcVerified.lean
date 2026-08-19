@@ -26,5 +26,12 @@ import BtcVerified.Block.Block
 import BtcVerified.Block.Commitment
 import BtcVerified.Block.BlockHash
 import BtcVerified.Block.Chain
+import BtcVerified.Consensus.Limits
+import BtcVerified.Consensus.LockTime
+import BtcVerified.Consensus.TxContext
+import BtcVerified.Consensus.ScriptCheck
+import BtcVerified.Consensus.TxStateless
+import BtcVerified.Consensus.TxContextual
+import BtcVerified.Consensus.ApplyChecked
 import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle

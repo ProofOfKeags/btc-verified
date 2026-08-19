@@ -139,7 +139,8 @@ def segwitCoinbaseHex : String :=
                   | [item] => item.val == List.replicate 32 (0 : UInt8)
                   | _ => false)
             | _ => false)
-      | .legacy .. => false)
+      | .legacy .. => false
+      | .empty .. => false)
 
 /-! ## The first SegWit spend
 
@@ -176,14 +177,16 @@ def firstSegwitSpendHex : String :=
                | [sig, pubkey] => sig.val.length == 72 && pubkey.val.length == 33
                | _ => false)
          | _ => false)
-      | .legacy .. => false)
+      | .legacy .. => false
+      | .empty .. => false)
 
 /-! ## BIP144 superfluous-witness regression
 
   BIP144's serialization section requires the old transaction serialization
   when the witness is empty. Bitcoin Core enforces the same rule by rejecting a
   marker/flag transaction whose witness stacks are all empty with
-  "Superfluous witness record".
+  "Superfluous witness record" ([Bitcoin Core v28.0, `transaction.h` lines
+  237–245](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L237-L245)).
 
   This synthetic vector is otherwise a parseable marker/flag transaction with
   one input, one output, and the single per-input witness field encoded as
@@ -202,6 +205,28 @@ def superfluousWitnessHex : String :=
     match Codec.decode (α := Tx) bytes with
     | none => true
     | some _ => false
+
+/-! ## Core-compatible empty transaction
+
+  Core's witness-aware decoder accepts the ten-byte sequence `version ‖ 00 ‖
+  00 ‖ locktime`: the first zero produces an empty input vector, the second is
+  an empty optional-data flag, the output vector remains empty, and the decoder
+  reads lock time next ([Bitcoin Core v28.0, `transaction.h` lines
+  220–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L220-L252)).
+  `CheckTransaction` then rejects the decoded object for empty inputs and
+  outputs ([`tx_check.cpp` lines
+  14–17](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L14-L17)).
+-/
+
+/-- Core's minimal decoded transaction: version 1, empty inputs and outputs,
+lock time zero. -/
+def coreEmptyTxHex : String := "01000000000000000000"
+
+#guard checksOut coreEmptyTxHex fun tx =>
+  tx == Tx.empty 1 0
+    && tx.body.inputs.val == []
+    && tx.body.outputs.val == []
+    && !tx.isWellFormed
 
 /-! ## Blocks -/
 
@@ -461,5 +486,115 @@ def block1HeaderHex : String :=
 #guard match hexBytes? block170Hex >>= Codec.decode (α := Block) with
   | some (b, _) => decide b.merkleCommits
   | none => false
+
+/-! ## The transaction premises on the first payment
+
+  The block-9 coinbase funds the set, and the first Bitcoin payment spends
+  it at height 170 — the transaction premises and guarded block-fold step run
+  on real mainnet data end to end. The setup authenticates itself: the
+  coinbase's *computed* txid must equal the prevout the first-payment
+  vector already pins byte-for-byte.
+-/
+
+/-- Raw wire bytes of the block-9 coinbase `0437cd…97c9` (2009-01-09), the
+transaction the first Bitcoin payment spends, fetched from
+blockstream.info. -/
+def block9CoinbaseHex : String :=
+  "0100000001000000000000000000000000000000000000000000000000000000\
+   0000000000ffffffff0704ffff001d0134ffffffff0100f2052a010000004341\
+   0411db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a\
+   5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412\
+   a3ac00000000"
+
+/-- The context block 170 admits its transactions in: height 170, header
+timestamp `1231731025`, and preceding-block MTP `1231715347`. The MTP is the
+median timestamp of blocks 159–169; both values can be checked from the exact
+preceding [block 169 on mempool.space](https://mempool.space/block/000000002a22cfee1f2c846adbd12b3e183d4f97683f85dad08a79780a84bd55). -/
+def block170Context : TxContext :=
+  { height := 170
+    blockTime := 1231731025
+    medianTimePast := 1231715347 }
+
+-- The semantic lock-time interpretation exposes the selected axis, and the
+-- two named clocks can produce different lock-time satisfaction results.
+#guard Consensus.LockTime.ofUInt32 0 == .disabled
+#guard Consensus.LockTime.ofUInt32 499_999_999 == .blockHeight 499_999_999
+#guard Consensus.LockTime.ofUInt32 500_000_000 == .blockTime 500_000_000
+#guard (Consensus.LockTime.ofUInt32 1_231_716_000).isPast
+  block170Context.height (block170Context.timeFor .blockTime)
+#guard !(Consensus.LockTime.ofUInt32 1_231_716_000).isPast
+  block170Context.height (block170Context.timeFor .medianTimePast)
+
+#guard checksOut block9CoinbaseHex fun coinbase =>
+  -- The computed txid is exactly the prevout the first-payment vector pins.
+  coinbase.txid
+    == hashOfDisplay "0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"
+  -- One 50 BTC output.
+  && (coinbase.body.outputs.val.map (·.value)) == [5_000_000_000]
+  -- A coinbase fails the regular-transaction rules by design: its input
+  -- claims the null outpoint. Coinbase structure is a block rule (#37).
+  && !coinbase.isWellFormed
+
+#guard match hexBytes? block9CoinbaseHex >>= Codec.decode (α := Tx),
+    hexBytes? firstBitcoinPaymentHex >>= Codec.decode (α := Tx) with
+  | some (coinbase, _), some (payment, _) =>
+    -- The block-9 coinbase's output as the whole UTXO set: created at
+    -- height 9, in coinbase position.
+    let utxos : UtxoSet := UtxoSet.create ∅
+      (coinbase.body.creates.map fun entry => (entry.1, ⟨entry.2, ⟨9, true⟩⟩))
+    -- The machine admits arbitrary states, including an impossible coin over
+    -- MAX_MONEY; the contextual rules must reject a spend from such a state.
+    let outOfRangeUtxos : UtxoSet := UtxoSet.create ∅
+      (coinbase.body.creates.map fun entry =>
+        (entry.1, ⟨{ entry.2 with
+          value := UInt64.ofNat
+            (Consensus.maxMoney + 5_000_000_001) }, ⟨9, true⟩⟩))
+    payment.isWellFormed
+    -- Admissible at block 170 under the always-true script judgment: the
+    -- coinbase matured at height 109, and 50 BTC in covers 10 + 40 out.
+    && payment.isAdmissible (fun _ _ _ => true) utxos .blockTime
+      block170Context
+    -- Not at height 105: the coinbase is four blocks short of maturity.
+    && !payment.isAdmissible (fun _ _ _ => true) utxos .blockTime
+      { block170Context with height := 105 }
+    -- A rejecting script judgment fails the bundle.
+    && !payment.isAdmissible (fun _ _ _ => false) utxos .blockTime
+      block170Context
+    -- Input-value and fee MoneyRange checks reject the otherwise admissible
+    -- transaction over the deliberately impossible abstract state.
+    && !payment.isAdmissible (fun _ _ _ => true) outOfRangeUtxos .blockTime
+      block170Context
+    -- The guarded regular-transaction step applies it: the spent outpoint is
+    -- gone, the two created outpoints carry 10 and 40 BTC stamped
+    -- ⟨170, regular⟩, and the zero-fee total is conserved.
+    && (match UtxoSet.applyChecked (fun _ _ _ => true) utxos .blockTime
+          block170Context payment with
+        | some next =>
+          (next.lookup ⟨coinbase.txid, 0⟩).isNone
+          && ((next.lookup ⟨payment.txid, 0⟩).map fun coin =>
+              (coin.output.value, coin.provenance))
+            == some (1_000_000_000, ⟨170, false⟩)
+          && ((next.lookup ⟨payment.txid, 1⟩).map fun coin =>
+              (coin.output.value, coin.provenance))
+            == some (4_000_000_000, ⟨170, false⟩)
+          && next.totalValue == 5_000_000_000
+        | none => false)
+  | _, _ => false
+
+-- Duplicating the payment's input trips the duplicate-spends rule — the
+-- stateless negative real history cannot exhibit.
+#guard match hexBytes? firstBitcoinPaymentHex >>= Codec.decode (α := Tx) with
+  | some (payment, _) =>
+    (match payment.body.inputs.val with
+     | [input] =>
+       let doubled : TxBody := { payment.body with
+         inputs := ⟨[input, input], by simp⟩ }
+       !(Tx.legacy doubled (List.cons_ne_nil input [input])).isWellFormed
+     | _ => false)
+  | none => false
+
+-- The SegWit arm of the stateless checker: the first SegWit spend is
+-- well-formed.
+#guard checksOut firstSegwitSpendHex fun tx => tx.isWellFormed
 
 end Tests.GoldenVectors

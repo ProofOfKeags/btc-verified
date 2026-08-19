@@ -1,9 +1,16 @@
 # BtcVerified/Impl
 
-Implementation-facing models, checked against the platonic specs they
+Implementation-facing models, checked against the abstract consensus specs they
 realize: level-order vector layouts, transcriptions of Bitcoin Core's own
 consensus code, and (later) efficient representations the spec proofs are
-transported to.
+transported to. `Consensus/` is the reasoning substrate, chosen for clear facts
+about protocol behavior and heavily informed by Core without being
+definitionally identical to it. `Impl/BitcoinCore` models the code-shaped side;
+the intended bridge is a refinement/equivalence theorem over observable
+behavior — accepted raw block histories and resulting state transitions. That
+separation also lets forks and independent implementations be compared against
+the same consensus object instead of making Core's internal structure the
+definition of Bitcoin.
 
 ## `BtcVerified.Impl.BitcoinCore`
 

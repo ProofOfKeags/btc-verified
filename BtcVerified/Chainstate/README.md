@@ -30,7 +30,7 @@ Checked claims:
   `Nat` — total value after applying, plus the values spent, equals total
   value before, plus the values created. Its hypotheses (distinct, present
   spends; created keys fresh; the 2³² output bound) are exactly what the
-  transaction-validity guards will supply.
+  transaction premises of block-extension validity supply.
 - Beneath these, the primitive characterizations
   (`UtxoSet.lookup_spend_of_mem` / `of_notMem`, `UtxoSet.lookup_create_of_mem`,
   `UtxoSet.totalValue_spend`, `UtxoSet.totalValue_create`),

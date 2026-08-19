@@ -183,8 +183,9 @@ theorem UtxoSet.lookup_apply_of_notMem {utxos : UtxoSet} {provenance : Provenanc
 `Nat`: after applying a transaction, the total value plus the values spent
 equals the old total plus the values created. The hypotheses — distinct,
 present spends; created keys fresh once the spends are erased; at most
-`2 ^ 32` outputs — are exactly the facts the transaction-validity guards
-supply, so the gated conservation theorems specialize this directly. -/
+`2 ^ 32` outputs — are exactly the facts the transaction premises of
+block-extension validity supply, so the gated conservation theorems
+specialize this directly. -/
 theorem UtxoSet.totalValue_apply {utxos : UtxoSet} {provenance : Provenance}
     {body : TxBody} (houtputs : body.outputs.val.length ≤ 2 ^ 32)
     (hnodup : body.spends.Nodup) (hmem : ∀ o ∈ body.spends, o ∈ utxos)

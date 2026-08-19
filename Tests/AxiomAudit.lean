@@ -104,6 +104,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Tx.txid_binding
 #assert_axioms BtcVerified.Tx.wtxid_binding
 #assert_axioms BtcVerified.Tx.wtxid_legacy
+#assert_axioms BtcVerified.Tx.wtxid_empty
 
 /-! ## The chainstate -/
 
@@ -135,6 +136,24 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Chain.isChain_toList
 #assert_axioms BtcVerified.Chain.tip_commits_prefix
 #assert_axioms BtcVerified.Chain.tip_commits
+
+/-! ## Consensus: transaction premises -/
+
+#assert_axioms BtcVerified.Tx.isWellFormed_iff
+#assert_axioms BtcVerified.Tx.stripped_size_bound_iff_core
+#assert_axioms BtcVerified.Tx.WellFormed.outputs_length_le
+#assert_axioms BtcVerified.Coin.isMature_iff
+#assert_axioms BtcVerified.Consensus.LockTime.isPast_iff
+#assert_axioms BtcVerified.Consensus.LockTime.ofUInt32_past_iff
+#assert_axioms BtcVerified.TxBody.isLockTimeSatisfied_iff
+#assert_axioms BtcVerified.TxBody.lockTimeSatisfied_iff_core
+#assert_axioms BtcVerified.Tx.spentCoins_aligned
+#assert_axioms BtcVerified.Tx.spentCoins_length
+#assert_axioms BtcVerified.Tx.isAdmissible_iff
+#assert_axioms BtcVerified.Tx.creates_do_not_overwrite_after_spend
+#assert_axioms BtcVerified.UtxoSet.totalValue_apply_of_admissible
+#assert_axioms BtcVerified.UtxoSet.totalValue_apply_le_of_admissible
+#assert_axioms BtcVerified.UtxoSet.applyChecked_eq_some_iff
 
 /-! ## The merkle tree -/
 

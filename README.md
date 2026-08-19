@@ -20,6 +20,14 @@ stay anchored to the real network — the verified decoders and computable
 hashes run against actual mainnet blocks at build time, and an axiom audit
 fails CI if any headline theorem depends on an unproved assumption.
 
+The consensus model is a separate, executable reasoning substrate: Core's
+design strongly influences its initial boundaries, but Core's C++ is not the
+definition. Implementation-shaped models live under `Impl/`; the intended
+connection is a proved equivalence over accepted raw block extensions and their
+state transitions. This keeps the model useful to Bitcoin Core and its forks
+while giving other implementations one common protocol object to compare
+against.
+
 The ambition, laid out in the roadmap below, is machine-checked proofs of
 the guarantees Bitcoin is valued for: that its rules cap issuance below 21
 million coins, and that the fork-choice rule selects the valid chain backed
@@ -40,8 +48,9 @@ statement of what stands.
   exactly what a merkle root does and does not commit to, including the
   defense against the CVE-2012-2459 duplication attack.
 - [`Transaction/`](BtcVerified/Transaction/README.md) — Bitcoin transactions,
-  legacy and SegWit, with verified serialization in both directions and
-  proofs that transaction ids are binding commitments to the transaction.
+  including the degenerate empty object Core decodes plus ordinary legacy and
+  SegWit forms, with verified serialization in both directions and proofs that
+  transaction ids are binding commitments to the transaction.
 - [`Block/`](BtcVerified/Block/README.md) — Every byte of a block parses
   through a verified codec (checked against real mainnet blocks), block
   hashes are proved binding, and a chain's tip hash provably commits to the
@@ -52,6 +61,10 @@ statement of what stands.
 - [`Chainstate/`](BtcVerified/Chainstate/README.md) — The set of spendable
   coins and the single action every transaction performs on it, with the
   accounting identity the supply-limit theorem will be built on.
+- [`Consensus/`](BtcVerified/Consensus/README.md) — The reusable transaction
+  premises and guarded transition step that block-extension validity composes,
+  stated as runnable checks proved to guarantee exactly the facts the ledger
+  accounting needs and run against the first Bitcoin payment ever made.
 - [`Impl/`](BtcVerified/Impl/README.md) — Functions transcribed from Bitcoin
   Core's own source code and proved to satisfy the specification, starting
   with its merkle-root computation.
