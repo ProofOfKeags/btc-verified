@@ -13,8 +13,8 @@ import BtcVerified.Serialize.Codec
 
   Checked claims:
 
-  * reversal preserves width, is involutive, and exchanges left padding with
-    right padding of the reversed input;
+  * reversal preserves width, is involutive, and exchanges left-oriented
+    padding and truncation with right-oriented operations on the reversed input;
   * padding and truncation success depend only on input width, not direction;
   * for either direction, exactly one list constructor succeeds: padding when
     the input is short, exact conversion when widths agree, or truncation when
@@ -82,6 +82,16 @@ def Bytes.ofListTruncateRight? {n : Nat} (bs : List UInt8) : Option (Bytes n) :=
   if h : n < bs.length then
     some ⟨bs.take n, by rw [List.length_take]; omega⟩
   else none
+
+/-- Reversing a left-truncated result is right truncation of the reversed input. -/
+theorem Bytes.ofListTruncateLeft?_map_reverse {n : Nat} (bs : List UInt8) :
+    (Bytes.ofListTruncateLeft? (n := n) bs).map Bytes.reverse =
+      Bytes.ofListTruncateRight? (n := n) bs.reverse := by
+  by_cases h : n < bs.length
+  · simp [Bytes.ofListTruncateLeft?, Bytes.ofListTruncateRight?, Bytes.reverse, h,
+      List.reverse_drop]
+    omega
+  · simp [Bytes.ofListTruncateLeft?, Bytes.ofListTruncateRight?, h]
 
 /-- Left and right padding succeed on exactly the same inputs. -/
 theorem Bytes.ofListPad_isSome_eq {n : Nat} (padding : UInt8) (bs : List UInt8) :
