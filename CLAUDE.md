@@ -97,8 +97,8 @@ Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
   share a module if they never appear in an outside signature. Tightly-coupled
   clusters become a directory of one-type modules under an umbrella facade (see
   `BitVM/BitCommitment/`). Enforced by `lake exe module-audit`, an
-  environment-introspection executable run in CI; the arm-record-cluster
-  allowlist lives in `ModuleAuditMain.lean`.
+  environment-introspection executable run in CI; the arm-record-cluster and
+  Core/dependency-instance allowlists live in `ModuleAuditMain.lean`.
 - **Naming**: rigid Lean/mathlib casing. `UpperCamelCase` for types, props,
   and predicates; `lowerCamelCase` for defs; theorem names describe the
   conclusion mathlib-style (`decode_encode`, `encodeBitVecLE_length`). Full

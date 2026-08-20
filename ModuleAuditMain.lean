@@ -15,8 +15,8 @@ import BtcVerified
      allowlisted in `armRecordClusters` (none today).
   2. **Instances live with their type** — an `instance` of a class this
      library defines targets a type declared in the instance's own module;
-     when the target is a Core/dependency type, the instance lives with the
-     *class* instead (`instCodecUInt8…64`, `instCodecBitVec256`, and
+     explicitly allowlisted instances for Core/dependency targets live with
+     the *class* instead (`instCodecUInt8…64`, `instCodecBitVec256`, and
      `instCodecProd` in `Serialize/Codec.lean`).
 
   The walk is over elaborated declarations, not source syntax, so renames,
@@ -40,8 +40,16 @@ open Lean Meta
 
 namespace ModuleAudit
 
-/-- The library the discipline applies to; declarations from other
-packages are scanned only as instance *targets*, never audited. -/
+/-- The module-discipline rules for one audited library. -/
+structure Policy where
+  /-- Module prefix whose declarations are audited. -/
+  libraryPrefix : Name
+  /-- Modules permitted to declare a tightly coupled arm-record cluster. -/
+  armRecordClusters : List Name := []
+  /-- Library instances permitted to target Core/dependency types. -/
+  dependencyInstances : List Name := []
+
+/-- The library the production audit applies to. -/
 def libraryPrefix : Name := `BtcVerified
 
 /-- Rule-1 allowlist: modules permitted more than one type because they
@@ -50,35 +58,50 @@ Empty today — `SegwitInput` appears in `Tx`'s signature, so it earns its
 own module rather than an entry here. -/
 def armRecordClusters : List Name := []
 
+/-- Rule-2 allowlist: the intentional instances of `Codec` for
+Core/dependency types. Every other dependency-targeting instance is rejected,
+even when it lives with the class. -/
+def dependencyInstances : List Name := [
+  `BtcVerified.Serialize.instCodecProd,
+  `BtcVerified.Serialize.instCodecUInt8,
+  `BtcVerified.Serialize.instCodecUInt16,
+  `BtcVerified.Serialize.instCodecUInt32,
+  `BtcVerified.Serialize.instCodecUInt64,
+  `BtcVerified.Serialize.instCodecBitVec256
+]
+
+/-- The production policy for `btc-verified`. -/
+def btcVerifiedPolicy : Policy where
+  libraryPrefix := libraryPrefix
+  armRecordClusters := armRecordClusters
+  dependencyInstances := dependencyInstances
+
 /-- The module a declaration was compiled in, when it is imported. -/
 def moduleOf (env : Environment) (n : Name) : Option Name := do
   let idx ← env.getModuleIdxFor? n
   env.header.moduleNames[idx.toNat]?
 
-/-- Whether a module name belongs to the audited library. -/
-def inLibrary (m : Name) : Bool :=
-  libraryPrefix.isPrefixOf m
+/-- Whether a module name belongs to the library selected by `policy`. -/
+def inLibrary (policy : Policy) (m : Name) : Bool :=
+  policy.libraryPrefix.isPrefixOf m
 
-/-- Every audited-library module paired with the types it declares:
-the `structure`/`inductive` constants (classes included), user-written
-only. -/
-def typesByModule (env : Environment) : Std.HashMap Name (Array Name) :=
+/-- Every audited-library module paired with the `structure`/`inductive`
+constants it declares (classes and private declarations included). -/
+def typesByModule (policy : Policy) (env : Environment) : Std.HashMap Name (Array Name) :=
   env.constants.fold (init := {}) fun acc n info =>
     match info with
     | .inductInfo _ =>
-      if n.isInternal then acc
-      else
-        match moduleOf env n with
-        | some m => if inLibrary m then acc.insert m ((acc.getD m #[]).push n) else acc
-        | none => acc
+      match moduleOf env n with
+      | some m => if inLibrary policy m then acc.insert m ((acc.getD m #[]).push n) else acc
+      | none => acc
     | _ => acc
 
 /-- Rule 1: no audited module declares two or more types unless
 allowlisted as an arm-record cluster. Returns one message per violating
 module. -/
-def rule1Violations (env : Environment) : Array String :=
-  typesByModule env |>.fold (init := #[]) fun acc m types =>
-    if types.size ≥ 2 && !armRecordClusters.contains m then
+def rule1Violations (policy : Policy) (env : Environment) : Array String :=
+  typesByModule policy env |>.fold (init := #[]) fun acc m types =>
+    if types.size ≥ 2 && !policy.armRecordClusters.contains m then
       acc.push s!"{m}: declares {types.size} types ({", ".intercalate
         (types.map toString).toList}); one type per module, or allowlist an \
         arm-record cluster in ModuleAuditMain.lean"
@@ -86,63 +109,80 @@ def rule1Violations (env : Environment) : Array String :=
 
 /-- The classes the audited library defines — the classes whose instances
 rule 2 constrains. -/
-def libraryClasses (env : Environment) : Std.HashMap Name Name :=
+def libraryClasses (policy : Policy) (env : Environment) : Std.HashMap Name Name :=
   env.constants.fold (init := {}) fun acc n _ =>
     if isClass env n then
       match moduleOf env n with
-      | some m => if inLibrary m then acc.insert n m else acc
+      | some m => if inLibrary policy m then acc.insert n m else acc
       | none => acc
     else acc
+
+/-- Enforce the explicit allowlist and class-module location for an instance
+whose target is not a type declared by the audited library. -/
+def dependencyInstanceViolation (policy : Policy) (className classModule : Name)
+    (instName instModule : Name) (target : String) : Option String :=
+  if !policy.dependencyInstances.contains instName then
+    some s!"{instName}: instance of {className} for the Core/dependency target \
+      {target} is not allowlisted in ModuleAuditMain.lean"
+  else if instModule = classModule then none
+  else some s!"{instName}: allowlisted instance of {className} for the \
+    Core/dependency target {target} lives in {instModule}; such instances \
+    live with the class ({classModule})"
 
 /-- Rule 2, for one marked instance: if it instantiates a library class,
 its target type's head constant decides where it must live — the target's
 module for a library type, the class's module for a Core/dependency type.
 Returns a violation message, or `none` when the rule is satisfied or does
 not apply. -/
-def rule2Violation (env : Environment) (classes : Std.HashMap Name Name)
-    (instName : Name) (instType : Expr) : Option String := do
+def rule2Violation (policy : Policy) (env : Environment)
+    (classes : Std.HashMap Name Name) (instName : Name) (instType : Expr) : Option String := do
   let classApp := instType.getForallBody
   let some className := classApp.getAppFn.constName? | none
   let some classModule := classes.get? className | none
   let some instModule := moduleOf env instName | none
-  guard (inLibrary instModule)
-  let some target := classApp.getAppArgs.back? | none
-  let .const targetName _ := target.getAppFn | none
-  match moduleOf env targetName with
-  | some tm =>
-    if inLibrary tm then
-      if instModule = tm then none
-      else some s!"{instName}: instance of {className} for {targetName} \
-        (declared in {tm}) lives in {instModule}; a library type's \
-        instances live in its module"
-    else
-      if instModule = classModule then none
-      else some s!"{instName}: instance of {className} for the \
-        Core/dependency type {targetName} lives in {instModule}; such \
-        instances live with the class ({classModule})"
-  | none => none
+  guard (inLibrary policy instModule)
+  let some target := classApp.getAppArgs.back?
+    | return s!"{instName}: instance of {className} has no target argument; \
+        configure the audit before adding this class"
+  match target.getAppFn with
+  | .const targetName _ =>
+    match moduleOf env targetName with
+    | some tm =>
+      if inLibrary policy tm then
+        if instModule = tm then none
+        else some s!"{instName}: instance of {className} for {targetName} \
+          (declared in {tm}) lives in {instModule}; a library type's \
+          instances live in its module"
+      else
+        dependencyInstanceViolation policy className classModule instName instModule
+          (toString targetName)
+    | none =>
+      dependencyInstanceViolation policy className classModule instName instModule
+        (toString targetName)
+  | _ =>
+    dependencyInstanceViolation policy className classModule instName instModule
+      (toString target)
 
 /-- Rule 2 over the whole environment: check every attribute-marked
 instance against `rule2Violation`. -/
-def rule2Violations (env : Environment) : MetaM (Array String) := do
-  let classes := libraryClasses env
+def rule2Violations (policy : Policy) (env : Environment) : MetaM (Array String) := do
+  let classes := libraryClasses policy env
   let mut acc := #[]
   for (n, info) in env.constants.toList do
-    if let .defnInfo _ := info then
-      if ← isInstance n then
-        if let some v := rule2Violation env classes n info.type then
-          acc := acc.push v
+    if ← isInstance n then
+      if let some v := rule2Violation policy env classes n info.type then
+        acc := acc.push v
   return acc
 
 /-- Run both rules and report: violations to stderr with exit code 1, a
 one-line summary to stdout with exit code 0. -/
-def run (env : Environment) : MetaM UInt32 := do
-  let types := typesByModule env
-  let violations := rule1Violations env ++ (← rule2Violations env)
+def run (policy : Policy) (env : Environment) : MetaM UInt32 := do
+  let types := typesByModule policy env
+  let violations := rule1Violations policy env ++ (← rule2Violations policy env)
   if violations.isEmpty then
     let typeCount := types.fold (init := 0) fun n _ ts => n + ts.size
     IO.println s!"module discipline: {types.size} type-declaring modules, \
-      {typeCount} types, instances of {(libraryClasses env).size} library \
+      {typeCount} types, instances of {(libraryClasses policy env).size} library \
       classes checked; no violations"
     return 0
   else
@@ -156,8 +196,8 @@ end ModuleAudit
 unsafe def main (_ : List String) : IO UInt32 := do
   initSearchPath (← findSysroot)
   enableInitializersExecution
-  let env ← importModules #[{ module := ModuleAudit.libraryPrefix }] {}
+  let env ← importModules #[{ module := ModuleAudit.btcVerifiedPolicy.libraryPrefix }] {}
     (trustLevel := 1024) (loadExts := true)
-  let (code, _) ← (ModuleAudit.run env).toIO
+  let (code, _) ← (ModuleAudit.run ModuleAudit.btcVerifiedPolicy env).toIO
     { fileName := "<module-audit>", fileMap := default } { env }
   return code
