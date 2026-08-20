@@ -13,9 +13,13 @@ import BtcVerified.Serialize.Codec
 
   Checked claims:
 
+  * each checked constructor is characterized by its exact acceptance condition
+    and returned byte list;
   * reversal preserves width, is involutive, and exchanges left-oriented
     padding and truncation with right-oriented operations on the reversed input;
   * padding and truncation success depend only on input width, not direction;
+  * successful padding has the stated padding region and boundary byte, and
+    same-side truncation back to the original width recovers the input;
   * for either direction, exactly one list constructor succeeds: padding when
     the input is short, exact conversion when widths agree, or truncation when
     the input is long;
@@ -35,6 +39,10 @@ abbrev Bytes (n : Nat) := { bytes : List UInt8 // bytes.length = n }
 def Bytes.reverse {n : Nat} (bs : Bytes n) : Bytes n :=
   ⟨bs.1.reverse, by simpa only [List.length_reverse] using bs.2⟩
 
+/-- Reversal acts on the underlying byte list. -/
+@[simp] theorem Bytes.val_reverse {n : Nat} (bs : Bytes n) :
+    bs.reverse.val = bs.val.reverse := rfl
+
 /-- Reversing a width-indexed byte string twice returns the original value. -/
 @[simp] theorem Bytes.reverse_reverse {n : Nat} (bs : Bytes n) :
     bs.reverse.reverse = bs := by
@@ -44,6 +52,42 @@ def Bytes.reverse {n : Nat} (bs : Bytes n) : Bytes n :=
 /-- Refine a list when it has exactly the required width. -/
 def Bytes.ofListExact? {n : Nat} (bs : List UInt8) : Option (Bytes n) :=
   if h : bs.length = n then some ⟨bs, h⟩ else none
+
+/-- Exact conversion succeeds with `out` precisely when the width agrees and
+`out` contains the original bytes. -/
+theorem Bytes.ofListExact?_eq_some_iff {n : Nat} (bs : List UInt8) (out : Bytes n) :
+    Bytes.ofListExact? bs = some out ↔ bs.length = n ∧ out.val = bs := by
+  by_cases h : bs.length = n
+  · constructor
+    · intro hout
+      simp only [Bytes.ofListExact?, dif_pos h, Option.some.injEq] at hout
+      exact ⟨h, (congrArg Subtype.val hout).symm⟩
+    · rintro ⟨_, hout⟩
+      simp only [Bytes.ofListExact?, dif_pos h, Option.some.injEq]
+      apply Subtype.ext
+      exact hout.symm
+  · simp [Bytes.ofListExact?, h]
+
+/-- Exact conversion succeeds exactly at the required width. -/
+@[simp] theorem Bytes.ofListExact?_isSome_iff {n : Nat} (bs : List UInt8) :
+    (Bytes.ofListExact? (n := n) bs).isSome ↔ bs.length = n := by
+  by_cases h : bs.length = n <;> simp [Bytes.ofListExact?, h]
+
+/-- Exact conversion rejects exactly the lists of the wrong width. -/
+@[simp] theorem Bytes.ofListExact?_eq_none_iff {n : Nat} (bs : List UInt8) :
+    Bytes.ofListExact? (n := n) bs = none ↔ bs.length ≠ n := by
+  by_cases h : bs.length = n <;> simp [Bytes.ofListExact?, h]
+
+/-- Refining the underlying list of width-indexed bytes recovers the original value. -/
+@[simp] theorem Bytes.ofListExact?_val {n : Nat} (bs : Bytes n) :
+    Bytes.ofListExact? bs.val = some bs := by
+  simp [Bytes.ofListExact?, bs.property]
+
+/-- Exact conversion commutes with reversal. -/
+theorem Bytes.ofListExact?_map_reverse {n : Nat} (bs : List UInt8) :
+    (Bytes.ofListExact? (n := n) bs).map Bytes.reverse =
+      Bytes.ofListExact? (n := n) bs.reverse := by
+  by_cases h : bs.length = n <;> simp [Bytes.ofListExact?, Bytes.reverse, h]
 
 /-- Pad a list on the left to the required width. Succeeds only when the input
 is strictly shorter; the padding byte is explicit. -/
@@ -60,6 +104,104 @@ def Bytes.ofListPadRight? {n : Nat} (padding : UInt8) (bs : List UInt8) :
   if h : bs.length < n then
     some ⟨bs ++ List.replicate (n - bs.length) padding, by simp; omega⟩
   else none
+
+/-- Left padding succeeds with `out` precisely when the input is short and
+`out` is the required padding prefix followed by the original bytes. -/
+theorem Bytes.ofListPadLeft?_eq_some_iff {n : Nat} (padding : UInt8)
+    (bs : List UInt8) (out : Bytes n) :
+    Bytes.ofListPadLeft? padding bs = some out ↔
+      bs.length < n ∧
+        out.val = List.replicate (n - bs.length) padding ++ bs := by
+  by_cases h : bs.length < n
+  · constructor
+    · intro hout
+      simp only [Bytes.ofListPadLeft?, dif_pos h, Option.some.injEq] at hout
+      exact ⟨h, (congrArg Subtype.val hout).symm⟩
+    · rintro ⟨_, hout⟩
+      simp only [Bytes.ofListPadLeft?, dif_pos h, Option.some.injEq]
+      apply Subtype.ext
+      exact hout.symm
+  · simp [Bytes.ofListPadLeft?, h]
+
+/-- Right padding succeeds with `out` precisely when the input is short and
+`out` is the original bytes followed by the required padding suffix. -/
+theorem Bytes.ofListPadRight?_eq_some_iff {n : Nat} (padding : UInt8)
+    (bs : List UInt8) (out : Bytes n) :
+    Bytes.ofListPadRight? padding bs = some out ↔
+      bs.length < n ∧
+        out.val = bs ++ List.replicate (n - bs.length) padding := by
+  by_cases h : bs.length < n
+  · constructor
+    · intro hout
+      simp only [Bytes.ofListPadRight?, dif_pos h, Option.some.injEq] at hout
+      exact ⟨h, (congrArg Subtype.val hout).symm⟩
+    · rintro ⟨_, hout⟩
+      simp only [Bytes.ofListPadRight?, dif_pos h, Option.some.injEq]
+      apply Subtype.ext
+      exact hout.symm
+  · simp [Bytes.ofListPadRight?, h]
+
+/-- Left padding succeeds exactly for inputs shorter than the target width. -/
+@[simp] theorem Bytes.ofListPadLeft?_isSome_iff {n : Nat} (padding : UInt8)
+    (bs : List UInt8) :
+    (Bytes.ofListPadLeft? (n := n) padding bs).isSome ↔ bs.length < n := by
+  simp [Bytes.ofListPadLeft?]
+
+/-- Right padding succeeds exactly for inputs shorter than the target width. -/
+@[simp] theorem Bytes.ofListPadRight?_isSome_iff {n : Nat} (padding : UInt8)
+    (bs : List UInt8) :
+    (Bytes.ofListPadRight? (n := n) padding bs).isSome ↔ bs.length < n := by
+  simp [Bytes.ofListPadRight?]
+
+/-- Left padding rejects exactly the inputs at least as wide as the target. -/
+@[simp] theorem Bytes.ofListPadLeft?_eq_none_iff {n : Nat} (padding : UInt8)
+    (bs : List UInt8) :
+    Bytes.ofListPadLeft? (n := n) padding bs = none ↔ n ≤ bs.length := by
+  simp [Bytes.ofListPadLeft?, Nat.not_lt]
+
+/-- Right padding rejects exactly the inputs at least as wide as the target. -/
+@[simp] theorem Bytes.ofListPadRight?_eq_none_iff {n : Nat} (padding : UInt8)
+    (bs : List UInt8) :
+    Bytes.ofListPadRight? (n := n) padding bs = none ↔ n ≤ bs.length := by
+  simp [Bytes.ofListPadRight?, Nat.not_lt]
+
+/-- A successful left padding consists of exactly the inserted padding prefix
+followed by the original input. -/
+theorem Bytes.parts_of_ofListPadLeft? {n : Nat} {padding : UInt8}
+    {bs : List UInt8} {out : Bytes n}
+    (h : Bytes.ofListPadLeft? padding bs = some out) :
+    out.val.take (n - bs.length) = List.replicate (n - bs.length) padding ∧
+      out.val.drop (n - bs.length) = bs := by
+  obtain ⟨_, hout⟩ := (Bytes.ofListPadLeft?_eq_some_iff padding bs out).mp h
+  simp [hout]
+
+/-- A successful right padding consists of the original input followed by
+exactly the inserted padding suffix. -/
+theorem Bytes.parts_of_ofListPadRight? {n : Nat} {padding : UInt8}
+    {bs : List UInt8} {out : Bytes n}
+    (h : Bytes.ofListPadRight? padding bs = some out) :
+    out.val.take bs.length = bs ∧
+      out.val.drop bs.length = List.replicate (n - bs.length) padding := by
+  obtain ⟨_, hout⟩ := (Bytes.ofListPadRight?_eq_some_iff padding bs out).mp h
+  simp [hout]
+
+/-- Successful left padding places the padding byte first. -/
+theorem Bytes.head?_of_ofListPadLeft? {n : Nat} {padding : UInt8}
+    {bs : List UInt8} {out : Bytes n}
+    (h : Bytes.ofListPadLeft? padding bs = some out) :
+    out.val.head? = some padding := by
+  obtain ⟨hlen, hout⟩ := (Bytes.ofListPadLeft?_eq_some_iff padding bs out).mp h
+  have hne : n - bs.length ≠ 0 := by omega
+  simp [hout, List.head?_replicate, hne]
+
+/-- Successful right padding places the padding byte last. -/
+theorem Bytes.getLast?_of_ofListPadRight? {n : Nat} {padding : UInt8}
+    {bs : List UInt8} {out : Bytes n}
+    (h : Bytes.ofListPadRight? padding bs = some out) :
+    out.val.getLast? = some padding := by
+  obtain ⟨hlen, hout⟩ := (Bytes.ofListPadRight?_eq_some_iff padding bs out).mp h
+  have hne : n - bs.length ≠ 0 := by omega
+  simp [hout, List.getLast?_replicate, hne]
 
 /-- Reversing a left-padded result is right padding of the reversed input. -/
 theorem Bytes.ofListPadLeft?_map_reverse {n : Nat} (padding : UInt8) (bs : List UInt8) :
@@ -83,6 +225,60 @@ def Bytes.ofListTruncateRight? {n : Nat} (bs : List UInt8) : Option (Bytes n) :=
     some ⟨bs.take n, by rw [List.length_take]; omega⟩
   else none
 
+/-- Left truncation succeeds with `out` precisely when the input is long and
+`out` contains its rightmost `n` bytes. -/
+theorem Bytes.ofListTruncateLeft?_eq_some_iff {n : Nat} (bs : List UInt8)
+    (out : Bytes n) :
+    Bytes.ofListTruncateLeft? bs = some out ↔
+      n < bs.length ∧ out.val = bs.drop (bs.length - n) := by
+  by_cases h : n < bs.length
+  · constructor
+    · intro hout
+      simp only [Bytes.ofListTruncateLeft?, dif_pos h, Option.some.injEq] at hout
+      exact ⟨h, (congrArg Subtype.val hout).symm⟩
+    · rintro ⟨_, hout⟩
+      simp only [Bytes.ofListTruncateLeft?, dif_pos h, Option.some.injEq]
+      apply Subtype.ext
+      exact hout.symm
+  · simp [Bytes.ofListTruncateLeft?, h]
+
+/-- Right truncation succeeds with `out` precisely when the input is long and
+`out` contains its leftmost `n` bytes. -/
+theorem Bytes.ofListTruncateRight?_eq_some_iff {n : Nat} (bs : List UInt8)
+    (out : Bytes n) :
+    Bytes.ofListTruncateRight? bs = some out ↔
+      n < bs.length ∧ out.val = bs.take n := by
+  by_cases h : n < bs.length
+  · constructor
+    · intro hout
+      simp only [Bytes.ofListTruncateRight?, dif_pos h, Option.some.injEq] at hout
+      exact ⟨h, (congrArg Subtype.val hout).symm⟩
+    · rintro ⟨_, hout⟩
+      simp only [Bytes.ofListTruncateRight?, dif_pos h, Option.some.injEq]
+      apply Subtype.ext
+      exact hout.symm
+  · simp [Bytes.ofListTruncateRight?, h]
+
+/-- Left truncation succeeds exactly for inputs longer than the target width. -/
+@[simp] theorem Bytes.ofListTruncateLeft?_isSome_iff {n : Nat} (bs : List UInt8) :
+    (Bytes.ofListTruncateLeft? (n := n) bs).isSome ↔ n < bs.length := by
+  simp [Bytes.ofListTruncateLeft?]
+
+/-- Right truncation succeeds exactly for inputs longer than the target width. -/
+@[simp] theorem Bytes.ofListTruncateRight?_isSome_iff {n : Nat} (bs : List UInt8) :
+    (Bytes.ofListTruncateRight? (n := n) bs).isSome ↔ n < bs.length := by
+  simp [Bytes.ofListTruncateRight?]
+
+/-- Left truncation rejects exactly the inputs no longer than the target. -/
+@[simp] theorem Bytes.ofListTruncateLeft?_eq_none_iff {n : Nat} (bs : List UInt8) :
+    Bytes.ofListTruncateLeft? (n := n) bs = none ↔ bs.length ≤ n := by
+  simp [Bytes.ofListTruncateLeft?, Nat.not_lt]
+
+/-- Right truncation rejects exactly the inputs no longer than the target. -/
+@[simp] theorem Bytes.ofListTruncateRight?_eq_none_iff {n : Nat} (bs : List UInt8) :
+    Bytes.ofListTruncateRight? (n := n) bs = none ↔ bs.length ≤ n := by
+  simp [Bytes.ofListTruncateRight?, Nat.not_lt]
+
 /-- Reversing a left-truncated result is right truncation of the reversed input. -/
 theorem Bytes.ofListTruncateLeft?_map_reverse {n : Nat} (bs : List UInt8) :
     (Bytes.ofListTruncateLeft? (n := n) bs).map Bytes.reverse =
@@ -92,6 +288,30 @@ theorem Bytes.ofListTruncateLeft?_map_reverse {n : Nat} (bs : List UInt8) :
       List.reverse_drop]
     omega
   · simp [Bytes.ofListTruncateLeft?, Bytes.ofListTruncateRight?, h]
+
+/-- Truncating a successful left padding back to the input width recovers the
+exact conversion of the original input. -/
+theorem Bytes.ofListTruncateLeft?_of_ofListPadLeft? {n : Nat} {padding : UInt8}
+    {bs : List UInt8} {out : Bytes n}
+    (h : Bytes.ofListPadLeft? padding bs = some out) :
+    Bytes.ofListTruncateLeft? (n := bs.length) out.val =
+      Bytes.ofListExact? (n := bs.length) bs := by
+  obtain ⟨hlen, hout⟩ := (Bytes.ofListPadLeft?_eq_some_iff padding bs out).mp h
+  rw [hout]
+  have hpad : 0 < n - bs.length := by omega
+  simp [Bytes.ofListTruncateLeft?, Bytes.ofListExact?, hpad]
+
+/-- Truncating a successful right padding back to the input width recovers the
+exact conversion of the original input. -/
+theorem Bytes.ofListTruncateRight?_of_ofListPadRight? {n : Nat} {padding : UInt8}
+    {bs : List UInt8} {out : Bytes n}
+    (h : Bytes.ofListPadRight? padding bs = some out) :
+    Bytes.ofListTruncateRight? (n := bs.length) out.val =
+      Bytes.ofListExact? (n := bs.length) bs := by
+  obtain ⟨hlen, hout⟩ := (Bytes.ofListPadRight?_eq_some_iff padding bs out).mp h
+  rw [hout]
+  have hpad : 0 < n - bs.length := by omega
+  simp [Bytes.ofListTruncateRight?, Bytes.ofListExact?, hpad]
 
 /-- Left and right padding succeed on exactly the same inputs. -/
 theorem Bytes.ofListPad_isSome_eq {n : Nat} (padding : UInt8) (bs : List UInt8) :
