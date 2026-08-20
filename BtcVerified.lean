@@ -28,6 +28,7 @@ import BtcVerified.Block.BlockHash
 import BtcVerified.Block.Chain
 import BtcVerified.Consensus.Limits
 import BtcVerified.Consensus.LockTime
+import BtcVerified.Consensus.LockTimeClock
 import BtcVerified.Consensus.TxContext
 import BtcVerified.Consensus.ScriptCheck
 import BtcVerified.Consensus.TxStateless

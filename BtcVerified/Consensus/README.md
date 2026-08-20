@@ -35,7 +35,8 @@ limit) are theorems only, never runtime checks.
 the raw transaction lock-time field as disabled, an absolute block height, or
 an absolute time; BIP68 relative locks remain the separate sequence-field leaf
 #46. `TxContext.lean` carries the admitting height plus separately named block
-time and median-time-past values. `LockTimeClock` selects which one measures
+time and median-time-past values. `LockTimeClock` (`LockTimeClock.lean`)
+selects which one measures
 absolute time locks: BIP113 changed that choice without changing `IsFinalTx`
 ([Bitcoin Core v28.0, `validation.cpp` lines
 4224–4238](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L4224-L4238)),
