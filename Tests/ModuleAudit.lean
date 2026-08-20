@@ -1,4 +1,4 @@
-import ModuleAuditMain
+import ModuleAudit
 import Tests.ModuleAuditFixtures.PrivateTypes
 import Tests.ModuleAuditFixtures.Misplaced
 import Batteries.Data.String.Matcher

@@ -22,7 +22,7 @@ every step is done.
   type may share a module *only if* those arm types never appear in a
   signature outside it (so `SegwitInput`, which appears in `Tx`'s constructor
   and codec, earns its own module). `lake exe module-audit` enforces this;
-  both exception allowlists live in `ModuleAuditMain.lean`.
+  both exception allowlists live in `ModuleAudit.lean`.
 - Files sit under the matching directory (`Serialize/`, `Transaction/`,
   `Block/`, `Crypto/`, `BitVM/`); a leaf with several tightly-coupled types
   becomes a directory of one-type modules under an umbrella facade that
