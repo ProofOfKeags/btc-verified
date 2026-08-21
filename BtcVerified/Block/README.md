@@ -52,15 +52,18 @@ longer covers it; BIP141 restores the commitment through the coinbase.
 wtxids form a second merkle tree — the coinbase's leaf zeroed, since its own
 witness sits beneath the commitment it carries — and the coinbase records
 the double-SHA-256 of that root and the 32-byte witness reserved value (its
-input's single witness item) in the last output opening `6a24aa21a9ed`.
-Unlike the txid tree, no canonicality condition is needed: the transaction
-count is already pinned by the txid tree, and between equal-length lists the
-merkle root binds outright.
+input's single witness item) in the last output opening `6a24aa21a9ed` with
+32 bytes behind the header. Both 32-byte values are typed `Hash256`, so the
+commitment preimage is exactly a merkle node's and the commitment *is*
+`Merkle.combine`. Unlike the txid tree, no canonicality condition is needed:
+the transaction count is already pinned by the txid tree, and between
+equal-length lists the merkle root binds outright.
 
 Checked claims:
 
 - `witnessCommitment_binding`: equal commitments imply equal witness roots
-  and equal reserved values — or a concrete double-SHA-256 collision.
+  and equal reserved values — or a concrete double-SHA-256 collision;
+  definitionally `Merkle.combine_binding`.
 - `Block.witnessRoot_binding`: between blocks with equally many
   transactions, equal witness roots imply equal transactions beyond the
   coinbase, witnesses included — or a concrete collision.

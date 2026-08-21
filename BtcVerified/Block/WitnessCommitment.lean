@@ -9,11 +9,21 @@ import BtcVerified.Crypto.Merkle
   commitment through the coinbase. The wtxids form a second merkle tree —
   the coinbase's leaf taken as the zero hash, since its own witness sits
   beneath the commitment it carries — and the coinbase records
-  `sha256d(witnessRoot ‖ witnessReservedValue)` in an output whose
-  scriptPubKey is at least 38 bytes opening `6a24aa21a9ed`; when several
-  outputs match, the last one is the commitment (Bitcoin Core's
-  `GetWitnessCommitmentIndex`). The reserved value is the single 32-byte
-  item of the coinbase input's witness stack.
+  `sha256d(witnessRoot ‖ witnessReservedValue)` in the last output whose
+  scriptPubKey opens `6a24aa21a9ed` with 32 commitment bytes behind the
+  header (when several outputs match, the last one is the commitment —
+  Bitcoin Core's `GetWitnessCommitmentIndex`). The reserved value is the
+  single 32-byte item of the coinbase input's witness stack.
+
+  Both 32-byte values are typed as such: the reserved value and the
+  recorded commitment are `Hash256` — the library's 32-raw-bytes type —
+  never bare byte lists, so a commitment over an ill-sized reserved value
+  is unrepresentable rather than merely unchecked. The commitment preimage
+  `root ‖ reserved` is then exactly a merkle node's, so `witnessCommitment`
+  *is* `Merkle.combine`, and its binding theorem is `Merkle.combine_binding`
+  re-read at this leaf. Recognition and extraction of the commitment output
+  are one function: an output records a commitment exactly when the 32
+  bytes are there to extract.
 
   Unlike the txid tree, no canonicality condition is demanded of the
   witness tree, and none is needed: the padding ambiguity (CVE-2012-2459)
@@ -37,7 +47,8 @@ import BtcVerified.Crypto.Merkle
 
   * `witnessCommitment_binding`: equal commitments imply equal witness
     roots and equal reserved values — or two concrete byte strings
-    witnessing a double-SHA-256 collision.
+    witnessing a double-SHA-256 collision; definitionally
+    `Merkle.combine_binding`.
   * `Block.witnessRoot_binding`: between blocks with equally many
     transactions, equal witness roots imply equal transactions beyond the
     coinbase, witnesses included — or a concrete collision.
@@ -52,9 +63,11 @@ import BtcVerified.Crypto.Merkle
 namespace BtcVerified
 
 /-- The BIP141 witness commitment: the double-SHA-256 of the witness merkle
-root followed by the 32-byte witness reserved value. -/
-def witnessCommitment (root : Hash256) (reserved : List UInt8) : Hash256 :=
-  ⟨Sha256.sha256d (root.1 ++ reserved), Sha256.sha256d_length _⟩
+root followed by the 32-byte witness reserved value. The preimage is two
+32-byte values concatenated — exactly a merkle node's — so the commitment
+*is* a `Merkle.combine` step over the root and the reserved value. -/
+def witnessCommitment (root reserved : Hash256) : Hash256 :=
+  Merkle.combine root reserved
 
 /-- The witness merkle root of a block: the merkle root over wtxids, the
 coinbase's leaf taken as the zero hash — its witness sits beneath the
@@ -64,28 +77,30 @@ real block has at least its coinbase). -/
 def Block.witnessRoot (b : Block) : Hash256 :=
   Merkle.root (0 :: (b.txs.val.drop 1).map Tx.wtxid)
 
-/-- Whether an output records a witness commitment: at least 38 script
-bytes opening `OP_RETURN`, a 36-byte push, and the BIP141 header
-`aa21a9ed`. The 32 bytes after the header are the commitment; bytes past 38
-carry no consensus meaning and do not disqualify. -/
-def TxOut.isWitnessCommitment (o : TxOut) : Bool :=
-  o.scriptPubKey.code.val.take 6 == [0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed]
-    && decide (38 ≤ o.scriptPubKey.code.val.length)
+/-- The witness commitment an output records: when its scriptPubKey opens
+`OP_RETURN`, a 36-byte push, and the BIP141 header `aa21a9ed`, the 32 bytes
+after the header. `none` when the header is absent or fewer than 32 bytes
+follow it; bytes past the commitment carry no consensus meaning and do not
+disqualify. Recognition is extraction succeeding — the boolean shape of
+Core's `GetWitnessCommitmentIndex` scan is `.isSome` of this. -/
+def TxOut.witnessCommitment? (o : TxOut) : Option Hash256 :=
+  if o.scriptPubKey.code.val.take 6 = [0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed] then
+    Hash256.ofBytes? ((o.scriptPubKey.code.val.drop 6).take 32)
+  else none
 
-/-- The commitment a coinbase records: the 32 bytes after the BIP141 header
-in its *last* commitment-shaped output — BIP141 takes the highest output
-index when several match, as does Bitcoin Core's
-`GetWitnessCommitmentIndex`. `none` when no output matches. -/
-def Tx.recordedWitnessCommitment? (coinbase : Tx) : Option (List UInt8) :=
-  (coinbase.body.outputs.val.reverse.find? TxOut.isWitnessCommitment).map
-    fun o => (o.scriptPubKey.code.val.drop 6).take 32
+/-- The commitment a coinbase records: the one in its *last*
+commitment-shaped output — BIP141 takes the highest output index when
+several match, as does Bitcoin Core's `GetWitnessCommitmentIndex`. `none`
+when no output records one. -/
+def Tx.recordedWitnessCommitment? (coinbase : Tx) : Option Hash256 :=
+  coinbase.body.outputs.val.reverse.findSome? TxOut.witnessCommitment?
 
 /-- The witness reserved value a coinbase carries: the single 32-byte item
 BIP141 requires as its input's witness stack. Read from the first input —
 the coinbase's only one under consensus, though this layer does not enforce
 the single-input rule. `none` when the transaction is not
 witness-serialized or the stack is not one 32-byte item. -/
-def Tx.witnessReservedValue? : Tx → Option (List UInt8)
+def Tx.witnessReservedValue? : Tx → Option Hash256
   | .legacy .. => none
   | .empty .. => none
   | .segwit _ ins _ _ _ =>
@@ -93,16 +108,16 @@ def Tx.witnessReservedValue? : Tx → Option (List UInt8)
     | [] => none
     | input :: _ =>
       match input.witness.val with
-      | [item] => if item.val.length = 32 then some item.val else none
+      | [item] => Hash256.ofBytes? item.val
       | _ => none
 
 /-- The commitment a block records: its coinbase's, when it has one. -/
-def Block.recordedWitnessCommitment? (b : Block) : Option (List UInt8) :=
+def Block.recordedWitnessCommitment? (b : Block) : Option Hash256 :=
   b.txs.val.head?.bind Tx.recordedWitnessCommitment?
 
 /-- The witness reserved value a block carries: its coinbase's, when it has
 one. -/
-def Block.witnessReservedValue? (b : Block) : Option (List UInt8) :=
+def Block.witnessReservedValue? (b : Block) : Option Hash256 :=
   b.txs.val.head?.bind Tx.witnessReservedValue?
 
 /-- The BIP141 witness commitment condition: the coinbase carries the
@@ -113,7 +128,7 @@ witness data is) is a consensus guard at the validity layer. -/
 def Block.witnessCommits (b : Block) : Prop :=
   ∃ reserved, b.witnessReservedValue? = some reserved
     ∧ b.recordedWitnessCommitment?
-      = some (witnessCommitment b.witnessRoot reserved).1
+      = some (witnessCommitment b.witnessRoot reserved)
 
 /-- The commitment condition is checked by computation — extract, hash,
 compare — which is what lets the golden vectors and the `lake test` fixture
@@ -123,23 +138,18 @@ instance : DecidablePred Block.witnessCommits := fun b =>
   | some reserved =>
     decidable_of_iff
       (b.recordedWitnessCommitment?
-        = some (witnessCommitment b.witnessRoot reserved).1)
+        = some (witnessCommitment b.witnessRoot reserved))
       (by simp [Block.witnessCommits, hv])
   | none => isFalse (by rintro ⟨r, hr, -⟩; rw [hv] at hr; cases hr)
 
 /-- Equal witness commitments mean equal witness roots and equal reserved
 values — or two concrete byte strings witnessing a double-SHA-256
-collision. The commitment preimage splits unambiguously because a root is
-exactly 32 bytes, the same shape as `Merkle.combine_binding`. -/
-theorem witnessCommitment_binding {r₁ r₂ : Hash256} {v₁ v₂ : List UInt8}
+collision. The commitment is definitionally a merkle node over the root
+and the reserved value, so this is `Merkle.combine_binding` re-read. -/
+theorem witnessCommitment_binding {r₁ r₂ v₁ v₂ : Hash256}
     (h : witnessCommitment r₁ v₁ = witnessCommitment r₂ v₂) :
-    (r₁ = r₂ ∧ v₁ = v₂) ∨ Sha256.Collision := by
-  have hd : Sha256.sha256d (r₁.1 ++ v₁) = Sha256.sha256d (r₂.1 ++ v₂) :=
-    congrArg Subtype.val h
-  by_cases hm : r₁.1 ++ v₁ = r₂.1 ++ v₂
-  · obtain ⟨h₁, h₂⟩ := List.append_inj hm (by rw [r₁.2, r₂.2])
-    exact Or.inl ⟨Subtype.ext h₁, h₂⟩
-  · exact Or.inr ⟨_, _, hm, hd⟩
+    (r₁ = r₂ ∧ v₁ = v₂) ∨ Sha256.Collision :=
+  Merkle.combine_binding h
 
 /-- Between blocks with equally many transactions, equal witness roots mean
 equal transactions beyond the coinbase, witnesses included — or two
@@ -175,7 +185,7 @@ theorem Block.witnessCommits_binding {b₁ b₂ : Block}
   obtain ⟨v₁, -, hr₁⟩ := hc₁
   obtain ⟨v₂, -, hr₂⟩ := hc₂
   rw [hr₁, hr₂, Option.some.injEq] at hrec
-  rcases witnessCommitment_binding (Subtype.ext hrec) with ⟨hroot, -⟩ | c
+  rcases witnessCommitment_binding hrec with ⟨hroot, -⟩ | c
   · exact Block.witnessRoot_binding hlen hroot
   · exact Or.inr c
 

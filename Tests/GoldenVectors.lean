@@ -629,8 +629,9 @@ def block170Context : TxContext :=
 #guard match hexBytes? segwitCoinbaseHex >>= Codec.decode (α := Tx) with
   | some (tx, _) =>
     tx.recordedWitnessCommitment?
-      == hexBytes? "6c3c4dff76b5760d58694147264d208689ee07823e5694c4872f856eacf5a5d8"
-    && tx.witnessReservedValue? == some (List.replicate 32 0)
+      == (hexBytes? "6c3c4dff76b5760d58694147264d208689ee07823e5694c4872f856eacf5a5d8"
+        >>= Hash256.ofBytes?)
+    && tx.witnessReservedValue? == Hash256.ofBytes? (List.replicate 32 0)
   | none => false
 
 /-- The six bytes every commitment output opens with: `OP_RETURN`, a
@@ -656,25 +657,31 @@ def txWithOutputs (outs : List TxOut) (h : outs.length < 2 ^ 64 := by decide) :
       lockTime := 0 }
     (by simp)
 
-#guard (outWithScript (commitmentHeader ++ List.replicate 32 0x11)).isWitnessCommitment
+-- A commitment output yields exactly the 32 bytes after the header.
+#guard (outWithScript (commitmentHeader ++ List.replicate 32 0x11)).witnessCommitment?
+  == Hash256.ofBytes? (List.replicate 32 0x11)
 -- 37 bytes is one short of a full commitment.
-#guard !(outWithScript (commitmentHeader ++ List.replicate 31 0x11)).isWitnessCommitment
+#guard (outWithScript
+    (commitmentHeader ++ List.replicate 31 0x11)).witnessCommitment? == none
 -- A wrong header byte disqualifies.
-#guard !(outWithScript
-    ([0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xee] ++ List.replicate 32 0x11)).isWitnessCommitment
--- Bytes past 38 carry no consensus meaning but do not disqualify.
-#guard (outWithScript (commitmentHeader ++ List.replicate 40 0x11)).isWitnessCommitment
+#guard (outWithScript
+    ([0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xee]
+      ++ List.replicate 32 0x11)).witnessCommitment? == none
+-- Bytes past the commitment carry no consensus meaning: they do not
+-- disqualify and do not enter the extracted value.
+#guard (outWithScript (commitmentHeader ++ List.replicate 40 0x11)).witnessCommitment?
+  == Hash256.ofBytes? (List.replicate 32 0x11)
 -- Several matching outputs: the last one wins (BIP141's highest index, as
 -- in Core's GetWitnessCommitmentIndex).
 #guard (txWithOutputs
     [outWithScript (commitmentHeader ++ List.replicate 32 0x11),
      outWithScript (commitmentHeader ++ List.replicate 32 0x22)]).recordedWitnessCommitment?
-  == some (List.replicate 32 0x22)
+  == Hash256.ofBytes? (List.replicate 32 0x22)
 -- A non-commitment output after the commitment does not displace it.
 #guard (txWithOutputs
     [outWithScript (commitmentHeader ++ List.replicate 32 0x11),
      outWithScript []]).recordedWitnessCommitment?
-  == some (List.replicate 32 0x11)
+  == Hash256.ofBytes? (List.replicate 32 0x11)
 -- Pre-SegWit blocks record no commitment, carry no reserved value, and do
 -- not satisfy the commitment condition.
 #guard match hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
