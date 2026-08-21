@@ -1,6 +1,7 @@
 import BtcVerified.Ext.List
 import BtcVerified.Ext.Finmap
 import BtcVerified.Serialize.Codec
+import BtcVerified.Serialize.Bytes
 import BtcVerified.Serialize.WidthCast
 import BtcVerified.Serialize.CountedList
 import BtcVerified.Serialize.CompactSize

@@ -379,6 +379,23 @@ def block1HeaderHex : String :=
 #guard CompactSize.decode [0xfd, 0xfc, 0x00] == none
 #guard CompactSize.decode [0xfe, 0xff, 0xff, 0x00, 0x00] == none
 
+/-! ## Width-indexed bytes -/
+
+#guard (Bytes.ofListExact? (n := 3) [1, 2, 3]).map Subtype.val == some [1, 2, 3]
+#guard (Bytes.ofListExact? (n := 3) [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListPadLeft? (n := 4) 0 [1, 2]).map Subtype.val == some [0, 0, 1, 2]
+#guard (Bytes.ofListPadLeft? (n := 2) 0 [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListPadLeft? (n := 1) 0 [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListPadRight? (n := 4) 0 [1, 2]).map Subtype.val == some [1, 2, 0, 0]
+#guard (Bytes.ofListPadRight? (n := 2) 0 [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListPadRight? (n := 1) 0 [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListTruncateLeft? (n := 2) [1, 2, 3]).map Subtype.val == some [2, 3]
+#guard (Bytes.ofListTruncateLeft? (n := 2) [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListTruncateLeft? (n := 3) [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListTruncateRight? (n := 2) [1, 2, 3]).map Subtype.val == some [1, 2]
+#guard (Bytes.ofListTruncateRight? (n := 2) [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListTruncateRight? (n := 3) [1, 2]).map Subtype.val == none
+
 /-! ## SHA-256 known-answer vectors
 
   The hash is concrete and computable, so it is checked the same way as the wire
