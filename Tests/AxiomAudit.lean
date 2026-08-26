@@ -208,7 +208,7 @@ elab "#assert_axioms " id:ident : command => do
   and everything they depend on.
 -/
 
-#assert_axioms BtcVerified.Impl.Packed.ByteSlice.toList_eq
+#assert_axioms ByteSlice.toList_eq
 #assert_axioms BtcVerified.Impl.Packed.PackedCodec.toList_encode
 #assert_axioms BtcVerified.Impl.Packed.PackedCodec.mapToList_decode_toByteArray
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecProd

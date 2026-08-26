@@ -46,7 +46,7 @@ def benchBlock (path : System.FilePath) : IO UInt32 := do
   let (packedParse, tPackedDecode) ← time fun _ => PackedCodec.decode (α := Block) bytes
   match specParse, packedParse with
   | some (specBlock, specRest), some (packedBlock, packedRest) =>
-    unless specRest.isEmpty && packedRest.length == 0 do
+    unless specRest.isEmpty && packedRest.size == 0 do
       IO.eprintln "FAILED: a decoder left unconsumed bytes"
       return 1
     unless packedBlock == specBlock do

@@ -1,5 +1,5 @@
 import BtcVerified.Serialize.Codec
-import BtcVerified.Impl.Packed.ByteSlice
+import BtcVerified.Ext.ByteSlice
 /-!
   # The packed codec discipline
 
@@ -39,6 +39,19 @@ import BtcVerified.Impl.Packed.ByteSlice
 namespace BtcVerified.Impl.Packed
 
 open BtcVerified.Serialize
+
+/-- The spec-level reading of a packed parse result: keep the value, abstract
+the remainder slice to its bytes. The agreement laws state that this reading
+of a packed decoder's output is exactly the spec decoder's output. -/
+def mapToList {α : Type} (parse : Option (α × ByteSlice)) : Option (α × List UInt8) :=
+  parse.map fun p => (p.1, p.2.toList)
+
+/-- A failed packed parse reads as a failed spec parse. -/
+@[simp] theorem mapToList_none {α : Type} : mapToList (α := α) none = none := rfl
+
+/-- A successful packed parse reads as its value with the abstracted tail. -/
+@[simp] theorem mapToList_some {α : Type} (a : α) (s : ByteSlice) :
+    mapToList (some (a, s)) = some (a, s.toList) := rfl
 
 /-- The executable counterpart of a `Codec`: an encoder appending into a
 `ByteArray` and a decoder consuming a `ByteSlice`, each agreeing with the

@@ -14,27 +14,33 @@ structure that gets its spec codec by composition gets its packed codec, and
 its agreement, the same way — and future spec leaves inherit the pattern.
 
 On the block-481824 fixture (989,323 bytes, 1,866 transactions), one
-development machine measured the packed path at 227x the spec decoder
-(3,387 ms → 15 ms) and 4.2x the spec encoder (119 ms → 28 ms); `lake exe
+development machine measured the packed path at 200x the spec decoder
+(3,106 ms → 16 ms) and 4.3x the spec encoder (121 ms → 28 ms); `lake exe
 bench` reproduces the numbers locally, checking agreement while it times.
 
-## `BtcVerified.Impl.Packed.ByteSlice`
+## The slice layer: `Std.Data.ByteSlice` + `BtcVerified.Ext.ByteSlice`
 
-A zero-copy view into a `ByteArray` — base array plus start/stop offsets with
-the bounds that make every read total — and `toList`, the abstraction function
-into the spec's byte type, through which every agreement theorem is stated.
+The zero-copy view of a `ByteArray` region is core's own `Std.Data.ByteSlice`
+— no view type is reimplemented here. What core does not provide is any
+connection to `List UInt8`, so `Ext/ByteSlice.lean` adds the abstraction the
+agreement theorems are stated through — `toList`, the slice's bytes as the
+spec's byte type — plus the reader operations (`uncons`, `take`, `drop`,
+thin wrappers over `ByteSlice.slice`) and the lemmas showing each commutes
+with the abstraction.
 
-Checked claims:
+Checked claims (in `Ext/ByteSlice.lean`):
 
+- `byteArray_slice` / `start_slice` / `stop_slice`: the complete
+  characterization of `ByteSlice.slice` — same base array, clamped offsets.
 - `toList_eq`: the abstraction is the drop/take window of the base array's
   bytes.
 - `toList_of_uncons_some` / `toList_of_uncons_none`: reading one byte off a
   slice is exactly uncons on its abstraction.
 - `toList_take` / `toList_drop`: sub-slicing commutes with the abstraction.
 
-Why it matters: the slice is what makes packed decoding zero-copy — a parser's
-remainder is the same array at a further offset — and these three lemmas are
-the complete interface the agreement proofs consume; no proof below ever
+Why it matters: the slice is what makes packed decoding zero-copy — a
+parser's remainder is the same array at a further offset — and these lemmas
+are the complete interface the agreement proofs consume; no proof below ever
 touches array indices again.
 
 ## `BtcVerified.Impl.Packed.Codec`

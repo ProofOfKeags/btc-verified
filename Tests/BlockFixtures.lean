@@ -64,7 +64,7 @@ def blockFixtureChecksOut (displayHash : String) (bytes : ByteArray)
     && b.header.hash == hashOfDisplay displayHash
     && spot b
     && (match Impl.Packed.PackedCodec.decode (α := Block) bytes with
-        | some (pb, prest) => pb == b && prest.length == 0
+        | some (pb, prest) => pb == b && prest.size == 0
         | none => false)
     && Impl.Packed.PackedCodec.encode b == bytes
   | _, _ => false

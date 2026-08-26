@@ -40,9 +40,9 @@ theorem toList_pushBytes (bs : List UInt8) (acc : ByteArray) :
 `decodeBytes`. The value's bytes are materialized; the remainder slice is
 zero-copy. -/
 def readBytes (n : Nat) (s : ByteSlice) : Option (Bytes n × ByteSlice) :=
-  if h : n ≤ s.length then
+  if h : n ≤ s.size then
     some (⟨(s.take n).toList, by
-      rw [ByteSlice.length_toList, ByteSlice.length_take, Nat.min_eq_left h]⟩,
+      rw [ByteSlice.length_toList, ByteSlice.size_take, Nat.min_eq_left h]⟩,
       s.drop n)
   else none
 
@@ -50,7 +50,7 @@ def readBytes (n : Nat) (s : ByteSlice) : Option (Bytes n × ByteSlice) :=
 theorem mapToList_readBytes (n : Nat) (s : ByteSlice) :
     mapToList (readBytes n s) = decodeBytes n s.toList := by
   rw [readBytes, decodeBytes]
-  by_cases h : n ≤ s.length
+  by_cases h : n ≤ s.size
   · rw [dif_pos h, dif_pos (by rw [ByteSlice.length_toList]; exact h), mapToList_some]
     simp [ByteSlice.toList_take, ByteSlice.toList_drop]
   · rw [dif_neg h, dif_neg (by rw [ByteSlice.length_toList]; exact h), mapToList_none]

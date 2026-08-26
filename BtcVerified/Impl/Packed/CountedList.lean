@@ -180,14 +180,14 @@ theorem decodeElems_uint8 (n : Nat) (bs : List UInt8) :
 byte-element decodes. The remainder is zero-copy; only the content bytes
 are materialized. -/
 def readByteList (n : Nat) (s : ByteSlice) : Option (List UInt8 × ByteSlice) :=
-  if n ≤ s.length then some ((s.take n).toList, s.drop n) else none
+  if n ≤ s.size then some ((s.take n).toList, s.drop n) else none
 
 /-- The bulk byte read, through the abstraction, is the spec's byte-element
 sequence. -/
 theorem mapToList_readByteList (n : Nat) (s : ByteSlice) :
     mapToList (readByteList n s) = decodeElems (α := UInt8) n s.toList := by
   rw [readByteList, decodeElems_uint8]
-  by_cases h : n ≤ s.length
+  by_cases h : n ≤ s.size
   · rw [if_pos h, if_pos (by simpa using h), mapToList_some]
     simp
   · rw [if_neg h, if_neg (by simpa using h), mapToList_none]
