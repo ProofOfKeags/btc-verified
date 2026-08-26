@@ -2,8 +2,9 @@
 
 Implementation-facing models, checked against the abstract consensus specs they
 realize: level-order vector layouts, transcriptions of Bitcoin Core's own
-consensus code, and (later) efficient representations the spec proofs are
-transported to. `Consensus/` is the reasoning substrate, chosen for clear facts
+consensus code, and efficient representations the spec proofs are transported
+to — [`Packed/`](Packed/README.md) runs the serialization layer over
+`ByteArray` with per-instance agreement proofs against the spec codecs. `Consensus/` is the reasoning substrate, chosen for clear facts
 about protocol behavior and heavily informed by Core without being
 definitionally identical to it. `Impl/BitcoinCore` models the code-shaped side;
 the intended bridge is a refinement/equivalence theorem over observable
