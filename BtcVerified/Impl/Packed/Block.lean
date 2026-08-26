@@ -24,10 +24,10 @@ instance instPackedCodecBlock : PackedCodec Block :=
 /-- End-to-end decode agreement at the block level: parsing any byte string
 with the packed block codec, read through the abstraction, is the spec
 block parse — same acceptance, same block, same unconsumed remainder. -/
-theorem mapToList_decodeBlock (bs : List UInt8) :
-    mapToList (PackedCodec.decode (α := Block) bs.toByteArray)
+theorem abstractParse_decodeBlock (bs : List UInt8) :
+    abstractParse (PackedCodec.decode (α := Block) bs.toByteArray)
       = Codec.decode (α := Block) bs :=
-  PackedCodec.mapToList_decode_toByteArray bs
+  PackedCodec.abstractParse_decode_toByteArray bs
 
 /-- End-to-end encode agreement at the block level: the packed encoding of
 a block is byte-for-byte its spec encoding. -/

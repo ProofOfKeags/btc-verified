@@ -57,11 +57,11 @@ Checked claims:
   component codecs agree.
 - `PackedCodec.ofEquiv`: transport along a bijection preserves agreement, in
   step with `Codec.ofEquiv`.
-- `mapToList_readBitVecLE` / `toList_pushBitVecLE`: the packed little-endian
+- `abstractParse_readBitVecLE` / `toList_pushBitVecLE`: the packed little-endian
   forms agree with the spec construction, giving the fixed-width integers'
   packed codecs — `UInt8`–`UInt64` by transport, `BitVec 256` as the
   primitive at width 32.
-- `PackedCodec.toList_encode` / `PackedCodec.mapToList_decode_toByteArray`:
+- `PackedCodec.toList_encode` / `PackedCodec.abstractParse_decode_toByteArray`:
   over whole byte arrays, a packed codec produces, accepts, and leaves exactly
   what the spec codec does.
 
@@ -78,9 +78,9 @@ shortest-form dispatch over the marker byte.
 
 Checked claims:
 
-- `mapToList_readFixedWidth` / `toList_pushFixedWidth`: the packed
+- `abstractParse_readFixedWidth` / `toList_pushFixedWidth`: the packed
   marker-payload forms agree with `decodeFixedWidth`/`encodeFixedWidth`.
-- `mapToList_readCompactSize` / `toList_pushCompactSize`: the packed dispatch
+- `abstractParse_readCompactSize` / `toList_pushCompactSize`: the packed dispatch
   agrees with `CompactSize.decode`/`CompactSize.encode`.
 
 Why it matters: CompactSize prefixes every count on the wire, so the packed
@@ -97,7 +97,7 @@ whole byte regions at once instead of dispatching a codec per byte.
 
 Checked claims:
 
-- `mapToList_readElems` / `toList_pushElems`: the packed element sequence
+- `abstractParse_readElems` / `toList_pushElems`: the packed element sequence
   agrees with `decodeElems`/`encodeElems` whenever the element codec agrees.
 - `instPackedCodecCountedList`: the packed counted-list codec agrees with
   `instCodecCountedList`, so any packed element codec lifts.
@@ -119,9 +119,9 @@ form — sharing the spec's value-level smart constructors (`Tx.legacy?`,
 
 Checked claims:
 
-- `mapToList_readSegwit` / `mapToList_readLegacy` / `mapToList_readEmpty`:
+- `abstractParse_readSegwit` / `abstractParse_readLegacy` / `abstractParse_readEmpty`:
   each branch decoder agrees with its spec branch.
-- `mapToList_readTx` / `toList_pushTx`: the packed transaction codec agrees
+- `abstractParse_readTx` / `toList_pushTx`: the packed transaction codec agrees
   with `decodeTx`/`encodeTx` — the marker/flag dispatch on slice bytes takes
   exactly the branch the spec's dispatch on list bytes takes — packaged as
   `instPackedCodecTx`.
@@ -134,7 +134,7 @@ diverge from the spec; the agreement theorem forecloses exactly that.
 ## Transported instances
 
 `Bytes n` is the one other hand-written leaf: a bulk `readBytes`/`pushBytes`
-pair with agreement proofs `mapToList_readBytes` / `toList_pushBytes`
+pair with agreement proofs `abstractParse_readBytes` / `toList_pushBytes`
 (`Bytes.lean`) — at width 32 this is the packed `Hash256` codec. `OutPoint`,
 `Script`, `TxIn`, `TxOut`, `TxBody`, `BlockHeader`, and `Block` each get
 their packed codec by applying `PackedCodec.ofEquiv` to the same bijection
@@ -144,7 +144,7 @@ the end-to-end result:
 
 Checked claims:
 
-- `mapToList_decodeBlock`: parsing any byte string with the packed block
+- `abstractParse_decodeBlock`: parsing any byte string with the packed block
   codec is the spec block parse — same acceptance, same block, same
   unconsumed remainder.
 - `toList_encodeBlock`: the packed encoding of a block is byte-for-byte its

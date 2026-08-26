@@ -20,7 +20,7 @@ import BtcVerified.Impl.Packed.Bytes
 
   Checked claims:
 
-  * `mapToList_readElems` / `toList_pushElems`: the packed element sequence
+  * `abstractParse_readElems` / `toList_pushElems`: the packed element sequence
     agrees with `decodeElems`/`encodeElems` whenever the element codec
     agrees.
   * `instPackedCodecCountedList`: the packed counted-list codec agrees with
@@ -61,20 +61,20 @@ def readElems {α : Type} [Codec α] [PackedCodec α] :
     return (x :: xs, s2)
 
 /-- The packed element read, through the abstraction, is the spec's. -/
-theorem mapToList_readElems {α : Type} [Codec α] [PackedCodec α] :
+theorem abstractParse_readElems {α : Type} [Codec α] [PackedCodec α] :
     ∀ (n : Nat) (s : ByteSlice),
-      mapToList (readElems (α := α) n s) = decodeElems (α := α) n s.toList := by
+      abstractParse (readElems (α := α) n s) = decodeElems (α := α) n s.toList := by
   intro n
   induction n with
   | zero => intro s; rfl
   | succ n ih =>
     intro s
     simp only [readElems, decodeElems]
-    rw [← PackedCodec.mapToList_decodeSlice (α := α) s]
-    refine mapToList_bind _ fun x s1 => ?_
+    rw [← PackedCodec.abstractParse_decodeSlice (α := α) s]
+    refine abstractParse_bind _ fun x s1 => ?_
     dsimp only
     rw [← ih s1]
-    exact mapToList_bind _ fun xs s2 => rfl
+    exact abstractParse_bind _ fun xs s2 => rfl
 
 /-- Append a counted list: the packed CompactSize count of its length, then
 its elements — the packed mirror of `encodeCountedList`. -/
@@ -102,16 +102,16 @@ instance instPackedCodecCountedList {α : Type} [Codec α] [PackedCodec α] :
     change (pushCountedList cl acc).toList = acc.toList ++ encodeCountedList cl
     rw [pushCountedList, encodeCountedList, toList_pushElems, toList_pushCompactSize,
       List.append_assoc]
-  mapToList_decodeSlice s := by
+  abstractParse_decodeSlice s := by
     change _ = decodeCountedList s.toList
     unfold readCountedList decodeCountedList
-    rw [← mapToList_readCompactSize s]
-    refine mapToList_bind _ fun count s1 => ?_
+    rw [← abstractParse_readCompactSize s]
+    refine abstractParse_bind _ fun count s1 => ?_
     dsimp only
-    rw [← mapToList_readElems (α := α) count.toNat s1]
-    refine mapToList_bind _ fun xs s2 => ?_
+    rw [← abstractParse_readElems (α := α) count.toNat s1]
+    refine abstractParse_bind _ fun xs s2 => ?_
     dsimp only
-    exact mapToList_bindValue _ fun cl => rfl
+    exact abstractParse_bindValue _ fun cl => rfl
 
 /-! ## The byte-content fast path -/
 
@@ -156,13 +156,13 @@ def readByteList (n : Nat) (s : ByteSlice) : Option (List UInt8 × ByteSlice) :=
 
 /-- The bulk byte read, through the abstraction, is the spec's byte-element
 sequence. -/
-theorem mapToList_readByteList (n : Nat) (s : ByteSlice) :
-    mapToList (readByteList n s) = decodeElems (α := UInt8) n s.toList := by
+theorem abstractParse_readByteList (n : Nat) (s : ByteSlice) :
+    abstractParse (readByteList n s) = decodeElems (α := UInt8) n s.toList := by
   rw [readByteList, decodeElems_uint8]
   by_cases h : n ≤ s.size
-  · rw [if_pos h, if_pos (by simpa using h), mapToList_some]
+  · rw [if_pos h, if_pos (by simpa using h), abstractParse_some]
     simp
-  · rw [if_neg h, if_neg (by simpa using h), mapToList_none]
+  · rw [if_neg h, if_neg (by simpa using h), abstractParse_none]
 
 /-- The packed codec for byte contents: a `CountedList UInt8` moves as one
 region — count, then a bulk read or append — instead of a codec dispatch
@@ -181,15 +181,15 @@ instance (priority := high) instPackedCodecCountedListBytes :
     change _ = acc.toList ++ encodeCountedList cl
     rw [encodeCountedList, toList_pushBytes, toList_pushCompactSize,
       encodeElems_uint8, List.append_assoc]
-  mapToList_decodeSlice s := by
+  abstractParse_decodeSlice s := by
     change _ = decodeCountedList s.toList
     unfold decodeCountedList
-    rw [← mapToList_readCompactSize s]
-    refine mapToList_bind _ fun count s1 => ?_
+    rw [← abstractParse_readCompactSize s]
+    refine abstractParse_bind _ fun count s1 => ?_
     dsimp only
-    rw [← mapToList_readByteList count.toNat s1]
-    refine mapToList_bind _ fun bytes s2 => ?_
+    rw [← abstractParse_readByteList count.toNat s1]
+    refine abstractParse_bind _ fun bytes s2 => ?_
     dsimp only
-    exact mapToList_bindValue _ fun cl => rfl
+    exact abstractParse_bindValue _ fun cl => rfl
 
 end BtcVerified.Impl.Packed

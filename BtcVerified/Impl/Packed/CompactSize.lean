@@ -12,9 +12,9 @@ import BtcVerified.Impl.Packed.Codec
 
   Checked claims:
 
-  * `mapToList_readFixedWidth` / `toList_pushFixedWidth`: the packed
+  * `abstractParse_readFixedWidth` / `toList_pushFixedWidth`: the packed
     marker-payload forms agree with `decodeFixedWidth`/`encodeFixedWidth`.
-  * `mapToList_readCompactSize` / `toList_pushCompactSize`: the packed
+  * `abstractParse_readCompactSize` / `toList_pushCompactSize`: the packed
     dispatch agrees with `CompactSize.decode`/`CompactSize.encode`.
 -/
 
@@ -42,14 +42,14 @@ def readFixedWidth (byteWidth minValue : Nat) (s : ByteSlice) :
   return (⟨w.setWidth 64⟩, rest)
 
 /-- The packed payload read, through the abstraction, is the spec's. -/
-theorem mapToList_readFixedWidth (byteWidth minValue : Nat) (s : ByteSlice) :
-    mapToList (readFixedWidth byteWidth minValue s)
+theorem abstractParse_readFixedWidth (byteWidth minValue : Nat) (s : ByteSlice) :
+    abstractParse (readFixedWidth byteWidth minValue s)
       = decodeFixedWidth byteWidth minValue s.toList := by
   unfold readFixedWidth decodeFixedWidth
-  rw [← mapToList_readBitVecLE byteWidth s]
-  refine mapToList_bind _ fun w rest => ?_
+  rw [← abstractParse_readBitVecLE byteWidth s]
+  refine abstractParse_bind _ fun w rest => ?_
   dsimp only
-  exact mapToList_bindValue _ fun _ => rfl
+  exact abstractParse_bindValue _ fun _ => rfl
 
 /-- Append a canonical CompactSize encoding: the packed mirror of
 `CompactSize.encode`, choosing the same shortest form. -/
@@ -88,12 +88,12 @@ private theorem decode_eq_decodeByte_bind (bs : List UInt8) :
   cases bs <;> rfl
 
 /-- The packed CompactSize read, through the abstraction, is the spec's. -/
-theorem mapToList_readCompactSize (s : ByteSlice) :
-    mapToList (readCompactSize s) = CompactSize.decode s.toList := by
+theorem abstractParse_readCompactSize (s : ByteSlice) :
+    abstractParse (readCompactSize s) = CompactSize.decode s.toList := by
   unfold readCompactSize
-  rw [decode_eq_decodeByte_bind, ← mapToList_uncons s]
-  refine mapToList_bind _ fun b t => ?_
+  rw [decode_eq_decodeByte_bind, ← abstractParse_uncons s]
+  refine abstractParse_bind _ fun b t => ?_
   dsimp only
-  split_ifs <;> first | rfl | apply mapToList_readFixedWidth
+  split_ifs <;> first | rfl | apply abstractParse_readFixedWidth
 
 end BtcVerified.Impl.Packed

@@ -14,9 +14,9 @@ import BtcVerified.Impl.Packed.TxBody
 
   Checked claims:
 
-  * `mapToList_readSegwit` / `mapToList_readLegacy` / `mapToList_readEmpty`:
+  * `abstractParse_readSegwit` / `abstractParse_readLegacy` / `abstractParse_readEmpty`:
     each branch decoder agrees with its spec branch.
-  * `mapToList_readTx` / `toList_pushTx`: the packed transaction codec
+  * `abstractParse_readTx` / `toList_pushTx`: the packed transaction codec
     agrees with `decodeTx`/`encodeTx`, packaged as `instPackedCodecTx`.
 -/
 
@@ -129,44 +129,44 @@ def readTx (s : ByteSlice) : Option (Tx × ByteSlice) := do
 /-! ## Agreement -/
 
 /-- The packed SegWit-body read, through the abstraction, is the spec's. -/
-theorem mapToList_readSegwit (version : UInt32) (s : ByteSlice) :
-    mapToList (readSegwit version s) = decodeSegwit version s.toList := by
+theorem abstractParse_readSegwit (version : UInt32) (s : ByteSlice) :
+    abstractParse (readSegwit version s) = decodeSegwit version s.toList := by
   unfold readSegwit decodeSegwit
-  rw [← PackedCodec.mapToList_decodeSlice (α := CountedList TxIn) s]
-  refine mapToList_bind _ fun txins s1 => ?_
+  rw [← PackedCodec.abstractParse_decodeSlice (α := CountedList TxIn) s]
+  refine abstractParse_bind _ fun txins s1 => ?_
   dsimp only
-  rw [← PackedCodec.mapToList_decodeSlice (α := CountedList TxOut) s1]
-  refine mapToList_bind _ fun outs s2 => ?_
+  rw [← PackedCodec.abstractParse_decodeSlice (α := CountedList TxOut) s1]
+  refine abstractParse_bind _ fun outs s2 => ?_
   dsimp only
-  rw [← mapToList_readElems (α := WitnessStack) txins.val.length s2]
-  refine mapToList_bind _ fun wits s3 => ?_
+  rw [← abstractParse_readElems (α := WitnessStack) txins.val.length s2]
+  refine abstractParse_bind _ fun wits s3 => ?_
   dsimp only
-  rw [← PackedCodec.mapToList_decodeSlice (α := UInt32) s3]
-  refine mapToList_bind _ fun lockTime s4 => ?_
+  rw [← PackedCodec.abstractParse_decodeSlice (α := UInt32) s3]
+  refine abstractParse_bind _ fun lockTime s4 => ?_
   dsimp only
   split <;> rfl
 
 /-- The packed legacy read, through the abstraction, is the spec's. -/
-theorem mapToList_readLegacy (version : UInt32) (s : ByteSlice) :
-    mapToList (readLegacy version s) = decodeLegacy version s.toList := by
+theorem abstractParse_readLegacy (version : UInt32) (s : ByteSlice) :
+    abstractParse (readLegacy version s) = decodeLegacy version s.toList := by
   unfold readLegacy decodeLegacy
-  rw [← PackedCodec.mapToList_decodeSlice (α := CountedList TxIn) s]
-  refine mapToList_bind _ fun inputs s1 => ?_
+  rw [← PackedCodec.abstractParse_decodeSlice (α := CountedList TxIn) s]
+  refine abstractParse_bind _ fun inputs s1 => ?_
   dsimp only
-  rw [← PackedCodec.mapToList_decodeSlice (α := CountedList TxOut) s1]
-  refine mapToList_bind _ fun outputs s2 => ?_
+  rw [← PackedCodec.abstractParse_decodeSlice (α := CountedList TxOut) s1]
+  refine abstractParse_bind _ fun outputs s2 => ?_
   dsimp only
-  rw [← PackedCodec.mapToList_decodeSlice (α := UInt32) s2]
-  refine mapToList_bind _ fun lockTime s3 => ?_
+  rw [← PackedCodec.abstractParse_decodeSlice (α := UInt32) s2]
+  refine abstractParse_bind _ fun lockTime s3 => ?_
   dsimp only
-  exact mapToList_bindValue _ fun tx => rfl
+  exact abstractParse_bindValue _ fun tx => rfl
 
 /-- The packed empty-path read, through the abstraction, is the spec's. -/
-theorem mapToList_readEmpty (version : UInt32) (s : ByteSlice) :
-    mapToList (readEmpty version s) = decodeEmpty version s.toList := by
+theorem abstractParse_readEmpty (version : UInt32) (s : ByteSlice) :
+    abstractParse (readEmpty version s) = decodeEmpty version s.toList := by
   unfold readEmpty decodeEmpty
-  rw [← PackedCodec.mapToList_decodeSlice (α := UInt32) s]
-  exact mapToList_bind _ fun lockTime rest => rfl
+  rw [← PackedCodec.abstractParse_decodeSlice (α := UInt32) s]
+  exact abstractParse_bind _ fun lockTime rest => rfl
 
 /-- The spec transaction dispatch restated as nested conditionals over the
 head bytes, so it can be compared with the packed dispatch branch for
@@ -213,16 +213,16 @@ private theorem decodeTx_eq_specDispatch (bs : List UInt8) :
 /-- The packed transaction read, through the abstraction, is the spec's:
 the marker/flag dispatch on slice bytes takes exactly the branch the spec's
 dispatch on list bytes takes. -/
-theorem mapToList_readTx (s : ByteSlice) :
-    mapToList (readTx s) = decodeTx s.toList := by
-  rw [decodeTx_eq_specDispatch, ← PackedCodec.mapToList_decodeSlice (α := UInt32) s]
+theorem abstractParse_readTx (s : ByteSlice) :
+    abstractParse (readTx s) = decodeTx s.toList := by
+  rw [decodeTx_eq_specDispatch, ← PackedCodec.abstractParse_decodeSlice (α := UInt32) s]
   unfold readTx
-  refine mapToList_bind _ fun version s1 => ?_
+  refine abstractParse_bind _ fun version s1 => ?_
   dsimp only
   cases hu1 : s1.uncons with
   | none =>
     have hs1 := ByteSlice.toList_of_uncons_none hu1
-    simp [specDispatch, mapToList_readLegacy, hs1]
+    simp [specDispatch, abstractParse_readLegacy, hs1]
   | some p1 =>
     obtain ⟨b1, s2⟩ := p1
     have hs1 := ByteSlice.toList_of_uncons_some hu1
@@ -237,12 +237,12 @@ theorem mapToList_readTx (s : ByteSlice) :
         have hs2 := ByteSlice.toList_of_uncons_some hu2
         by_cases hb2 : b2 = 0x01
         · subst hb2
-          simp [specDispatch, hu2, hs1, hs2, mapToList_readSegwit]
+          simp [specDispatch, hu2, hs1, hs2, abstractParse_readSegwit]
         · by_cases hb2' : b2 = 0x00
           · subst hb2'
-            simp [specDispatch, hu2, hs1, hs2, hb2, mapToList_readEmpty]
+            simp [specDispatch, hu2, hs1, hs2, hb2, abstractParse_readEmpty]
           · simp [specDispatch, hu2, hs1, hs2, hb2, hb2']
-    · simp [specDispatch, hb1, hs1, mapToList_readLegacy]
+    · simp [specDispatch, hb1, hs1, abstractParse_readLegacy]
 
 /-- The packed transaction codec: the same three serialization forms,
 dispatched the same way, agreeing with `instCodecTx`. -/
@@ -250,6 +250,6 @@ instance instPackedCodecTx : PackedCodec Tx where
   encodeInto := pushTx
   decodeSlice := readTx
   toList_encodeInto := toList_pushTx
-  mapToList_decodeSlice := mapToList_readTx
+  abstractParse_decodeSlice := abstractParse_readTx
 
 end BtcVerified.Impl.Packed

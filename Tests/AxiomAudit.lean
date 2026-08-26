@@ -210,7 +210,7 @@ elab "#assert_axioms " id:ident : command => do
 
 #assert_axioms ByteSlice.toList_eq
 #assert_axioms BtcVerified.Impl.Packed.PackedCodec.toList_encode
-#assert_axioms BtcVerified.Impl.Packed.PackedCodec.mapToList_decode_toByteArray
+#assert_axioms BtcVerified.Impl.Packed.PackedCodec.abstractParse_decode_toByteArray
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecProd
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecUInt8
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecUInt16
@@ -218,7 +218,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecUInt64
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecBitVec256
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecBytes
-#assert_axioms BtcVerified.Impl.Packed.mapToList_readCompactSize
+#assert_axioms BtcVerified.Impl.Packed.abstractParse_readCompactSize
 #assert_axioms BtcVerified.Impl.Packed.toList_pushCompactSize
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecCountedList
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecCountedListBytes
@@ -227,12 +227,12 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecTxIn
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecTxOut
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecTxBody
-#assert_axioms BtcVerified.Impl.Packed.mapToList_readTx
+#assert_axioms BtcVerified.Impl.Packed.abstractParse_readTx
 #assert_axioms BtcVerified.Impl.Packed.toList_pushTx
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecTx
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecBlockHeader
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecBlock
-#assert_axioms BtcVerified.Impl.Packed.mapToList_decodeBlock
+#assert_axioms BtcVerified.Impl.Packed.abstractParse_decodeBlock
 #assert_axioms BtcVerified.Impl.Packed.toList_encodeBlock
 
 /-! ## BitVM -/

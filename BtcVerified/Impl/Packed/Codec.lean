@@ -28,10 +28,10 @@ import BtcVerified.Ext.ByteSlice
     component codecs agree.
   * `PackedCodec.ofEquiv`: transport along a bijection preserves agreement,
     in step with `Codec.ofEquiv`.
-  * `mapToList_readBitVecLE` / `toList_pushBitVecLE`: the packed
+  * `abstractParse_readBitVecLE` / `toList_pushBitVecLE`: the packed
     little-endian fixed-width forms agree with the spec construction, giving
     the fixed-width integers' packed codecs by transport.
-  * `PackedCodec.toList_encode` / `PackedCodec.mapToList_decode`: over whole
+  * `PackedCodec.toList_encode` / `PackedCodec.abstractParse_decode`: over whole
     byte arrays, a packed codec produces, accepts, and leaves exactly what
     the spec codec does.
 -/
@@ -40,54 +40,58 @@ namespace BtcVerified.Impl.Packed
 
 open BtcVerified.Serialize
 
-/-- The spec-level reading of a packed parse result: keep the value, abstract
-the remainder slice to its bytes. The agreement laws state that this reading
-of a packed decoder's output is exactly the spec decoder's output. -/
-def mapToList {α : Type} (parse : Option (α × ByteSlice)) : Option (α × List UInt8) :=
-  parse.map fun p => (p.1, p.2.toList)
+/-- The refinement morphism from packed parse results to spec parse
+results: keep the value, abstract the remainder slice to its bytes. It is
+nothing but the functor stack — `Option.map` of `Prod.map` of the slice
+abstraction — and its lemmas below are instances of the standard
+`Option.map`/`bind` laws; the name exists because every agreement law in
+the packed layer is stated through it. -/
+def abstractParse {α : Type} : Option (α × ByteSlice) → Option (α × List UInt8) :=
+  Option.map (Prod.map id ByteSlice.toList)
 
 /-- A failed packed parse reads as a failed spec parse. -/
-@[simp] theorem mapToList_none {α : Type} : mapToList (α := α) none = none := rfl
+@[simp] theorem abstractParse_none {α : Type} : abstractParse (α := α) none = none := rfl
 
 /-- A successful packed parse reads as its value with the abstracted tail. -/
-@[simp] theorem mapToList_some {α : Type} (a : α) (s : ByteSlice) :
-    mapToList (some (a, s)) = some (a, s.toList) := rfl
+@[simp] theorem abstractParse_some {α : Type} (a : α) (s : ByteSlice) :
+    abstractParse (some (a, s)) = some (a, s.toList) := rfl
 
 /-- Threading one parse step through the abstraction: whenever the packed
 continuation agrees with the spec continuation on the abstracted state, the
-whole bind agrees. Composite decoder agreement proofs are chains of this
-lemma, one link per parsed field. -/
-theorem mapToList_bind {α β : Type} (p : Option (α × ByteSlice))
+whole bind agrees. This is `Option.map_bind` and `Option.bind_map` applied
+to the refinement morphism; composite decoder agreement proofs are chains
+of it, one link per parsed field. -/
+theorem abstractParse_bind {α β : Type} (p : Option (α × ByteSlice))
     {f : α × ByteSlice → Option (β × ByteSlice)}
     {g : α × List UInt8 → Option (β × List UInt8)}
-    (h : ∀ a s, mapToList (f (a, s)) = g (a, s.toList)) :
-    mapToList (p.bind f) = (mapToList p).bind g := by
-  cases p with
-  | none => rfl
-  | some q => exact h q.1 q.2
+    (h : ∀ a s, abstractParse (f (a, s)) = g (a, s.toList)) :
+    abstractParse (p.bind f) = (abstractParse p).bind g := by
+  unfold abstractParse
+  rw [Option.map_bind, Option.bind_map]
+  exact congrArg _ (funext fun q => h q.1 q.2)
 
 /-- Threading a value-level step — a smart constructor, a guard — through
 the abstraction: no bytes move, so the bind agrees whenever the
-continuations agree pointwise. -/
-theorem mapToList_bindValue {α β : Type} (p : Option α)
+continuations agree pointwise. An instance of `Option.map_bind`. -/
+theorem abstractParse_bindValue {α β : Type} (p : Option α)
     {f : α → Option (β × ByteSlice)} {g : α → Option (β × List UInt8)}
-    (h : ∀ a, mapToList (f a) = g a) :
-    mapToList (p.bind f) = p.bind g := by
-  cases p with
-  | none => rfl
-  | some a => exact h a
+    (h : ∀ a, abstractParse (f a) = g a) :
+    abstractParse (p.bind f) = p.bind g := by
+  unfold abstractParse
+  rw [Option.map_bind]
+  exact congrArg _ (funext h)
 
 /-- Reading one byte through the abstraction is the spec's single-byte
 decoder — the primitive link every fixed-width chain starts from. -/
-theorem mapToList_uncons (s : ByteSlice) :
-    mapToList s.uncons = decodeByte s.toList := by
+theorem abstractParse_uncons (s : ByteSlice) :
+    abstractParse s.uncons = decodeByte s.toList := by
   cases hu : s.uncons with
   | none =>
-    rw [mapToList_none, ByteSlice.toList_of_uncons_none hu]
+    rw [abstractParse_none, ByteSlice.toList_of_uncons_none hu]
     rfl
   | some p =>
     obtain ⟨b, t⟩ := p
-    rw [mapToList_some, ByteSlice.toList_of_uncons_some hu]
+    rw [abstractParse_some, ByteSlice.toList_of_uncons_some hu]
     rfl
 
 /-- The executable counterpart of a `Codec`: an encoder appending into a
@@ -104,8 +108,8 @@ class PackedCodec (α : Type) [Codec α] where
   toList_encodeInto : ∀ (a : α) (acc : ByteArray),
     (encodeInto a acc).toList = acc.toList ++ Codec.encode a
   /-- The packed parse, read through the abstraction, is the spec parse. -/
-  mapToList_decodeSlice : ∀ s : ByteSlice,
-    mapToList (decodeSlice s) = Codec.decode (α := α) s.toList
+  abstractParse_decodeSlice : ∀ s : ByteSlice,
+    abstractParse (decodeSlice s) = Codec.decode (α := α) s.toList
 
 namespace PackedCodec
 
@@ -126,16 +130,16 @@ theorem toList_encode {α : Type} [Codec α] [PackedCodec α] (a : α) :
 
 /-- Parsing a byte array with the packed decoder, read through the
 abstraction, is the spec parse of the array's bytes. -/
-theorem mapToList_decode {α : Type} [Codec α] [PackedCodec α] (bytes : ByteArray) :
-    mapToList (decode (α := α) bytes) = Codec.decode (α := α) bytes.toList := by
-  rw [decode, mapToList_decodeSlice, ByteSlice.toList_ofByteArray]
+theorem abstractParse_decode {α : Type} [Codec α] [PackedCodec α] (bytes : ByteArray) :
+    abstractParse (decode (α := α) bytes) = Codec.decode (α := α) bytes.toList := by
+  rw [decode, abstractParse_decodeSlice, ByteSlice.toList_ofByteArray]
 
 /-- Agreement on every spec input: packing any byte list into an array and
 parsing it packed is the spec parse of the list. -/
-theorem mapToList_decode_toByteArray {α : Type} [Codec α] [PackedCodec α]
+theorem abstractParse_decode_toByteArray {α : Type} [Codec α] [PackedCodec α]
     (bs : List UInt8) :
-    mapToList (decode (α := α) bs.toByteArray) = Codec.decode (α := α) bs := by
-  rw [mapToList_decode, List.toList_toByteArray]
+    abstractParse (decode (α := α) bs.toByteArray) = Codec.decode (α := α) bs := by
+  rw [abstractParse_decode, List.toList_toByteArray]
 
 end PackedCodec
 
@@ -155,14 +159,14 @@ instance instPackedCodecProd {α β : Type} [Codec α] [Codec β]
     rw [PackedCodec.toList_encodeInto, PackedCodec.toList_encodeInto]
     change _ = acc.toList ++ (Codec.encode p.1 ++ Codec.encode p.2)
     rw [List.append_assoc]
-  mapToList_decodeSlice s := by
+  abstractParse_decodeSlice s := by
     change _ = decodeProd s.toList
     unfold decodeProd
-    rw [← PackedCodec.mapToList_decodeSlice (α := α) s]
-    refine mapToList_bind _ fun a s1 => ?_
+    rw [← PackedCodec.abstractParse_decodeSlice (α := α) s]
+    refine abstractParse_bind _ fun a s1 => ?_
     dsimp only
-    rw [← PackedCodec.mapToList_decodeSlice (α := β) s1]
-    exact mapToList_bind _ fun b s2 => rfl
+    rw [← PackedCodec.abstractParse_decodeSlice (α := β) s1]
+    exact abstractParse_bind _ fun b s2 => rfl
 
 /-! ## Transport along a bijection -/
 
@@ -177,11 +181,11 @@ agreement with `Codec.ofEquiv e cb` is inherited from the `β` agreement. -/
   { encodeInto := fun a acc => PackedCodec.encodeInto (e a) acc
     decodeSlice := fun s => (PackedCodec.decodeSlice s).map fun p => (e.symm p.1, p.2)
     toList_encodeInto := fun a acc => PackedCodec.toList_encodeInto (e a) acc
-    mapToList_decodeSlice := fun s => by
-      change mapToList ((PackedCodec.decodeSlice (α := β) s).map fun p => (e.symm p.1, p.2))
+    abstractParse_decodeSlice := fun s => by
+      change abstractParse ((PackedCodec.decodeSlice (α := β) s).map fun p => (e.symm p.1, p.2))
         = (cb.decode s.toList).map fun p => (e.symm p.1, p.2)
       rw [show cb.decode s.toList = Codec.decode (α := β) s.toList from rfl,
-        ← PackedCodec.mapToList_decodeSlice (α := β) s]
+        ← PackedCodec.abstractParse_decodeSlice (α := β) s]
       cases PackedCodec.decodeSlice (α := β) s with
       | none => rfl
       | some p => rfl }
@@ -206,20 +210,20 @@ def pushBitVecLE : (n : Nat) → BitVec (8 * n) → ByteArray → ByteArray
 
 /-- The packed little-endian read, through the abstraction, is the spec's
 little-endian decode. -/
-theorem mapToList_readBitVecLE :
+theorem abstractParse_readBitVecLE :
     ∀ (n : Nat) (s : ByteSlice),
-      mapToList (readBitVecLE n s) = decodeBitVecLE n s.toList := by
+      abstractParse (readBitVecLE n s) = decodeBitVecLE n s.toList := by
   intro n
   induction n with
   | zero => intro s; rfl
   | succ n ih =>
     intro s
     simp only [readBitVecLE, decodeBitVecLE]
-    rw [← mapToList_uncons s]
-    refine mapToList_bind _ fun b s1 => ?_
+    rw [← abstractParse_uncons s]
+    refine abstractParse_bind _ fun b s1 => ?_
     dsimp only
     rw [← ih s1]
-    exact mapToList_bind _ fun hi rest => rfl
+    exact abstractParse_bind _ fun hi rest => rfl
 
 /-- The packed little-endian append appends exactly the spec's little-endian
 encoding. -/
@@ -242,7 +246,7 @@ from. -/
   { encodeInto := pushBitVecLE n
     decodeSlice := readBitVecLE n
     toList_encodeInto := toList_pushBitVecLE n
-    mapToList_decodeSlice := mapToList_readBitVecLE n }
+    abstractParse_decodeSlice := abstractParse_readBitVecLE n }
 
 /-- The packed codecs of the fixed-width integer fields: the packed
 little-endian primitive transported along the same bijections as the spec

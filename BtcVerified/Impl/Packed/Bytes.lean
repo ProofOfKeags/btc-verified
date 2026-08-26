@@ -12,7 +12,7 @@ import BtcVerified.Impl.Packed.Codec
 
   Checked claims:
 
-  * `mapToList_readBytes` / `toList_pushBytes`: the packed forms agree with
+  * `abstractParse_readBytes` / `toList_pushBytes`: the packed forms agree with
     `decodeBytes` and the identity encoder, packaged as
     `instPackedCodecBytes` — which, at width 32, is the packed `Hash256`
     codec.
@@ -47,13 +47,13 @@ def readBytes (n : Nat) (s : ByteSlice) : Option (Bytes n × ByteSlice) :=
   else none
 
 /-- The packed width read, through the abstraction, is the spec's. -/
-theorem mapToList_readBytes (n : Nat) (s : ByteSlice) :
-    mapToList (readBytes n s) = decodeBytes n s.toList := by
+theorem abstractParse_readBytes (n : Nat) (s : ByteSlice) :
+    abstractParse (readBytes n s) = decodeBytes n s.toList := by
   rw [readBytes, decodeBytes]
   by_cases h : n ≤ s.size
-  · rw [dif_pos h, dif_pos (by rw [ByteSlice.length_toList]; exact h), mapToList_some]
+  · rw [dif_pos h, dif_pos (by rw [ByteSlice.length_toList]; exact h), abstractParse_some]
     simp [ByteSlice.toList_take, ByteSlice.toList_drop]
-  · rw [dif_neg h, dif_neg (by rw [ByteSlice.length_toList]; exact h), mapToList_none]
+  · rw [dif_neg h, dif_neg (by rw [ByteSlice.length_toList]; exact h), abstractParse_none]
 
 /-- The packed codec for width-indexed bytes, agreeing with
 `instCodecBytes n`. At width 32 this is the packed `Hash256` codec. -/
@@ -61,6 +61,6 @@ instance instPackedCodecBytes (n : Nat) : PackedCodec (Bytes n) where
   encodeInto bs acc := pushBytes bs.1 acc
   decodeSlice := readBytes n
   toList_encodeInto bs acc := toList_pushBytes bs.1 acc
-  mapToList_decodeSlice := mapToList_readBytes n
+  abstractParse_decodeSlice := abstractParse_readBytes n
 
 end BtcVerified.Impl.Packed
