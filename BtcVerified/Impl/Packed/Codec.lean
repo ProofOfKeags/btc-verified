@@ -53,6 +53,43 @@ def mapToList {α : Type} (parse : Option (α × ByteSlice)) : Option (α × Lis
 @[simp] theorem mapToList_some {α : Type} (a : α) (s : ByteSlice) :
     mapToList (some (a, s)) = some (a, s.toList) := rfl
 
+/-- Threading one parse step through the abstraction: whenever the packed
+continuation agrees with the spec continuation on the abstracted state, the
+whole bind agrees. Composite decoder agreement proofs are chains of this
+lemma, one link per parsed field. -/
+theorem mapToList_bind {α β : Type} (p : Option (α × ByteSlice))
+    {f : α × ByteSlice → Option (β × ByteSlice)}
+    {g : α × List UInt8 → Option (β × List UInt8)}
+    (h : ∀ a s, mapToList (f (a, s)) = g (a, s.toList)) :
+    mapToList (p.bind f) = (mapToList p).bind g := by
+  cases p with
+  | none => rfl
+  | some q => exact h q.1 q.2
+
+/-- Threading a value-level step — a smart constructor, a guard — through
+the abstraction: no bytes move, so the bind agrees whenever the
+continuations agree pointwise. -/
+theorem mapToList_bindValue {α β : Type} (p : Option α)
+    {f : α → Option (β × ByteSlice)} {g : α → Option (β × List UInt8)}
+    (h : ∀ a, mapToList (f a) = g a) :
+    mapToList (p.bind f) = p.bind g := by
+  cases p with
+  | none => rfl
+  | some a => exact h a
+
+/-- Reading one byte through the abstraction is the spec's single-byte
+decoder — the primitive link every fixed-width chain starts from. -/
+theorem mapToList_uncons (s : ByteSlice) :
+    mapToList s.uncons = decodeByte s.toList := by
+  cases hu : s.uncons with
+  | none =>
+    rw [mapToList_none, ByteSlice.toList_of_uncons_none hu]
+    rfl
+  | some p =>
+    obtain ⟨b, t⟩ := p
+    rw [mapToList_some, ByteSlice.toList_of_uncons_some hu]
+    rfl
+
 /-- The executable counterpart of a `Codec`: an encoder appending into a
 `ByteArray` and a decoder consuming a `ByteSlice`, each agreeing with the
 spec codec through the byte abstraction. The agreement laws make every run
@@ -120,25 +157,12 @@ instance instPackedCodecProd {α β : Type} [Codec α] [Codec β]
     rw [List.append_assoc]
   mapToList_decodeSlice s := by
     change _ = decodeProd s.toList
-    cases h1 : PackedCodec.decodeSlice (α := α) s with
-    | none =>
-      have ha := PackedCodec.mapToList_decodeSlice (α := α) s
-      rw [h1, mapToList_none] at ha
-      simp [decodeProd, ← ha]
-    | some p =>
-      obtain ⟨a, s1⟩ := p
-      have ha := PackedCodec.mapToList_decodeSlice (α := α) s
-      rw [h1, mapToList_some] at ha
-      cases h2 : PackedCodec.decodeSlice (α := β) s1 with
-      | none =>
-        have hb := PackedCodec.mapToList_decodeSlice (α := β) s1
-        rw [h2, mapToList_none] at hb
-        simp [decodeProd, ← ha, ← hb, h2]
-      | some q =>
-        obtain ⟨b, s2⟩ := q
-        have hb := PackedCodec.mapToList_decodeSlice (α := β) s1
-        rw [h2, mapToList_some] at hb
-        simp [decodeProd, ← ha, ← hb, h2]
+    unfold decodeProd
+    rw [← PackedCodec.mapToList_decodeSlice (α := α) s]
+    refine mapToList_bind _ fun a s1 => ?_
+    dsimp only
+    rw [← PackedCodec.mapToList_decodeSlice (α := β) s1]
+    exact mapToList_bind _ fun b s2 => rfl
 
 /-! ## Transport along a bijection -/
 
@@ -190,23 +214,12 @@ theorem mapToList_readBitVecLE :
   | zero => intro s; rfl
   | succ n ih =>
     intro s
-    cases hu : s.uncons with
-    | none =>
-      rw [ByteSlice.toList_of_uncons_none hu]
-      simp [readBitVecLE, decodeBitVecLE, decodeByte, hu]
-    | some p =>
-      obtain ⟨b, t⟩ := p
-      rw [ByteSlice.toList_of_uncons_some hu]
-      cases hr : readBitVecLE n t with
-      | none =>
-        have ht := ih t
-        rw [hr, mapToList_none] at ht
-        simp [readBitVecLE, decodeBitVecLE, decodeByte, hu, hr, ← ht]
-      | some q =>
-        obtain ⟨hi, rest⟩ := q
-        have ht := ih t
-        rw [hr, mapToList_some] at ht
-        simp [readBitVecLE, decodeBitVecLE, decodeByte, hu, hr, ← ht]
+    simp only [readBitVecLE, decodeBitVecLE]
+    rw [← mapToList_uncons s]
+    refine mapToList_bind _ fun b s1 => ?_
+    dsimp only
+    rw [← ih s1]
+    exact mapToList_bind _ fun hi rest => rfl
 
 /-- The packed little-endian append appends exactly the spec's little-endian
 encoding. -/

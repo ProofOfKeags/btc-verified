@@ -45,18 +45,11 @@ def readFixedWidth (byteWidth minValue : Nat) (s : ByteSlice) :
 theorem mapToList_readFixedWidth (byteWidth minValue : Nat) (s : ByteSlice) :
     mapToList (readFixedWidth byteWidth minValue s)
       = decodeFixedWidth byteWidth minValue s.toList := by
-  cases hr : readBitVecLE byteWidth s with
-  | none =>
-    have ht := mapToList_readBitVecLE byteWidth s
-    rw [hr, mapToList_none] at ht
-    simp [readFixedWidth, decodeFixedWidth, hr, ← ht]
-  | some p =>
-    obtain ⟨w, rest⟩ := p
-    have ht := mapToList_readBitVecLE byteWidth s
-    rw [hr, mapToList_some] at ht
-    by_cases hg : minValue ≤ w.toNat
-    · simp [readFixedWidth, decodeFixedWidth, hr, ← ht, hg, guard]
-    · simp [readFixedWidth, decodeFixedWidth, hr, ← ht, hg, guard]
+  unfold readFixedWidth decodeFixedWidth
+  rw [← mapToList_readBitVecLE byteWidth s]
+  refine mapToList_bind _ fun w rest => ?_
+  dsimp only
+  exact mapToList_bindValue _ fun _ => rfl
 
 /-- Append a canonical CompactSize encoding: the packed mirror of
 `CompactSize.encode`, choosing the same shortest form. -/
@@ -75,32 +68,32 @@ theorem toList_pushCompactSize (n : UInt64) (acc : ByteArray) :
 
 /-- Read a CompactSize value off the front of a slice: the packed mirror of
 `CompactSize.decode`, dispatching on the marker byte. -/
-def readCompactSize (s : ByteSlice) : Option (UInt64 × ByteSlice) :=
-  match s.uncons with
-  | none => none
-  | some (h, t) =>
-    if h < 0xFD then some (h.toUInt64, t)
-    else if h = 0xFD then readFixedWidth 2 253 t
-    else if h = 0xFE then readFixedWidth 4 (2 ^ 16) t
-    else if h = 0xFF then readFixedWidth 8 (2 ^ 32) t
-    else none
+def readCompactSize (s : ByteSlice) : Option (UInt64 × ByteSlice) := do
+  let (h, t) ← s.uncons
+  if h < 0xFD then some (h.toUInt64, t)
+  else if h = 0xFD then readFixedWidth 2 253 t
+  else if h = 0xFE then readFixedWidth 4 (2 ^ 16) t
+  else if h = 0xFF then readFixedWidth 8 (2 ^ 32) t
+  else none
+
+/-- `CompactSize.decode` restated as a single-byte read followed by the
+marker dispatch, so the agreement proof can chain through `decodeByte`. -/
+private theorem decode_eq_decodeByte_bind (bs : List UInt8) :
+    CompactSize.decode bs = (decodeByte bs).bind fun p =>
+      if p.1 < 0xFD then some (p.1.toUInt64, p.2)
+      else if p.1 = 0xFD then decodeFixedWidth 2 253 p.2
+      else if p.1 = 0xFE then decodeFixedWidth 4 (2 ^ 16) p.2
+      else if p.1 = 0xFF then decodeFixedWidth 8 (2 ^ 32) p.2
+      else none := by
+  cases bs <;> rfl
 
 /-- The packed CompactSize read, through the abstraction, is the spec's. -/
 theorem mapToList_readCompactSize (s : ByteSlice) :
     mapToList (readCompactSize s) = CompactSize.decode s.toList := by
-  cases hu : s.uncons with
-  | none =>
-    rw [ByteSlice.toList_of_uncons_none hu]
-    simp [readCompactSize, CompactSize.decode, hu]
-  | some p =>
-    obtain ⟨b, t⟩ := p
-    rw [ByteSlice.toList_of_uncons_some hu, readCompactSize, hu]
-    simp only [CompactSize.decode]
-    split_ifs with h1 h2 h3 h4
-    · simp
-    · exact mapToList_readFixedWidth 2 253 t
-    · exact mapToList_readFixedWidth 4 (2 ^ 16) t
-    · exact mapToList_readFixedWidth 8 (2 ^ 32) t
-    · simp
+  unfold readCompactSize
+  rw [decode_eq_decodeByte_bind, ← mapToList_uncons s]
+  refine mapToList_bind _ fun b t => ?_
+  dsimp only
+  split_ifs <;> first | rfl | apply mapToList_readFixedWidth
 
 end BtcVerified.Impl.Packed

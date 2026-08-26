@@ -14,8 +14,8 @@ structure that gets its spec codec by composition gets its packed codec, and
 its agreement, the same way — and future spec leaves inherit the pattern.
 
 On the block-481824 fixture (989,323 bytes, 1,866 transactions), one
-development machine measured the packed path at 200x the spec decoder
-(3,106 ms → 16 ms) and 4.3x the spec encoder (121 ms → 28 ms); `lake exe
+development machine measured the packed path at 195x the spec decoder
+(3,071 ms → 15.7 ms) and 4.4x the spec encoder (121 ms → 27.7 ms); `lake exe
 bench` reproduces the numbers locally, checking agreement while it times.
 
 ## The slice layer: `Std.Data.ByteSlice` + `BtcVerified.Ext.ByteSlice`
@@ -24,9 +24,10 @@ The zero-copy view of a `ByteArray` region is core's own `Std.Data.ByteSlice`
 — no view type is reimplemented here. What core does not provide is any
 connection to `List UInt8`, so `Ext/ByteSlice.lean` adds the abstraction the
 agreement theorems are stated through — `toList`, the slice's bytes as the
-spec's byte type — plus the reader operations (`uncons`, `take`, `drop`,
-thin wrappers over `ByteSlice.slice`) and the lemmas showing each commutes
-with the abstraction.
+spec's byte type — plus the reader operations — `take` and `drop`,
+thin wrappers over `ByteSlice.slice`, and `uncons`, a bounds-checked head
+read advancing via `drop` — with the lemmas showing each commutes with the
+abstraction.
 
 Checked claims (in `Ext/ByteSlice.lean`):
 
@@ -58,7 +59,8 @@ Checked claims:
   step with `Codec.ofEquiv`.
 - `mapToList_readBitVecLE` / `toList_pushBitVecLE`: the packed little-endian
   forms agree with the spec construction, giving the fixed-width integers'
-  packed codecs (`UInt8`–`UInt64`, `BitVec 256`) by transport.
+  packed codecs — `UInt8`–`UInt64` by transport, `BitVec 256` as the
+  primitive at width 32.
 - `PackedCodec.toList_encode` / `PackedCodec.mapToList_decode_toByteArray`:
   over whole byte arrays, a packed codec produces, accepts, and leaves exactly
   what the spec codec does.
@@ -131,10 +133,13 @@ diverge from the spec; the agreement theorem forecloses exactly that.
 
 ## Transported instances
 
-`Bytes n` (hence `Hash256`), `OutPoint`, `Script`, `TxIn`, `TxOut`, `TxBody`,
-`BlockHeader`, and `Block` each get their packed codec by applying
-`PackedCodec.ofEquiv` to the same bijection their spec codec uses — one
-declaration per structure, no hand-written proofs. The block level restates
+`Bytes n` is the one other hand-written leaf: a bulk `readBytes`/`pushBytes`
+pair with agreement proofs `mapToList_readBytes` / `toList_pushBytes`
+(`Bytes.lean`) — at width 32 this is the packed `Hash256` codec. `OutPoint`,
+`Script`, `TxIn`, `TxOut`, `TxBody`, `BlockHeader`, and `Block` each get
+their packed codec by applying `PackedCodec.ofEquiv` to the same bijection
+their spec codec uses — one declaration per structure, no hand-written
+proofs. The block level restates
 the end-to-end result:
 
 Checked claims:

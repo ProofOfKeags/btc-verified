@@ -221,6 +221,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Impl.Packed.mapToList_readCompactSize
 #assert_axioms BtcVerified.Impl.Packed.toList_pushCompactSize
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecCountedList
+#assert_axioms BtcVerified.Impl.Packed.instPackedCodecCountedListBytes
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecOutPoint
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecScript
 #assert_axioms BtcVerified.Impl.Packed.instPackedCodecTxIn

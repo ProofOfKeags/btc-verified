@@ -6,8 +6,7 @@
   lemma ecosystem. The bridge `toList_eq_data_toList` lets a statement about
   a byte array's bytes be phrased through the readable `toList` and
   discharged through `data`; the corollaries cover the constructors the
-  packed codecs use (`push`, `append`, `List.toByteArray`). Upstreaming
-  candidates.
+  packed codecs use (`push`, `List.toByteArray`). Upstreaming candidates.
 -/
 
 namespace ByteArray
@@ -39,19 +38,9 @@ theorem toList_eq_data_toList (bs : ByteArray) : bs.toList = bs.data.toList := b
     (bs.push b).toList = bs.toList ++ [b] := by
   simp [toList_eq_data_toList, ByteArray.data_push]
 
-/-- Appending byte arrays concatenates their bytes. -/
-@[simp] theorem toList_append (a b : ByteArray) :
-    (a ++ b).toList = a.toList ++ b.toList := by
-  simp [toList_eq_data_toList]
-
 /-- A byte list packed into a `ByteArray` reads back as itself. -/
 @[simp] theorem _root_.List.toList_toByteArray (l : List UInt8) :
     l.toByteArray.toList = l := by
   rw [toList_eq_data_toList, List.data_toByteArray]
-
-/-- A `ByteArray` has as many bytes as its size. -/
-@[simp] theorem length_toList (bs : ByteArray) : bs.toList.length = bs.size := by
-  rw [toList_eq_data_toList]
-  exact Array.length_toList
 
 end ByteArray

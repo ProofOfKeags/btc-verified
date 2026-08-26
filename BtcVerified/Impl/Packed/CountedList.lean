@@ -69,25 +69,12 @@ theorem mapToList_readElems {α : Type} [Codec α] [PackedCodec α] :
   | zero => intro s; rfl
   | succ n ih =>
     intro s
-    cases hx : PackedCodec.decodeSlice (α := α) s with
-    | none =>
-      have hs := PackedCodec.mapToList_decodeSlice (α := α) s
-      rw [hx, mapToList_none] at hs
-      simp [readElems, decodeElems, hx, ← hs]
-    | some p =>
-      obtain ⟨x, s1⟩ := p
-      have hs := PackedCodec.mapToList_decodeSlice (α := α) s
-      rw [hx, mapToList_some] at hs
-      cases hr : readElems (α := α) n s1 with
-      | none =>
-        have ht := ih s1
-        rw [hr, mapToList_none] at ht
-        simp [readElems, decodeElems, hx, hr, ← hs, ← ht]
-      | some q =>
-        obtain ⟨xs, s2⟩ := q
-        have ht := ih s1
-        rw [hr, mapToList_some] at ht
-        simp [readElems, decodeElems, hx, hr, ← hs, ← ht]
+    simp only [readElems, decodeElems]
+    rw [← PackedCodec.mapToList_decodeSlice (α := α) s]
+    refine mapToList_bind _ fun x s1 => ?_
+    dsimp only
+    rw [← ih s1]
+    exact mapToList_bind _ fun xs s2 => rfl
 
 /-- Append a counted list: the packed CompactSize count of its length, then
 its elements — the packed mirror of `encodeCountedList`. -/
@@ -117,29 +104,14 @@ instance instPackedCodecCountedList {α : Type} [Codec α] [PackedCodec α] :
       List.append_assoc]
   mapToList_decodeSlice s := by
     change _ = decodeCountedList s.toList
-    cases hc : readCompactSize s with
-    | none =>
-      have hcs := mapToList_readCompactSize s
-      rw [hc, mapToList_none] at hcs
-      simp [readCountedList, decodeCountedList, hc, ← hcs]
-    | some p =>
-      obtain ⟨count, s1⟩ := p
-      have hcs := mapToList_readCompactSize s
-      rw [hc, mapToList_some] at hcs
-      cases hr : readElems (α := α) count.toNat s1 with
-      | none =>
-        have ht := mapToList_readElems (α := α) count.toNat s1
-        rw [hr, mapToList_none] at ht
-        simp [readCountedList, decodeCountedList, hc, hr, ← hcs, ← ht]
-      | some q =>
-        obtain ⟨xs, s2⟩ := q
-        have ht := mapToList_readElems (α := α) count.toNat s1
-        rw [hr, mapToList_some] at ht
-        cases ho : CountedList.ofList? xs with
-        | none =>
-          simp [readCountedList, decodeCountedList, hc, hr, ho, ← hcs, ← ht]
-        | some cl =>
-          simp [readCountedList, decodeCountedList, hc, hr, ho, ← hcs, ← ht]
+    unfold readCountedList decodeCountedList
+    rw [← mapToList_readCompactSize s]
+    refine mapToList_bind _ fun count s1 => ?_
+    dsimp only
+    rw [← mapToList_readElems (α := α) count.toNat s1]
+    refine mapToList_bind _ fun xs s2 => ?_
+    dsimp only
+    exact mapToList_bindValue _ fun cl => rfl
 
 /-! ## The byte-content fast path -/
 
@@ -211,28 +183,13 @@ instance (priority := high) instPackedCodecCountedListBytes :
       encodeElems_uint8, List.append_assoc]
   mapToList_decodeSlice s := by
     change _ = decodeCountedList s.toList
-    cases hc : readCompactSize s with
-    | none =>
-      have hcs := mapToList_readCompactSize s
-      rw [hc, mapToList_none] at hcs
-      simp [decodeCountedList, ← hcs]
-    | some p =>
-      obtain ⟨count, s1⟩ := p
-      have hcs := mapToList_readCompactSize s
-      rw [hc, mapToList_some] at hcs
-      cases hr : readByteList count.toNat s1 with
-      | none =>
-        have ht := mapToList_readByteList count.toNat s1
-        rw [hr, mapToList_none] at ht
-        simp [decodeCountedList, hr, ← hcs, ← ht]
-      | some q =>
-        obtain ⟨bytes, s2⟩ := q
-        have ht := mapToList_readByteList count.toNat s1
-        rw [hr, mapToList_some] at ht
-        cases ho : CountedList.ofList? bytes with
-        | none =>
-          simp [decodeCountedList, hr, ho, ← hcs, ← ht]
-        | some cl =>
-          simp [decodeCountedList, hr, ho, ← hcs, ← ht]
+    unfold decodeCountedList
+    rw [← mapToList_readCompactSize s]
+    refine mapToList_bind _ fun count s1 => ?_
+    dsimp only
+    rw [← mapToList_readByteList count.toNat s1]
+    refine mapToList_bind _ fun bytes s2 => ?_
+    dsimp only
+    exact mapToList_bindValue _ fun cl => rfl
 
 end BtcVerified.Impl.Packed

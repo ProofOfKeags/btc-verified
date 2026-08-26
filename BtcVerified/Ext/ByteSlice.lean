@@ -1,16 +1,19 @@
 import Std.Data.ByteSlice
+import Batteries.Data.ByteSlice
 import BtcVerified.Ext.ByteArray
 /-!
   # `ByteSlice` extensions: the byte-list abstraction
 
   `Std.Data.ByteSlice` is the zero-copy view of a `ByteArray` region — base
   array, start/stop offsets, and the bounds that make reads total — but it
-  ships with no connection to `List UInt8`. These extensions add the
+  ships with no *proved* connection to `List UInt8`: the composite
+  `toByteArray.toList` is definable, yet core states no lemmas about it, or
+  about `slice`, `get`, or the offsets. These extensions add the proved
   abstraction the packed codecs (issue #52) state agreement through:
   `toList`, the slice's bytes as the specification's byte type, together
-  with the reader operations (`uncons`, `take`, `drop`, all thin wrappers
-  over `ByteSlice.slice`) and the lemmas showing each commutes with the
-  abstraction. Everything rests on a one-time characterization of `slice`'s
+  with the reader operations — `take` and `drop`, thin wrappers over
+  `ByteSlice.slice`, and `uncons`, a bounds-checked head read advancing via
+  `drop` — and the lemmas showing each commutes with the abstraction. Everything rests on a one-time characterization of `slice`'s
   clamping. Upstreaming candidates.
 
   Checked claims:
@@ -22,8 +25,8 @@ import BtcVerified.Ext.ByteArray
     array's bytes — the bridge from slice reads to `List` reasoning.
   * `toList_of_uncons_some` / `toList_of_uncons_none`: reading one byte off
     a slice is exactly uncons on its abstraction.
-  * `toList_take` / `toList_drop`: sub-slicing commutes with the
-    abstraction.
+  * `toList_take` / `toList_drop` (with `size_take` / `size_drop`):
+    sub-slicing commutes with the abstraction.
 -/
 
 namespace ByteSlice
@@ -39,13 +42,12 @@ namespace ByteSlice
   · split <;> rfl
   · rfl
 
-/-- A sub-slice starts at the clamped start bound: relative starts past the
-requested stop, or past the slice, are pulled back. -/
+/-- A sub-slice starts at the requested start, clamped by the requested
+stop and then by the slice's size. -/
 theorem start_slice (s : ByteSlice) (a b : Nat) :
-    (s.slice a b).start = s.start + min (min a s.size) (min b s.size) := by
+    (s.slice a b).start = s.start + min (min a b) s.size := by
   have h1 : s.stop ≤ s.byteArray.size := s.stop_le_size_byteArray
-  have h2 := s.start_le_stop
-  have h3 : s.size = s.stop - s.start := rfl
+  have h2 := s.stop_eq_start_add_size
   unfold ByteSlice.slice
   dsimp only
   split
@@ -62,8 +64,7 @@ theorem start_slice (s : ByteSlice) (a b : Nat) :
 theorem stop_slice (s : ByteSlice) (a b : Nat) :
     (s.slice a b).stop = s.start + min b s.size := by
   have h1 : s.stop ≤ s.byteArray.size := s.stop_le_size_byteArray
-  have h2 := s.start_le_stop
-  have h3 : s.size = s.stop - s.start := rfl
+  have h2 := s.stop_eq_start_add_size
   unfold ByteSlice.slice
   dsimp only
   split
@@ -98,8 +99,7 @@ theorem toList_eq (s : ByteSlice) :
 /-- A slice abstracts to as many bytes as its size. -/
 @[simp] theorem length_toList (s : ByteSlice) : s.toList.length = s.size := by
   have h1 : s.stop ≤ s.byteArray.data.size := s.stop_le_size_byteArray
-  have h2 := s.start_le_stop
-  have h3 : s.size = s.stop - s.start := rfl
+  have h2 := s.stop_eq_start_add_size
   rw [toList_eq]
   simp only [List.length_take, List.length_drop, Array.length_toList]
   omega
@@ -132,19 +132,25 @@ def drop (s : ByteSlice) (n : Nat) : ByteSlice := s.slice n s.size
   simp only [take] at hsz ⊢
   rw [toList_eq, toList_eq, byteArray_slice, hst, hsz, List.take_take]
 
-/-- Dropping bytes off a slice drops them off its abstraction. -/
-@[simp] theorem toList_drop (s : ByteSlice) (n : Nat) :
-    (s.drop n).toList = s.toList.drop n := by
-  have h2 := s.start_le_stop
-  have h3 : s.size = s.stop - s.start := rfl
+/-- Dropping `n` bytes leaves `s.size - n` in view. -/
+@[simp] theorem size_drop (s : ByteSlice) (n : Nat) :
+    (s.drop n).size = s.size - n := by
   have hst : (s.slice n s.size).start = s.start + min n s.size := by
     rw [start_slice]
     omega
-  have hsz : (s.slice n s.size).size = s.size - n := by
-    show (s.slice n s.size).stop - (s.slice n s.size).start = _
-    rw [hst, stop_slice]
+  show (s.slice n s.size).stop - (s.slice n s.size).start = _
+  rw [hst, stop_slice]
+  omega
+
+/-- Dropping bytes off a slice drops them off its abstraction. -/
+@[simp] theorem toList_drop (s : ByteSlice) (n : Nat) :
+    (s.drop n).toList = s.toList.drop n := by
+  have h2 := s.stop_eq_start_add_size
+  have hst : (s.slice n s.size).start = s.start + min n s.size := by
+    rw [start_slice]
     omega
-  simp only [drop]
+  have hsz : (s.slice n s.size).size = s.size - n := size_drop s n
+  simp only [drop] at hsz ⊢
   rw [toList_eq, toList_eq, byteArray_slice, hst, hsz]
   rcases Nat.le_total n s.size with h | h
   · rw [Nat.min_eq_left h, List.drop_take, List.drop_drop]
@@ -184,8 +190,7 @@ theorem toList_of_uncons_some {s : ByteSlice} {b : UInt8} {t : ByteSlice}
     simp only [Option.some.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     have h1 : s.stop ≤ s.byteArray.data.size := s.stop_le_size_byteArray
-    have h2 := s.start_le_stop
-    have h3 : s.size = s.stop - s.start := rfl
+    have h2 := s.stop_eq_start_add_size
     have hidx : s.start < s.byteArray.data.toList.length := by
       simp only [Array.length_toList]
       omega

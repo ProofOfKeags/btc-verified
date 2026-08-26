@@ -131,98 +131,42 @@ def readTx (s : ByteSlice) : Option (Tx × ByteSlice) := do
 /-- The packed SegWit-body read, through the abstraction, is the spec's. -/
 theorem mapToList_readSegwit (version : UInt32) (s : ByteSlice) :
     mapToList (readSegwit version s) = decodeSegwit version s.toList := by
-  cases hi : PackedCodec.decodeSlice (α := CountedList TxIn) s with
-  | none =>
-    have hi' := PackedCodec.mapToList_decodeSlice (α := CountedList TxIn) s
-    rw [hi, mapToList_none] at hi'
-    simp [readSegwit, decodeSegwit, hi, ← hi']
-  | some p =>
-    obtain ⟨txins, s1⟩ := p
-    have hi' := PackedCodec.mapToList_decodeSlice (α := CountedList TxIn) s
-    rw [hi, mapToList_some] at hi'
-    cases ho : PackedCodec.decodeSlice (α := CountedList TxOut) s1 with
-    | none =>
-      have ho' := PackedCodec.mapToList_decodeSlice (α := CountedList TxOut) s1
-      rw [ho, mapToList_none] at ho'
-      simp [readSegwit, decodeSegwit, hi, ho, ← hi', ← ho']
-    | some q =>
-      obtain ⟨outs, s2⟩ := q
-      have ho' := PackedCodec.mapToList_decodeSlice (α := CountedList TxOut) s1
-      rw [ho, mapToList_some] at ho'
-      cases hw : readElems (α := WitnessStack) txins.val.length s2 with
-      | none =>
-        have hw' := mapToList_readElems (α := WitnessStack) txins.val.length s2
-        rw [hw, mapToList_none] at hw'
-        simp [readSegwit, decodeSegwit, hi, ho, hw, ← hi', ← ho', ← hw']
-      | some r =>
-        obtain ⟨wits, s3⟩ := r
-        have hw' := mapToList_readElems (α := WitnessStack) txins.val.length s2
-        rw [hw, mapToList_some] at hw'
-        cases hl : PackedCodec.decodeSlice (α := UInt32) s3 with
-        | none =>
-          have hl' := PackedCodec.mapToList_decodeSlice (α := UInt32) s3
-          rw [hl, mapToList_none] at hl'
-          simp [readSegwit, decodeSegwit, hi, ho, hw, hl, ← hi', ← ho', ← hw', ← hl']
-        | some t =>
-          obtain ⟨lockTime, s4⟩ := t
-          have hl' := PackedCodec.mapToList_decodeSlice (α := UInt32) s3
-          rw [hl, mapToList_some] at hl'
-          by_cases hWitness : ∃ input,
-              input ∈ (zipInputs txins wits).val ∧ input.witness.NonEmpty
-          · simp [readSegwit, decodeSegwit, hi, ho, hw, hl,
-              ← hi', ← ho', ← hw', ← hl', hWitness]
-          · simp [readSegwit, decodeSegwit, hi, ho, hw, hl,
-              ← hi', ← ho', ← hw', ← hl', hWitness]
+  unfold readSegwit decodeSegwit
+  rw [← PackedCodec.mapToList_decodeSlice (α := CountedList TxIn) s]
+  refine mapToList_bind _ fun txins s1 => ?_
+  dsimp only
+  rw [← PackedCodec.mapToList_decodeSlice (α := CountedList TxOut) s1]
+  refine mapToList_bind _ fun outs s2 => ?_
+  dsimp only
+  rw [← mapToList_readElems (α := WitnessStack) txins.val.length s2]
+  refine mapToList_bind _ fun wits s3 => ?_
+  dsimp only
+  rw [← PackedCodec.mapToList_decodeSlice (α := UInt32) s3]
+  refine mapToList_bind _ fun lockTime s4 => ?_
+  dsimp only
+  split <;> rfl
 
 /-- The packed legacy read, through the abstraction, is the spec's. -/
 theorem mapToList_readLegacy (version : UInt32) (s : ByteSlice) :
     mapToList (readLegacy version s) = decodeLegacy version s.toList := by
-  cases hi : PackedCodec.decodeSlice (α := CountedList TxIn) s with
-  | none =>
-    have hi' := PackedCodec.mapToList_decodeSlice (α := CountedList TxIn) s
-    rw [hi, mapToList_none] at hi'
-    simp [readLegacy, decodeLegacy, hi, ← hi']
-  | some p =>
-    obtain ⟨inputs, s1⟩ := p
-    have hi' := PackedCodec.mapToList_decodeSlice (α := CountedList TxIn) s
-    rw [hi, mapToList_some] at hi'
-    cases ho : PackedCodec.decodeSlice (α := CountedList TxOut) s1 with
-    | none =>
-      have ho' := PackedCodec.mapToList_decodeSlice (α := CountedList TxOut) s1
-      rw [ho, mapToList_none] at ho'
-      simp [readLegacy, decodeLegacy, hi, ho, ← hi', ← ho']
-    | some q =>
-      obtain ⟨outputs, s2⟩ := q
-      have ho' := PackedCodec.mapToList_decodeSlice (α := CountedList TxOut) s1
-      rw [ho, mapToList_some] at ho'
-      cases hl : PackedCodec.decodeSlice (α := UInt32) s2 with
-      | none =>
-        have hl' := PackedCodec.mapToList_decodeSlice (α := UInt32) s2
-        rw [hl, mapToList_none] at hl'
-        simp [readLegacy, decodeLegacy, hi, ho, hl, ← hi', ← ho', ← hl']
-      | some t =>
-        obtain ⟨lockTime, s3⟩ := t
-        have hl' := PackedCodec.mapToList_decodeSlice (α := UInt32) s2
-        rw [hl, mapToList_some] at hl'
-        cases hleg : Tx.legacy? ⟨version, inputs, outputs, lockTime⟩ with
-        | none =>
-          simp [readLegacy, decodeLegacy, hi, ho, hl, hleg, ← hi', ← ho', ← hl']
-        | some tx =>
-          simp [readLegacy, decodeLegacy, hi, ho, hl, hleg, ← hi', ← ho', ← hl']
+  unfold readLegacy decodeLegacy
+  rw [← PackedCodec.mapToList_decodeSlice (α := CountedList TxIn) s]
+  refine mapToList_bind _ fun inputs s1 => ?_
+  dsimp only
+  rw [← PackedCodec.mapToList_decodeSlice (α := CountedList TxOut) s1]
+  refine mapToList_bind _ fun outputs s2 => ?_
+  dsimp only
+  rw [← PackedCodec.mapToList_decodeSlice (α := UInt32) s2]
+  refine mapToList_bind _ fun lockTime s3 => ?_
+  dsimp only
+  exact mapToList_bindValue _ fun tx => rfl
 
 /-- The packed empty-path read, through the abstraction, is the spec's. -/
 theorem mapToList_readEmpty (version : UInt32) (s : ByteSlice) :
     mapToList (readEmpty version s) = decodeEmpty version s.toList := by
-  cases hl : PackedCodec.decodeSlice (α := UInt32) s with
-  | none =>
-    have hl' := PackedCodec.mapToList_decodeSlice (α := UInt32) s
-    rw [hl, mapToList_none] at hl'
-    simp [readEmpty, decodeEmpty, hl, ← hl']
-  | some t =>
-    obtain ⟨lockTime, rest⟩ := t
-    have hl' := PackedCodec.mapToList_decodeSlice (α := UInt32) s
-    rw [hl, mapToList_some] at hl'
-    simp [readEmpty, decodeEmpty, hl, ← hl']
+  unfold readEmpty decodeEmpty
+  rw [← PackedCodec.mapToList_decodeSlice (α := UInt32) s]
+  exact mapToList_bind _ fun lockTime rest => rfl
 
 /-- The spec transaction dispatch restated as nested conditionals over the
 head bytes, so it can be compared with the packed dispatch branch for
@@ -271,42 +215,34 @@ the marker/flag dispatch on slice bytes takes exactly the branch the spec's
 dispatch on list bytes takes. -/
 theorem mapToList_readTx (s : ByteSlice) :
     mapToList (readTx s) = decodeTx s.toList := by
-  rw [decodeTx_eq_specDispatch]
-  cases hv : PackedCodec.decodeSlice (α := UInt32) s with
+  rw [decodeTx_eq_specDispatch, ← PackedCodec.mapToList_decodeSlice (α := UInt32) s]
+  unfold readTx
+  refine mapToList_bind _ fun version s1 => ?_
+  dsimp only
+  cases hu1 : s1.uncons with
   | none =>
-    have hv' := PackedCodec.mapToList_decodeSlice (α := UInt32) s
-    rw [hv, mapToList_none] at hv'
-    simp [readTx, hv, ← hv']
-  | some p =>
-    obtain ⟨version, s1⟩ := p
-    have hv' := PackedCodec.mapToList_decodeSlice (α := UInt32) s
-    rw [hv, mapToList_some] at hv'
-    rw [readTx]
-    simp only [Option.bind_eq_bind, hv, Option.bind_some, ← hv']
-    cases hu1 : s1.uncons with
-    | none =>
-      have hs1 := ByteSlice.toList_of_uncons_none hu1
-      simp [specDispatch, mapToList_readLegacy, hs1]
-    | some p1 =>
-      obtain ⟨b1, s2⟩ := p1
-      have hs1 := ByteSlice.toList_of_uncons_some hu1
-      by_cases hb1 : b1 = 0x00
-      · subst hb1
-        cases hu2 : s2.uncons with
-        | none =>
-          have hs2 := ByteSlice.toList_of_uncons_none hu2
-          simp [specDispatch, hu2, hs1, hs2]
-        | some p2 =>
-          obtain ⟨b2, s3⟩ := p2
-          have hs2 := ByteSlice.toList_of_uncons_some hu2
-          by_cases hb2 : b2 = 0x01
-          · subst hb2
-            simp [specDispatch, hu2, hs1, hs2, mapToList_readSegwit]
-          · by_cases hb2' : b2 = 0x00
-            · subst hb2'
-              simp [specDispatch, hu2, hs1, hs2, hb2, mapToList_readEmpty]
-            · simp [specDispatch, hu2, hs1, hs2, hb2, hb2']
-      · simp [specDispatch, hb1, hs1, mapToList_readLegacy]
+    have hs1 := ByteSlice.toList_of_uncons_none hu1
+    simp [specDispatch, mapToList_readLegacy, hs1]
+  | some p1 =>
+    obtain ⟨b1, s2⟩ := p1
+    have hs1 := ByteSlice.toList_of_uncons_some hu1
+    by_cases hb1 : b1 = 0x00
+    · subst hb1
+      cases hu2 : s2.uncons with
+      | none =>
+        have hs2 := ByteSlice.toList_of_uncons_none hu2
+        simp [specDispatch, hu2, hs1, hs2]
+      | some p2 =>
+        obtain ⟨b2, s3⟩ := p2
+        have hs2 := ByteSlice.toList_of_uncons_some hu2
+        by_cases hb2 : b2 = 0x01
+        · subst hb2
+          simp [specDispatch, hu2, hs1, hs2, mapToList_readSegwit]
+        · by_cases hb2' : b2 = 0x00
+          · subst hb2'
+            simp [specDispatch, hu2, hs1, hs2, hb2, mapToList_readEmpty]
+          · simp [specDispatch, hu2, hs1, hs2, hb2, hb2']
+    · simp [specDispatch, hb1, hs1, mapToList_readLegacy]
 
 /-- The packed transaction codec: the same three serialization forms,
 dispatched the same way, agreeing with `instCodecTx`. -/
