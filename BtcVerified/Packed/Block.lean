@@ -1,6 +1,6 @@
 import BtcVerified.Block.Block
-import BtcVerified.Impl.Packed.BlockHeader
-import BtcVerified.Impl.Packed.Tx
+import BtcVerified.Packed.BlockHeader
+import BtcVerified.Packed.Tx
 /-!
   # Packed blocks
 
@@ -12,7 +12,7 @@ import BtcVerified.Impl.Packed.Tx
   spec codecs.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified
 
@@ -35,4 +35,4 @@ theorem toList_encodeBlock (b : Block) :
     (PackedCodec.encode b).toList = Codec.encode b :=
   PackedCodec.toList_encode b
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

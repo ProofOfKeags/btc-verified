@@ -14,7 +14,7 @@ import Tests.BlockFixtures
 
 namespace Tests.Bench
 
-open BtcVerified BtcVerified.Serialize BtcVerified.Impl.Packed Tests.BlockFixtures
+open BtcVerified BtcVerified.Serialize BtcVerified.Packed Tests.BlockFixtures
 
 /-- Wall-clock a computation, returning its result and elapsed nanoseconds.
 `IO.lazyPure` sequences the evaluation between the two clock reads — a plain

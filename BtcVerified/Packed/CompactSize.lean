@@ -1,5 +1,5 @@
 import BtcVerified.Serialize.CompactSize
-import BtcVerified.Impl.Packed.Codec
+import BtcVerified.Packed.Codec
 /-!
   # Packed CompactSize
 
@@ -18,7 +18,7 @@ import BtcVerified.Impl.Packed.Codec
     dispatch agrees with `CompactSize.decode`/`CompactSize.encode`.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified.CompactSize
 
@@ -96,4 +96,4 @@ theorem abstractParse_readCompactSize (s : ByteSlice) :
   dsimp only
   split_ifs <;> first | rfl | apply abstractParse_readFixedWidth
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

@@ -36,7 +36,7 @@ import BtcVerified.Ext.ByteSlice
     the spec codec does.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize
 
@@ -271,4 +271,4 @@ instance instPackedCodecUInt64 : PackedCodec UInt64 :=
 `instCodecBitVec256`. -/
 instance instPackedCodecBitVec256 : PackedCodec (BitVec 256) := packedBitVecLE 32
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

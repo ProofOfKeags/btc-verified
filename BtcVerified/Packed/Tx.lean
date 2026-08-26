@@ -1,5 +1,5 @@
 import BtcVerified.Transaction.Tx
-import BtcVerified.Impl.Packed.TxBody
+import BtcVerified.Packed.TxBody
 /-!
   # The packed transaction codec
 
@@ -20,7 +20,7 @@ import BtcVerified.Impl.Packed.TxBody
     agrees with `decodeTx`/`encodeTx`, packaged as `instPackedCodecTx`.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified
 
@@ -252,4 +252,4 @@ instance instPackedCodecTx : PackedCodec Tx where
   toList_encodeInto := toList_pushTx
   abstractParse_decodeSlice := abstractParse_readTx
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

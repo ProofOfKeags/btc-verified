@@ -1,5 +1,5 @@
 import BtcVerified.Script.Script
-import BtcVerified.Impl.Packed.CountedList
+import BtcVerified.Packed.CountedList
 /-!
   # Packed scripts
 
@@ -9,7 +9,7 @@ import BtcVerified.Impl.Packed.CountedList
   uninterpreted, exactly as at the spec layer.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified
 
@@ -18,4 +18,4 @@ over the program bytes. -/
 instance instPackedCodecScript : PackedCodec Script :=
   PackedCodec.ofEquiv Script.equivCode inferInstance inferInstance
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

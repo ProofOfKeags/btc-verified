@@ -1,6 +1,6 @@
 import BtcVerified.Transaction.TxIn
-import BtcVerified.Impl.Packed.OutPoint
-import BtcVerified.Impl.Packed.Script
+import BtcVerified.Packed.OutPoint
+import BtcVerified.Packed.Script
 /-!
   # Packed transaction inputs
 
@@ -8,7 +8,7 @@ import BtcVerified.Impl.Packed.Script
   the spec codec, so agreement with `instCodecTxIn` holds by construction.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified
 
@@ -17,4 +17,4 @@ the same field product. -/
 instance instPackedCodecTxIn : PackedCodec TxIn :=
   PackedCodec.ofEquiv TxIn.equivProd inferInstance inferInstance
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

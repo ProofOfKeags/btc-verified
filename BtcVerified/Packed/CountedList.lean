@@ -1,6 +1,6 @@
 import BtcVerified.Serialize.CountedList
-import BtcVerified.Impl.Packed.CompactSize
-import BtcVerified.Impl.Packed.Bytes
+import BtcVerified.Packed.CompactSize
+import BtcVerified.Packed.Bytes
 /-!
   # Packed CompactSize-prefixed lists
 
@@ -30,7 +30,7 @@ import BtcVerified.Impl.Packed.Bytes
     `instPackedCodecCountedListBytes` fast path and its agreement.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize
 
@@ -192,4 +192,4 @@ instance (priority := high) instPackedCodecCountedListBytes :
     dsimp only
     exact abstractParse_bindValue _ fun cl => rfl
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

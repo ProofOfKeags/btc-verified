@@ -1,5 +1,5 @@
 import BtcVerified.Transaction.TxOut
-import BtcVerified.Impl.Packed.Script
+import BtcVerified.Packed.Script
 /-!
   # Packed transaction outputs
 
@@ -7,7 +7,7 @@ import BtcVerified.Impl.Packed.Script
   the spec codec, so agreement with `instCodecTxOut` holds by construction.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified
 
@@ -16,4 +16,4 @@ over the same field product. -/
 instance instPackedCodecTxOut : PackedCodec TxOut :=
   PackedCodec.ofEquiv TxOut.equivProd inferInstance inferInstance
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

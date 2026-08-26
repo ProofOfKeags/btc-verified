@@ -209,31 +209,31 @@ elab "#assert_axioms " id:ident : command => do
 -/
 
 #assert_axioms ByteSlice.toList_eq
-#assert_axioms BtcVerified.Impl.Packed.PackedCodec.toList_encode
-#assert_axioms BtcVerified.Impl.Packed.PackedCodec.abstractParse_decode_toByteArray
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecProd
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecUInt8
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecUInt16
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecUInt32
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecUInt64
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecBitVec256
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecBytes
-#assert_axioms BtcVerified.Impl.Packed.abstractParse_readCompactSize
-#assert_axioms BtcVerified.Impl.Packed.toList_pushCompactSize
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecCountedList
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecCountedListBytes
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecOutPoint
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecScript
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecTxIn
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecTxOut
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecTxBody
-#assert_axioms BtcVerified.Impl.Packed.abstractParse_readTx
-#assert_axioms BtcVerified.Impl.Packed.toList_pushTx
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecTx
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecBlockHeader
-#assert_axioms BtcVerified.Impl.Packed.instPackedCodecBlock
-#assert_axioms BtcVerified.Impl.Packed.abstractParse_decodeBlock
-#assert_axioms BtcVerified.Impl.Packed.toList_encodeBlock
+#assert_axioms BtcVerified.Packed.PackedCodec.toList_encode
+#assert_axioms BtcVerified.Packed.PackedCodec.abstractParse_decode_toByteArray
+#assert_axioms BtcVerified.Packed.instPackedCodecProd
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt8
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt16
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt32
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt64
+#assert_axioms BtcVerified.Packed.instPackedCodecBitVec256
+#assert_axioms BtcVerified.Packed.instPackedCodecBytes
+#assert_axioms BtcVerified.Packed.abstractParse_readCompactSize
+#assert_axioms BtcVerified.Packed.toList_pushCompactSize
+#assert_axioms BtcVerified.Packed.instPackedCodecCountedList
+#assert_axioms BtcVerified.Packed.instPackedCodecCountedListBytes
+#assert_axioms BtcVerified.Packed.instPackedCodecOutPoint
+#assert_axioms BtcVerified.Packed.instPackedCodecScript
+#assert_axioms BtcVerified.Packed.instPackedCodecTxIn
+#assert_axioms BtcVerified.Packed.instPackedCodecTxOut
+#assert_axioms BtcVerified.Packed.instPackedCodecTxBody
+#assert_axioms BtcVerified.Packed.abstractParse_readTx
+#assert_axioms BtcVerified.Packed.toList_pushTx
+#assert_axioms BtcVerified.Packed.instPackedCodecTx
+#assert_axioms BtcVerified.Packed.instPackedCodecBlockHeader
+#assert_axioms BtcVerified.Packed.instPackedCodecBlock
+#assert_axioms BtcVerified.Packed.abstractParse_decodeBlock
+#assert_axioms BtcVerified.Packed.toList_encodeBlock
 
 /-! ## BitVM -/
 

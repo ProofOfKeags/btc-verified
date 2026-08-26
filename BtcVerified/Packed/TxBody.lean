@@ -1,6 +1,6 @@
 import BtcVerified.Transaction.TxBody
-import BtcVerified.Impl.Packed.TxIn
-import BtcVerified.Impl.Packed.TxOut
+import BtcVerified.Packed.TxIn
+import BtcVerified.Packed.TxOut
 /-!
   # Packed transaction bodies
 
@@ -10,7 +10,7 @@ import BtcVerified.Impl.Packed.TxOut
   construction.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified
 
@@ -19,4 +19,4 @@ over the same field product. -/
 instance instPackedCodecTxBody : PackedCodec TxBody :=
   PackedCodec.ofEquiv TxBody.equivProd inferInstance inferInstance
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

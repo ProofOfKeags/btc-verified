@@ -1,5 +1,5 @@
 import BtcVerified.Transaction.OutPoint
-import BtcVerified.Impl.Packed.Bytes
+import BtcVerified.Packed.Bytes
 /-!
   # Packed outpoints
 
@@ -9,7 +9,7 @@ import BtcVerified.Impl.Packed.Bytes
   `instCodecOutPoint` holds by construction, with no hand-written proof.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified
 
@@ -18,4 +18,4 @@ transport over the same field product. -/
 instance instPackedCodecOutPoint : PackedCodec OutPoint :=
   PackedCodec.ofEquiv OutPoint.equivProd inferInstance inferInstance
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

@@ -1,5 +1,5 @@
 import BtcVerified.Serialize.Bytes
-import BtcVerified.Impl.Packed.Codec
+import BtcVerified.Packed.Codec
 /-!
   # Packed width-indexed byte strings
 
@@ -18,7 +18,7 @@ import BtcVerified.Impl.Packed.Codec
     codec.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize
 
@@ -63,4 +63,4 @@ instance instPackedCodecBytes (n : Nat) : PackedCodec (Bytes n) where
   toList_encodeInto bs acc := toList_pushBytes bs.1 acc
   abstractParse_decodeSlice := abstractParse_readBytes n
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed

@@ -1,4 +1,4 @@
-# BtcVerified/Impl/Packed
+# BtcVerified/Packed
 
 The executable form of the serialization layer (issue #52). The specification
 keeps `List UInt8` as its byte type; these modules run the same codecs over
@@ -44,7 +44,7 @@ parser's remainder is the same array at a further offset — and these lemmas
 are the complete interface the agreement proofs consume; no proof below ever
 touches array indices again.
 
-## `BtcVerified.Impl.Packed.Codec`
+## `BtcVerified.Packed.Codec`
 
 The `PackedCodec` class — an encoder appending into a `ByteArray`, a decoder
 consuming a `ByteSlice`, and the two agreement laws tying them to the spec
@@ -70,7 +70,7 @@ spec layer, so the executable representation never grows proof obligations of
 its own — the discipline scales to every future wire structure at the cost of
 one instance declaration.
 
-## `BtcVerified.Impl.Packed.CompactSize`
+## `BtcVerified.Packed.CompactSize`
 
 The packed CompactSize integer, mirroring the spec's factoring: one
 fixed-width marker-payload form shared by the three marker branches, and the
@@ -87,7 +87,7 @@ Why it matters: CompactSize prefixes every count on the wire, so the packed
 counted-list codec — and through it every vector field in a block — stands on
 this agreement.
 
-## `BtcVerified.Impl.Packed.CountedList`
+## `BtcVerified.Packed.CountedList`
 
 The packed counted list — packed count, then elements through their own
 packed codec — plus the byte-content fast path: for `CountedList UInt8`
@@ -110,7 +110,7 @@ the fast path is the difference between paying a typeclass dispatch per byte
 and moving the region in one pass, and it is proved against the same spec
 instance as the generic walk.
 
-## `BtcVerified.Impl.Packed.Tx`
+## `BtcVerified.Packed.Tx`
 
 The packed transaction codec: hand-written mirrors of the spec's hand-written
 branches — legacy, Core's degenerate empty object, and the BIP144 marker/flag

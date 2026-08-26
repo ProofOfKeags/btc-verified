@@ -1,5 +1,5 @@
 import BtcVerified.Block.BlockHeader
-import BtcVerified.Impl.Packed.Bytes
+import BtcVerified.Packed.Bytes
 /-!
   # Packed block headers
 
@@ -8,7 +8,7 @@ import BtcVerified.Impl.Packed.Bytes
   the 80-byte proof-of-work preimage — holds by construction.
 -/
 
-namespace BtcVerified.Impl.Packed
+namespace BtcVerified.Packed
 
 open BtcVerified.Serialize BtcVerified
 
@@ -17,4 +17,4 @@ transport over the same field product. -/
 instance instPackedCodecBlockHeader : PackedCodec BlockHeader :=
   PackedCodec.ofEquiv BlockHeader.equivProd inferInstance inferInstance
 
-end BtcVerified.Impl.Packed
+end BtcVerified.Packed
