@@ -53,9 +53,11 @@ wtxids form a second merkle tree — the coinbase's leaf zeroed, since its own
 witness sits beneath the commitment it carries — and the coinbase records
 the double-SHA-256 of that root and the 32-byte witness reserved value (its
 input's single witness item) in the last output opening `6a24aa21a9ed` with
-32 bytes behind the header. Both 32-byte values are typed `Hash256`, so the
-commitment preimage is exactly a merkle node's and the commitment *is*
-`Merkle.combine`. Unlike the txid tree, no canonicality condition is needed:
+32 bytes behind the header. The extracted values are typed `Bytes 32` — 32
+raw bytes, with no hash semantics claimed — while the witness root and the
+computed commitment are digests; `Hash256` being definitionally `Bytes 32`
+makes the commitment preimage exactly a merkle node's, so the commitment
+*is* `Merkle.combine`. Unlike the txid tree, no canonicality condition is needed:
 the transaction count is already pinned by the txid tree, and between
 equal-length lists the merkle root binds outright.
 
