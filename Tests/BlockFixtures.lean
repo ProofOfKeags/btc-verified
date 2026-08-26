@@ -46,15 +46,27 @@ where
 /-- Decode a fixture block and check that it consumed every byte, that it
 re-encodes to exactly the input, and that its header double-SHA-256s to the
 expected block hash (given in display order, i.e. byte-reversed) — then apply
-the fixture's own spot-checks. -/
-def blockFixtureChecksOut (displayHash : String) (bytes : List UInt8)
+the fixture's own spot-checks.
+
+The same block also runs through the packed codec, which must agree: same
+decoded block, nothing unconsumed, byte-for-byte re-encoding. The agreement
+theorems prove this for every input, which is why the packed codecs need no
+elaboration-time `#guard` vectors of their own; running the fixture through
+the *compiled* packed code checks the one link the theorems do not cover,
+the Lean compiler. -/
+def blockFixtureChecksOut (displayHash : String) (bytes : ByteArray)
     (spot : Block → Bool) : Bool :=
-  match hexBytes? displayHash, Codec.decode (α := Block) bytes with
+  let byteList := byteArrayToList bytes
+  match hexBytes? displayHash, Codec.decode (α := Block) byteList with
   | some _, some (b, rest) =>
     rest == []
-    && Codec.encode b == bytes
+    && Codec.encode b == byteList
     && b.header.hash == hashOfDisplay displayHash
     && spot b
+    && (match Impl.Packed.PackedCodec.decode (α := Block) bytes with
+        | some (pb, prest) => pb == b && prest.length == 0
+        | none => false)
+    && Impl.Packed.PackedCodec.encode b == bytes
   | _, _ => false
 
 /-- Spot-checks for block 481824 (2017-08-24), hash
@@ -131,9 +143,9 @@ def fetchFixture (blockHash : String) : IO System.FilePath := do
 def checkFixture (blockHash : String) (spot : Block → Bool) : IO Bool := do
   let path ← fetchFixture blockHash
   let bytes ← IO.FS.readBinFile path
-  if blockFixtureChecksOut blockHash (byteArrayToList bytes) spot then
+  if blockFixtureChecksOut blockHash bytes spot then
     IO.println s!"block {blockHash}: decoded, header hash verified, \
-                  spot-checked, re-encoded byte-for-byte"
+                  spot-checked, re-encoded byte-for-byte, packed codec agrees"
     return true
   else
     IO.eprintln s!"block {blockHash}: FAILED (cached at {path})"

@@ -1,5 +1,6 @@
 import BtcVerified.Ext.List
 import BtcVerified.Ext.Finmap
+import BtcVerified.Ext.ByteArray
 import BtcVerified.Serialize.Codec
 import BtcVerified.Serialize.Bytes
 import BtcVerified.Serialize.WidthCast
@@ -36,3 +37,16 @@ import BtcVerified.Consensus.TxContextual
 import BtcVerified.Consensus.ApplyChecked
 import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle
+import BtcVerified.Impl.Packed.ByteSlice
+import BtcVerified.Impl.Packed.Codec
+import BtcVerified.Impl.Packed.Bytes
+import BtcVerified.Impl.Packed.CompactSize
+import BtcVerified.Impl.Packed.CountedList
+import BtcVerified.Impl.Packed.OutPoint
+import BtcVerified.Impl.Packed.Script
+import BtcVerified.Impl.Packed.TxIn
+import BtcVerified.Impl.Packed.TxOut
+import BtcVerified.Impl.Packed.TxBody
+import BtcVerified.Impl.Packed.Tx
+import BtcVerified.Impl.Packed.BlockHeader
+import BtcVerified.Impl.Packed.Block
