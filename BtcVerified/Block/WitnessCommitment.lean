@@ -136,7 +136,7 @@ def Block.witnessCommits (b : Block) : Prop :=
 /-- The commitment condition is checked by computation — extract, hash,
 compare — which is what lets the golden vectors and the `lake test` fixture
 run it on real blocks. -/
-instance : DecidablePred Block.witnessCommits := fun b =>
+instance instDecidableWitnessCommits : DecidablePred Block.witnessCommits := fun b =>
   match hv : b.witnessReservedValue? with
   | some reserved =>
     decidable_of_iff

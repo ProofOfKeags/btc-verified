@@ -30,7 +30,8 @@ def Block.merkleCommits (b : Block) : Prop :=
   Merkle.Canonical (b.txs.val.map Tx.txid)
     ∧ Merkle.root (b.txs.val.map Tx.txid) = b.header.merkleRoot
 
-instance : DecidablePred Block.merkleCommits := fun _ =>
+/-- Decide whether a block's transaction ids satisfy its merkle commitment. -/
+instance instDecidableMerkleCommits : DecidablePred Block.merkleCommits := fun _ =>
   inferInstanceAs (Decidable (_ ∧ _))
 
 end BtcVerified

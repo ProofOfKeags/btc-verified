@@ -52,7 +52,7 @@ theorem Hash256.encode_length (h : Hash256) : (Codec.encode h).length = 32 := h.
 
 /-- A natural number as a 256-bit hash, low byte first — distinct numbers give
 distinct hashes, which is all the synthetic test vectors need from it. -/
-instance (n : Nat) : OfNat Hash256 n :=
+instance instOfNatHash256 (n : Nat) : OfNat Hash256 n :=
   ⟨⟨encodeBitVecLE 32 (BitVec.ofNat (8 * 32) n), encodeBitVecLE_length 32 _⟩⟩
 
 end BtcVerified

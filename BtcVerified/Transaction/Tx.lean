@@ -98,7 +98,7 @@ end WitnessStack
 
 /-- Decidability support for the transaction-level check that the SegWit
 serialization is carrying some witness data. -/
-instance (inputs : List SegwitInput) :
+instance instDecidableExistsNonEmptyWitness (inputs : List SegwitInput) :
     Decidable (∃ input, input ∈ inputs ∧ input.witness.NonEmpty) := by
   induction inputs with
   | nil =>
