@@ -68,6 +68,10 @@ statement of what stands.
 - [`Impl/`](BtcVerified/Impl/README.md) — Functions transcribed from Bitcoin
   Core's own source code and proved to satisfy the specification, starting
   with its merkle-root computation.
+- [`Packed/`](BtcVerified/Packed/README.md) — A fast packed-byte form of
+  every serializer, proved to compute exactly what the specification
+  computes and measured at hundreds of times the spec decoder's speed on a
+  real mainnet block.
 - [`BitVM/`](BtcVerified/BitVM/README.md) — An abstract model of BitVM's bit
   commitments, with a proof that equivocating on a committed bit yields a
   hash collision.

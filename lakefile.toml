@@ -18,6 +18,10 @@ name = "Tests"
 name = "tests"
 root = "TestsMain"
 
+[[lean_exe]]
+name = "bench"
+root = "BenchMain"
+
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"

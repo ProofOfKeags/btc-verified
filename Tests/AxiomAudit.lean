@@ -201,6 +201,40 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Impl.BitcoinCore.canonical_of_not_mutated
 #assert_axioms BtcVerified.Impl.BitcoinCore.eq_of_computeMerkleRoot_eq_of_not_mutated
 
+/-! ## Packed codecs
+
+  Auditing a `PackedCodec` instance covers both of its agreement laws —
+  packed encode and decode compute exactly what the spec codec computes —
+  and everything they depend on.
+-/
+
+#assert_axioms ByteSlice.toList_eq
+#assert_axioms BtcVerified.Packed.PackedCodec.toList_encode
+#assert_axioms BtcVerified.Packed.PackedCodec.abstractParse_decode_toByteArray
+#assert_axioms BtcVerified.Packed.instPackedCodecProd
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt8
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt16
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt32
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt64
+#assert_axioms BtcVerified.Packed.instPackedCodecBitVec256
+#assert_axioms BtcVerified.Packed.instPackedCodecBytes
+#assert_axioms BtcVerified.Packed.abstractParse_readCompactSize
+#assert_axioms BtcVerified.Packed.toList_pushCompactSize
+#assert_axioms BtcVerified.Packed.instPackedCodecCountedList
+#assert_axioms BtcVerified.Packed.instPackedCodecCountedListBytes
+#assert_axioms BtcVerified.Packed.instPackedCodecOutPoint
+#assert_axioms BtcVerified.Packed.instPackedCodecScript
+#assert_axioms BtcVerified.Packed.instPackedCodecTxIn
+#assert_axioms BtcVerified.Packed.instPackedCodecTxOut
+#assert_axioms BtcVerified.Packed.instPackedCodecTxBody
+#assert_axioms BtcVerified.Packed.abstractParse_readTx
+#assert_axioms BtcVerified.Packed.toList_pushTx
+#assert_axioms BtcVerified.Packed.instPackedCodecTx
+#assert_axioms BtcVerified.Packed.instPackedCodecBlockHeader
+#assert_axioms BtcVerified.Packed.instPackedCodecBlock
+#assert_axioms BtcVerified.Packed.abstractParse_decodeBlock
+#assert_axioms BtcVerified.Packed.toList_encodeBlock
+
 /-! ## BitVM -/
 
 #assert_axioms BtcVerified.BitVM.BitCommitment.openings_with_distinct_bits_are_distinct
