@@ -7,7 +7,7 @@ import BtcVerified.Transaction.WitnessStack
   the pair together makes the one-witness-per-input arity structural — a list
   of `SegwitInput` cannot express a count mismatch — while the BIP144 wire
   format's regrouping (all inputs, then all witnesses) is left to the codec
-  (`Transaction.TxCodec`). No codec lives here for exactly that reason.
+  (`Transaction.Tx`). No codec lives here for exactly that reason.
 -/
 
 namespace BtcVerified
