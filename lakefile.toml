@@ -26,6 +26,10 @@ name = "module-audit"
 root = "ModuleAuditMain"
 supportInterpreter = true
 
+[[lean_exe]]
+name = "bench"
+root = "BenchMain"
+
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"

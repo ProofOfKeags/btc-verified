@@ -34,8 +34,8 @@ import Mathlib.Logic.Equiv.Basic
   * the `Codec (α × β)` instance: sequential composition preserves both laws.
   * `decodeBitVecLE_encodeBitVecLE` / `decodeBitVecLE_canonical`: one little-endian
     construction serializes any `BitVec (8 * n)` as `n` bytes, and `Codec.ofEquiv`
-    transports it to the fixed-width integers (`UInt8`/`UInt16`/`UInt32`/`UInt64`)
-    and the 256-bit hash, so byte-level endianness is defined and proved once.
+    transports it to the fixed-width integers (`UInt8`/`UInt16`/`UInt32`/`UInt64`),
+    so byte-level endianness is defined and proved once.
 -/
 
 namespace BtcVerified.Serialize
@@ -114,9 +114,9 @@ instance instCodecProd {α β : Type} [Codec α] [Codec β] : Codec (α × β) w
 
   The primitive serializable unit is a single byte. From it, one generic
   little-endian construction serializes any `BitVec (8 * n)` as `n` bytes, low
-  byte first. Every fixed-width Bitcoin integer field — and the 256-bit hash
-  type — is then that one construction transported along a bijection, so
-  byte-level endianness lives in a single place.
+  byte first. Every fixed-width Bitcoin integer field is then that one
+  construction transported along a bijection, so byte-level endianness lives
+  in a single place.
 -/
 
 /-- Read a single byte off the front of the input. -/

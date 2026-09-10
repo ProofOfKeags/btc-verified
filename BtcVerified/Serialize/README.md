@@ -1,8 +1,15 @@
 # BtcVerified/Serialize
 
 The serialization layer: the codec discipline every wire structure in the
-repo is built on, and the two primitives Bitcoin composes everywhere —
-fixed-width little-endian integers and CompactSize-prefixed vectors.
+repo is built on, and the primitives Bitcoin composes everywhere — fixed-width
+byte strings, fixed-width little-endian integers, and CompactSize-prefixed
+vectors.
+
+`Bytes`, `CompactSize`, and `CountedList` also carry their packed encoders,
+decoders, and agreement proofs in these same modules, under
+`BtcVerified.Packed`. The shared `PackedCodec` class and its instances for
+dependency types live in `../Packed/Codec.lean`; see the
+[packed-codec overview](../Packed/README.md) for the checked claims.
 
 ## The `Codec` discipline
 
@@ -20,7 +27,16 @@ Checked claims:
   construction serializes any `BitVec (8 * n)` as `n` bytes (low byte first),
   proved by bit-level extensionality. `Codec.ofEquiv` transports it along a
   bijection, giving the fixed-width integer instances (`UInt8`/`UInt16`/`UInt32`/
-  `UInt64`) and the 256-bit hash from a single place where endianness is defined.
+  `UInt64`) from a single place where endianness is defined.
+- `Codec (Bytes n)`: an uninterpreted byte string whose exact width lives
+  in its type serializes as itself and decodes by consuming exactly `n` bytes.
+  `Hash256` is `Bytes 32`; other 32-byte protocol fields can share the
+  width invariant without pretending to be hashes. Conversions from raw lists
+  state their policy explicitly: exact width, left padding, right padding, or
+  left/right truncation (dropping the prefix/suffix, respectively). For either
+  direction these operations partition inputs by length: padding accepts only
+  short inputs, exact conversion only equal widths, and truncation only long
+  inputs.
 - `decodeCountedList_canonical` (and round-trip): every variable-length Bitcoin
   field — a script, an input/output vector, a witness stack — is a CompactSize
   count prefix followed by its elements. `CountedList` captures that once as a

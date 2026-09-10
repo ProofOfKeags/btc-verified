@@ -11,7 +11,8 @@ import BtcVerified.Crypto.Merkle
   demands canonicality of the list itself.
 
   The SegWit witness commitment — the wtxid merkle root committed in the
-  coinbase — is the next leaf, not this one.
+  coinbase — is `WitnessCommitment.lean`, the sibling leaf built on the
+  same pattern.
 
   Checked claims:
 
@@ -29,7 +30,8 @@ def Block.merkleCommits (b : Block) : Prop :=
   Merkle.Canonical (b.txs.val.map Tx.txid)
     ∧ Merkle.root (b.txs.val.map Tx.txid) = b.header.merkleRoot
 
-instance : DecidablePred Block.merkleCommits := fun _ =>
+/-- Decide whether a block's transaction ids satisfy its merkle commitment. -/
+instance instDecidableMerkleCommits : DecidablePred Block.merkleCommits := fun _ =>
   inferInstanceAs (Decidable (_ ∧ _))
 
 end BtcVerified

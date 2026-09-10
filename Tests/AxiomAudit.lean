@@ -56,6 +56,38 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Serialize.instCodecUInt32
 #assert_axioms BtcVerified.Serialize.instCodecUInt64
 #assert_axioms BtcVerified.Serialize.instCodecBitVec256
+#assert_axioms BtcVerified.Serialize.instCodecBytes
+#assert_axioms BtcVerified.Bytes.val_reverse
+#assert_axioms BtcVerified.Bytes.reverse_reverse
+#assert_axioms BtcVerified.Bytes.ofListExact?_eq_some_iff
+#assert_axioms BtcVerified.Bytes.ofListExact?_isSome_iff
+#assert_axioms BtcVerified.Bytes.ofListExact?_eq_none_iff
+#assert_axioms BtcVerified.Bytes.ofListExact?_val
+#assert_axioms BtcVerified.Bytes.ofListExact?_map_reverse
+#assert_axioms BtcVerified.Bytes.ofListPadLeft?_eq_some_iff
+#assert_axioms BtcVerified.Bytes.ofListPadRight?_eq_some_iff
+#assert_axioms BtcVerified.Bytes.ofListPadLeft?_isSome_iff
+#assert_axioms BtcVerified.Bytes.ofListPadRight?_isSome_iff
+#assert_axioms BtcVerified.Bytes.ofListPadLeft?_eq_none_iff
+#assert_axioms BtcVerified.Bytes.ofListPadRight?_eq_none_iff
+#assert_axioms BtcVerified.Bytes.parts_of_ofListPadLeft?
+#assert_axioms BtcVerified.Bytes.parts_of_ofListPadRight?
+#assert_axioms BtcVerified.Bytes.head?_of_ofListPadLeft?
+#assert_axioms BtcVerified.Bytes.getLast?_of_ofListPadRight?
+#assert_axioms BtcVerified.Bytes.ofListPadLeft?_map_reverse
+#assert_axioms BtcVerified.Bytes.ofListTruncateLeft?_eq_some_iff
+#assert_axioms BtcVerified.Bytes.ofListTruncateRight?_eq_some_iff
+#assert_axioms BtcVerified.Bytes.ofListTruncateLeft?_isSome_iff
+#assert_axioms BtcVerified.Bytes.ofListTruncateRight?_isSome_iff
+#assert_axioms BtcVerified.Bytes.ofListTruncateLeft?_eq_none_iff
+#assert_axioms BtcVerified.Bytes.ofListTruncateRight?_eq_none_iff
+#assert_axioms BtcVerified.Bytes.ofListTruncateLeft?_map_reverse
+#assert_axioms BtcVerified.Bytes.ofListTruncateLeft?_of_ofListPadLeft?
+#assert_axioms BtcVerified.Bytes.ofListTruncateRight?_of_ofListPadRight?
+#assert_axioms BtcVerified.Bytes.ofList_left_exactly_one
+#assert_axioms BtcVerified.Bytes.ofList_right_exactly_one
+#assert_axioms BtcVerified.Bytes.ofListPad_isSome_eq
+#assert_axioms BtcVerified.Bytes.ofListTruncate_isSome_eq
 #assert_axioms BtcVerified.CompactSize.decode_encode
 #assert_axioms BtcVerified.CompactSize.decode_canonical
 #assert_axioms BtcVerified.CompactSize.encode_length_le
@@ -103,6 +135,7 @@ elab "#assert_axioms " id:ident : command => do
 
 #assert_axioms BtcVerified.Tx.txid_binding
 #assert_axioms BtcVerified.Tx.wtxid_binding
+#assert_axioms BtcVerified.Tx.map_wtxid_binding
 #assert_axioms BtcVerified.Tx.wtxid_legacy
 #assert_axioms BtcVerified.Tx.wtxid_empty
 
@@ -162,12 +195,53 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Merkle.root_binding_of_canonical
 #assert_axioms BtcVerified.Block.merkleCommits
 
+/-! ## The witness commitment -/
+
+#assert_axioms BtcVerified.witnessCommitment_binding
+#assert_axioms BtcVerified.Block.witnessRoot_binding
+#assert_axioms BtcVerified.Block.witnessCommits_binding
+#assert_axioms BtcVerified.Block.witnessCommits
+
 /-! ## Bitcoin Core's ComputeMerkleRoot -/
 
 #assert_axioms BtcVerified.Impl.BitcoinCore.computeRoot_eq_root
 #assert_axioms BtcVerified.Impl.BitcoinCore.computeMerkleRoot_fst
 #assert_axioms BtcVerified.Impl.BitcoinCore.canonical_of_not_mutated
 #assert_axioms BtcVerified.Impl.BitcoinCore.eq_of_computeMerkleRoot_eq_of_not_mutated
+
+/-! ## Packed codecs
+
+  Auditing a `PackedCodec` instance covers both of its agreement laws —
+  packed encode and decode compute exactly what the spec codec computes —
+  and everything they depend on.
+-/
+
+#assert_axioms ByteSlice.toList_eq
+#assert_axioms BtcVerified.Packed.PackedCodec.toList_encode
+#assert_axioms BtcVerified.Packed.PackedCodec.abstractParse_decode_toByteArray
+#assert_axioms BtcVerified.Packed.instPackedCodecProd
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt8
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt16
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt32
+#assert_axioms BtcVerified.Packed.instPackedCodecUInt64
+#assert_axioms BtcVerified.Packed.instPackedCodecBitVec256
+#assert_axioms BtcVerified.Packed.instPackedCodecBytes
+#assert_axioms BtcVerified.Packed.abstractParse_readCompactSize
+#assert_axioms BtcVerified.Packed.toList_pushCompactSize
+#assert_axioms BtcVerified.Packed.instPackedCodecCountedList
+#assert_axioms BtcVerified.Packed.instPackedCodecCountedListBytes
+#assert_axioms BtcVerified.Packed.instPackedCodecOutPoint
+#assert_axioms BtcVerified.Packed.instPackedCodecScript
+#assert_axioms BtcVerified.Packed.instPackedCodecTxIn
+#assert_axioms BtcVerified.Packed.instPackedCodecTxOut
+#assert_axioms BtcVerified.Packed.instPackedCodecTxBody
+#assert_axioms BtcVerified.Packed.abstractParse_readTx
+#assert_axioms BtcVerified.Packed.toList_pushTx
+#assert_axioms BtcVerified.Packed.instPackedCodecTx
+#assert_axioms BtcVerified.Packed.instPackedCodecBlockHeader
+#assert_axioms BtcVerified.Packed.instPackedCodecBlock
+#assert_axioms BtcVerified.Packed.abstractParse_decodeBlock
+#assert_axioms BtcVerified.Packed.toList_encodeBlock
 
 /-! ## BitVM -/
 

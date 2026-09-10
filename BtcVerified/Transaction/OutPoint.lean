@@ -1,5 +1,6 @@
 import BtcVerified.Crypto.Hash256
 import BtcVerified.Serialize.Codec
+import BtcVerified.Serialize.Bytes
 /-!
   # Outpoints
 
@@ -9,6 +10,18 @@ import BtcVerified.Serialize.Codec
   composition (`Codec.ofEquiv` over the product codec) with no hand-written
   proofs — the pattern every plain-product structure in the data model
   follows.
+
+  ## Packed codec
+
+  The packed `OutPoint` codec (issue #52). The spec codec is `Codec.ofEquiv`
+  over the field product in wire order; the packed codec is the same
+  transport applied to the packed field codecs, so agreement with
+  `instCodecOutPoint` holds by construction, with no hand-written proof.
+
+  Checked claims:
+
+  * `instPackedCodecOutPoint`: the packed codec agrees with the
+    specification encoder and decoder on every input.
 -/
 
 namespace BtcVerified
@@ -43,3 +56,16 @@ no real output — the one outpoint a regular input may never claim (Core's
 def OutPoint.null : OutPoint := ⟨0, 0xffffffff⟩
 
 end BtcVerified
+
+/-! ## Packed codec -/
+
+namespace BtcVerified.Packed
+
+open BtcVerified.Serialize BtcVerified
+
+/-- The packed `OutPoint` codec, agreeing with `instCodecOutPoint` by
+transport over the same field product. -/
+instance instPackedCodecOutPoint : PackedCodec OutPoint :=
+  PackedCodec.ofEquiv OutPoint.equivProd inferInstance inferInstance
+
+end BtcVerified.Packed

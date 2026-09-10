@@ -1,4 +1,5 @@
-import Tests.ModuleAuditFixtures.ClassHome
+import Tests.ModuleAuditFixtures.RefinedClass
+import Tests.ModuleAuditFixtures.IndexedClass
 /-!
   # Private-type module-audit fixture
 
@@ -15,6 +16,14 @@ structure PublicType where
 
 /-- A correctly placed instance for a fixture-library type. -/
 instance instFixtureClassPublicType : FixtureClass PublicType where
+  witness := trivial
+
+/-- A trailing class dictionary leaves the library target's home unchanged. -/
+instance instRefinedClassPublicType : RefinedClass PublicType where
+  witness := trivial
+
+/-- A value index leaves the library target's home unchanged. -/
+instance instIndexedClassPublicType (index : Nat) : IndexedClass PublicType index where
   witness := trivial
 
 private structure HiddenType where

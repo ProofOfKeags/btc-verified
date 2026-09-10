@@ -379,6 +379,23 @@ def block1HeaderHex : String :=
 #guard CompactSize.decode [0xfd, 0xfc, 0x00] == none
 #guard CompactSize.decode [0xfe, 0xff, 0xff, 0x00, 0x00] == none
 
+/-! ## Width-indexed bytes -/
+
+#guard (Bytes.ofListExact? (n := 3) [1, 2, 3]).map Subtype.val == some [1, 2, 3]
+#guard (Bytes.ofListExact? (n := 3) [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListPadLeft? (n := 4) 0 [1, 2]).map Subtype.val == some [0, 0, 1, 2]
+#guard (Bytes.ofListPadLeft? (n := 2) 0 [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListPadLeft? (n := 1) 0 [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListPadRight? (n := 4) 0 [1, 2]).map Subtype.val == some [1, 2, 0, 0]
+#guard (Bytes.ofListPadRight? (n := 2) 0 [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListPadRight? (n := 1) 0 [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListTruncateLeft? (n := 2) [1, 2, 3]).map Subtype.val == some [2, 3]
+#guard (Bytes.ofListTruncateLeft? (n := 2) [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListTruncateLeft? (n := 3) [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListTruncateRight? (n := 2) [1, 2, 3]).map Subtype.val == some [1, 2]
+#guard (Bytes.ofListTruncateRight? (n := 2) [1, 2]).map Subtype.val == none
+#guard (Bytes.ofListTruncateRight? (n := 3) [1, 2]).map Subtype.val == none
+
 /-! ## SHA-256 known-answer vectors
 
   The hash is concrete and computable, so it is checked the same way as the wire
@@ -596,5 +613,81 @@ def block170Context : TxContext :=
 -- The SegWit arm of the stateless checker: the first SegWit spend is
 -- well-formed.
 #guard checksOut firstSegwitSpendHex fun tx => tx.isWellFormed
+
+/-! ## The witness commitment
+
+  Output recognition and extraction on the real SegWit activation coinbase
+  (the commitment bytes are read straight out of `segwitCoinbaseHex`), plus
+  synthetic vectors for the recognition rules: minimum length, the exact
+  header, trailing bytes, and BIP141's last-match-wins. The full
+  `Block.witnessCommits` check over all 1866 wtxids runs in the `lake test`
+  fixture, where the whole block is in hand. -/
+
+-- The activation coinbase records the commitment visible in its own hex —
+-- the 32 bytes after the 6a24aa21a9ed header — and carries the 32-zero-byte
+-- reserved value as its witness.
+#guard match hexBytes? segwitCoinbaseHex >>= Codec.decode (α := Tx) with
+  | some (tx, _) =>
+    tx.recordedWitnessCommitment?
+      == (hexBytes? "6c3c4dff76b5760d58694147264d208689ee07823e5694c4872f856eacf5a5d8"
+        >>= Bytes.ofListExact?)
+    && tx.witnessReservedValue? == Bytes.ofListExact? (List.replicate 32 0)
+  | none => false
+
+/-- The six bytes every commitment output opens with: `OP_RETURN`, a
+36-byte push, and the BIP141 header `aa21a9ed`. -/
+def commitmentHeader : List UInt8 := [0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed]
+
+/-- A `TxOut` with the given script bytes and a zero amount, for the
+commitment-recognition vectors. -/
+def outWithScript (bytes : List UInt8) (h : bytes.length < 2 ^ 64 := by decide) :
+    TxOut :=
+  { value := 0, scriptPubKey := ⟨⟨bytes, h⟩⟩ }
+
+/-- A minimal legacy transaction around the given outputs — just enough
+coinbase shape for the commitment-recognition vectors. -/
+def txWithOutputs (outs : List TxOut) (h : outs.length < 2 ^ 64 := by decide) :
+    Tx :=
+  .legacy
+    { version := 1
+      inputs := ⟨[{ prevout := { txid := 0, vout := 0xffffffff }
+                    scriptSig := ⟨⟨[], by decide⟩⟩
+                    sequence := 0xffffffff }], by decide⟩
+      outputs := ⟨outs, h⟩
+      lockTime := 0 }
+    (by simp)
+
+-- A commitment output yields exactly the 32 bytes after the header.
+#guard (outWithScript (commitmentHeader ++ List.replicate 32 0x11)).witnessCommitment?
+  == Bytes.ofListExact? (List.replicate 32 0x11)
+-- 37 bytes is one short of a full commitment.
+#guard (outWithScript
+    (commitmentHeader ++ List.replicate 31 0x11)).witnessCommitment? == none
+-- A wrong header byte disqualifies.
+#guard (outWithScript
+    ([0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xee]
+      ++ List.replicate 32 0x11)).witnessCommitment? == none
+-- Bytes past the commitment carry no consensus meaning: they do not
+-- disqualify and do not enter the extracted value.
+#guard (outWithScript (commitmentHeader ++ List.replicate 40 0x11)).witnessCommitment?
+  == Bytes.ofListExact? (List.replicate 32 0x11)
+-- Several matching outputs: the last one wins (BIP141's highest index, as
+-- in Core's GetWitnessCommitmentIndex).
+#guard (txWithOutputs
+    [outWithScript (commitmentHeader ++ List.replicate 32 0x11),
+     outWithScript (commitmentHeader ++ List.replicate 32 0x22)]).recordedWitnessCommitment?
+  == Bytes.ofListExact? (List.replicate 32 0x22)
+-- A non-commitment output after the commitment does not displace it.
+#guard (txWithOutputs
+    [outWithScript (commitmentHeader ++ List.replicate 32 0x11),
+     outWithScript []]).recordedWitnessCommitment?
+  == Bytes.ofListExact? (List.replicate 32 0x11)
+-- Pre-SegWit blocks record no commitment, carry no reserved value, and do
+-- not satisfy the commitment condition.
+#guard match hexBytes? genesisBlockHex >>= Codec.decode (α := Block) with
+  | some (b, _) =>
+    b.recordedWitnessCommitment? == none && b.witnessReservedValue? == none
+    && !decide b.witnessCommits
+  | none => false
 
 end Tests.GoldenVectors

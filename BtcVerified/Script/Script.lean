@@ -25,6 +25,18 @@ import BtcVerified.Serialize.CountedList
 
   * `instCodecScript`: the script codec satisfies round-trip and canonicality,
     inherited from the counted byte list.
+
+  ## Packed codec
+
+  The packed `Script` codec (issue #52): the transport of the packed counted
+  byte list along the same bijection as the spec codec, so agreement with
+  `instCodecScript` holds by construction. The program bytes stay
+  uninterpreted, exactly as at the spec layer.
+
+  Checked claims:
+
+  * `instPackedCodecScript`: the packed codec agrees with the
+    specification encoder and decoder on every input.
 -/
 
 namespace BtcVerified
@@ -54,3 +66,16 @@ instance instCodecScript : Codec Script :=
   Codec.ofEquiv Script.equivCode inferInstance
 
 end BtcVerified
+
+/-! ## Packed codec -/
+
+namespace BtcVerified.Packed
+
+open BtcVerified.Serialize BtcVerified
+
+/-- The packed `Script` codec, agreeing with `instCodecScript` by transport
+over the program bytes. -/
+instance instPackedCodecScript : PackedCodec Script :=
+  PackedCodec.ofEquiv Script.equivCode inferInstance inferInstance
+
+end BtcVerified.Packed
