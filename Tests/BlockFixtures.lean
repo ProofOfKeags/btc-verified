@@ -9,15 +9,14 @@ import Tests.GoldenVectors
   A block is public chain data, reconstructible from any Bitcoin node, so
   fixtures are not committed: the test driver fetches each one on first run
   (from an esplora HTTP endpoint, by block hash) and caches it under
-  `Tests/fixtures/`, which is gitignored. The download is authenticated as
-  far as the current leaves allow: the decoded header must double-SHA-256 to
-  the requested block hash (so the 80 header bytes carry their proof of
-  work), the merkle commitment pins every transaction's txid to that header,
-  and the spot-checks pin the embedded transactions they name byte-for-byte.
-  Txids exclude witness data (BIP141), so the SegWit witness bytes of
-  transactions not byte-pinned by a spot-check are the one region a
-  corrupted download could alter undetected; closing it is the
-  witness-commitment leaf's job, once it lands.
+  `Tests/fixtures/`, which is gitignored. The download is authenticated end
+  to end: the decoded header must double-SHA-256 to the requested block
+  hash (so the 80 header bytes carry their proof of work), the merkle
+  commitment pins every transaction's txid to that header, the BIP141
+  witness commitment pins every witness byte to the coinbase the txid tree
+  covers, and the spot-checks additionally pin the embedded transactions
+  they name byte-for-byte. Up to double-SHA-256 collisions, no byte of a
+  fixture can differ from the mainnet block.
 
   The one fixture so far is block 481824, the SegWit activation block: 1866
   transactions mixing the legacy and SegWit serializations, the SegWit
@@ -46,15 +45,27 @@ where
 /-- Decode a fixture block and check that it consumed every byte, that it
 re-encodes to exactly the input, and that its header double-SHA-256s to the
 expected block hash (given in display order, i.e. byte-reversed) — then apply
-the fixture's own spot-checks. -/
-def blockFixtureChecksOut (displayHash : String) (bytes : List UInt8)
+the fixture's own spot-checks.
+
+The same block also runs through the packed codec, which must agree: same
+decoded block, nothing unconsumed, byte-for-byte re-encoding. The agreement
+theorems prove this for every input, which is why the packed codecs need no
+elaboration-time `#guard` vectors of their own; running the fixture through
+the *compiled* packed code checks the one link the theorems do not cover,
+the Lean compiler. -/
+def blockFixtureChecksOut (displayHash : String) (bytes : ByteArray)
     (spot : Block → Bool) : Bool :=
-  match hexBytes? displayHash, Codec.decode (α := Block) bytes with
+  let byteList := byteArrayToList bytes
+  match hexBytes? displayHash, Codec.decode (α := Block) byteList with
   | some _, some (b, rest) =>
     rest == []
-    && Codec.encode b == bytes
+    && Codec.encode b == byteList
     && b.header.hash == hashOfDisplay displayHash
     && spot b
+    && (match Packed.PackedCodec.decode (α := Block) bytes with
+        | some (pb, prest) => pb == b && prest.size == 0
+        | none => false)
+    && Packed.PackedCodec.encode b == bytes
   | _, _ => false
 
 /-- Spot-checks for block 481824 (2017-08-24), hash
@@ -86,14 +97,17 @@ def block481824Checks (b : Block) : Bool :=
   -- The header commits to all 1866 transaction ids through the merkle root,
   -- and the txid list is canonical. With the header-hash check above, every
   -- non-witness transaction byte is pinned: txids → merkle root → header →
-  -- proof-of-work hash. Witness bytes are outside the txid preimage (BIP141),
-  -- so only the two byte-pinned transactions above have theirs checked,
-  -- until the witness-commitment leaf lands.
+  -- proof-of-work hash.
   && decide b.merkleCommits
   -- Bitcoin Core's own algorithm accepts the block: run on the real txid list,
   -- its `mutated` flag is clear — the model agrees with Core, which accepted
   -- block 481824 into the chain.
   && !(Impl.BitcoinCore.computeMerkleRoot (b.txs.val.map Tx.txid)).2
+  -- The BIP141 witness commitment: wtxids → witness root → commitment
+  -- output in the coinbase, whose bytes the txid tree pins. Witness bytes
+  -- are all the txid tree misses, so with `merkleCommits` above every byte
+  -- of the block is now authenticated, up to double-SHA-256 collisions.
+  && decide b.witnessCommits
 
 /-- Where a fixture block is cached locally, by display hash. Gitignored. -/
 def fixturePath (blockHash : String) : System.FilePath :=
@@ -131,9 +145,9 @@ def fetchFixture (blockHash : String) : IO System.FilePath := do
 def checkFixture (blockHash : String) (spot : Block → Bool) : IO Bool := do
   let path ← fetchFixture blockHash
   let bytes ← IO.FS.readBinFile path
-  if blockFixtureChecksOut blockHash (byteArrayToList bytes) spot then
+  if blockFixtureChecksOut blockHash bytes spot then
     IO.println s!"block {blockHash}: decoded, header hash verified, \
-                  spot-checked, re-encoded byte-for-byte"
+                  spot-checked, re-encoded byte-for-byte, packed codec agrees"
     return true
   else
     IO.eprintln s!"block {blockHash}: FAILED (cached at {path})"

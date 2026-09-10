@@ -1,9 +1,14 @@
 # BtcVerified/Impl
 
-Implementation-facing models, checked against the abstract consensus specs they
-realize: level-order vector layouts, transcriptions of Bitcoin Core's own
-consensus code, and (later) efficient representations the spec proofs are
-transported to. `Consensus/` is the reasoning substrate, chosen for clear facts
+Models of code that exists in the world, checked against the abstract
+consensus specs it must realize: level-order vector layouts and
+transcriptions of Bitcoin Core's own consensus code, with other
+implementations (btcd, rust-bitcoin) as future candidates. Everything here
+is evidence about an implementation, not infrastructure of our own — the
+packed executable forms of the spec codecs live beside their types, with
+the class and combinators described in the [`Packed` overview](../Packed/README.md).
+These are runtime implementations for this repository, not models of anyone
+else's code. `Consensus/` is the reasoning substrate, chosen for clear facts
 about protocol behavior and heavily informed by Core without being
 definitionally identical to it. `Impl/BitcoinCore` models the code-shaped side;
 the intended bridge is a refinement/equivalence theorem over observable

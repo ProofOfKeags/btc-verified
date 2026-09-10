@@ -16,6 +16,22 @@ import BtcVerified.Transaction.Tx
   This closes the syntactic hierarchy: every byte of a block is now parsed by
   a verified codec, from CompactSize counts up through transactions to the
   block itself.
+
+  ## Packed codec
+
+  The packed `Block` codec (issue #52): the same field-product transport as
+  the spec codec — header, then CompactSize-counted transactions — so
+  agreement with `instCodecBlock` holds by construction. This closes the
+  packed hierarchy: every byte of a block can be parsed and re-serialized
+  through the packed codecs, and every such run agrees with the verified
+  spec codecs.
+
+  Checked claims:
+
+  * `instPackedCodecBlock`: the packed codec agrees with the
+    specification encoder and decoder on every input.
+  * `abstractParse_decodeBlock` / `toList_encodeBlock`: whole-block packed
+    decoding and encoding agree with the specification byte for byte.
 -/
 
 namespace BtcVerified
@@ -43,3 +59,30 @@ instance instCodecBlock : Codec Block :=
   Codec.ofEquiv Block.equivProd inferInstance
 
 end BtcVerified
+
+/-! ## Packed codec -/
+
+namespace BtcVerified.Packed
+
+open BtcVerified.Serialize BtcVerified
+
+/-- The packed `Block` codec, agreeing with `instCodecBlock` by transport
+over the same field product. -/
+instance instPackedCodecBlock : PackedCodec Block :=
+  PackedCodec.ofEquiv Block.equivProd inferInstance inferInstance
+
+/-- End-to-end decode agreement at the block level: parsing any byte string
+with the packed block codec, read through the abstraction, is the spec
+block parse — same acceptance, same block, same unconsumed remainder. -/
+theorem abstractParse_decodeBlock (bs : List UInt8) :
+    abstractParse (PackedCodec.decode (α := Block) bs.toByteArray)
+      = Codec.decode (α := Block) bs :=
+  PackedCodec.abstractParse_decode_toByteArray bs
+
+/-- End-to-end encode agreement at the block level: the packed encoding of
+a block is byte-for-byte its spec encoding. -/
+theorem toList_encodeBlock (b : Block) :
+    (PackedCodec.encode b).toList = Codec.encode b :=
+  PackedCodec.toList_encode b
+
+end BtcVerified.Packed

@@ -1,6 +1,9 @@
 import BtcVerified.Ext.List
 import BtcVerified.Ext.Finmap
+import BtcVerified.Ext.ByteArray
+import BtcVerified.Ext.ByteSlice
 import BtcVerified.Serialize.Codec
+import BtcVerified.Serialize.Bytes
 import BtcVerified.Serialize.WidthCast
 import BtcVerified.Serialize.CountedList
 import BtcVerified.Serialize.CompactSize
@@ -24,6 +27,7 @@ import BtcVerified.Chainstate.Apply
 import BtcVerified.Block.BlockHeader
 import BtcVerified.Block.Block
 import BtcVerified.Block.Commitment
+import BtcVerified.Block.WitnessCommitment
 import BtcVerified.Block.BlockHash
 import BtcVerified.Block.Chain
 import BtcVerified.Consensus.Limits
@@ -36,3 +40,4 @@ import BtcVerified.Consensus.TxContextual
 import BtcVerified.Consensus.ApplyChecked
 import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle
+import BtcVerified.Packed.Codec

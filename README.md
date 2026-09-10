@@ -53,8 +53,9 @@ statement of what stands.
   transaction ids are binding commitments to the transaction.
 - [`Block/`](BtcVerified/Block/README.md) — Every byte of a block parses
   through a verified codec (checked against real mainnet blocks), block
-  hashes are proved binding, and a chain's tip hash provably commits to the
-  entire history behind it.
+  hashes are proved binding, the coinbase's SegWit witness commitment
+  provably binds every witness in the block, and a chain's tip hash provably
+  commits to the entire history behind it.
 - [`Script/`](BtcVerified/Script/README.md) — Bitcoin Script programs
   modeled as the raw bytes consensus actually validates, with the boundary
   between parsing and execution drawn where the protocol draws it.
@@ -68,6 +69,10 @@ statement of what stands.
 - [`Impl/`](BtcVerified/Impl/README.md) — Functions transcribed from Bitcoin
   Core's own source code and proved to satisfy the specification, starting
   with its merkle-root computation.
+- [`Packed/`](BtcVerified/Packed/README.md) — A fast packed-byte form of
+  every serializer, proved to compute exactly what the specification
+  computes and measured at hundreds of times the spec decoder's speed on a
+  real mainnet block.
 - [`BitVM/`](BtcVerified/BitVM/README.md) — An abstract model of BitVM's bit
   commitments, with a proof that equivocating on a committed bit yields a
   hash collision.
@@ -117,7 +122,7 @@ lake exe cache get     # fetch the mathlib cache (first build only)
 lake build             # the library, plus the golden vectors and axiom audit
 lake test              # block 481824 through the block codec (fetched on first run)
 lake lint
-lake exe module-audit  # module discipline: one type per module
+lake exe module-audit  # one type per module and instance ownership
 ```
 
 `lake build` also elaborates `Tests/`: golden vectors that run the verified
@@ -125,6 +130,11 @@ decoder over real mainnet bytes (the first Bitcoin payment, the SegWit
 activation coinbase, the first SegWit spend, the genesis block, block 170,
 and the genesis → block 1 chain link) and an axiom audit that fails the
 build if any headline theorem depends on `sorry` or an unexpected axiom.
+`lake exe module-audit` checks the compiled library's module discipline.
+For project-defined classes, instances live with the target type when that
+type belongs to this project, or with the class when the type comes from a
+dependency. The checker selects a single type argument and rejects cases
+where it cannot determine an owner; it needs no per-instance allowlist.
 `lake test` decodes the full SegWit activation block,
 fetching it from a block explorer on first run and caching it locally (it is
 public chain data, so it is not committed). See `CONTRIBUTING.md` for the

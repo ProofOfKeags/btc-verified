@@ -47,6 +47,11 @@ This fixes that vocabulary as the base of the stack.
 order, so their codecs come by composition (`Codec.ofEquiv` over the product
 codec) with no hand-written proofs. The whole-transaction codec sits on top.
 
+Each owning module also contains its `PackedCodec` instance and agreement
+proofs, in a separate `BtcVerified.Packed` section. These run over packed
+bytes while proving the same results as the list-based specification;
+see the [packed-codec overview](../Packed/README.md).
+
 Checked claims:
 
 - `decodeTx_encodeTx`: every transaction, including Core's degenerate empty
@@ -89,6 +94,9 @@ Checked claims:
   injectivity.
 - `Tx.wtxid_binding`: equal wtxids imply equal transactions, witnesses
   included — or a concrete collision.
+- `Tx.map_wtxid_binding`: equal wtxid *lists* imply equal transaction lists,
+  witnesses included — or a concrete collision; the form the witness
+  commitment (`../Block/`) lifts through the merkle layer.
 - Golden vectors: the first Bitcoin payment's txid, the genesis coinbase txid
   (which is the genesis merkle root), and the SegWit coinbase's txid with
   `wtxid ≠ txid`.

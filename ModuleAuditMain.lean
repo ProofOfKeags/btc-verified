@@ -9,11 +9,10 @@ import ModuleAudit
   `ModuleAudit.lean`. Violations print with their module and the executable
   exits nonzero, failing CI alongside `lake build`/`lake test`/`lake lint`.
 
-  The direct `import BtcVerified` above is intentionally redundant with
-  `ModuleAudit`: it makes the built library an explicit compile-time
-  prerequisite of this executable, so `lake exe module-audit` always audits
-  fresh `.olean`s. Without it, runtime `importModules` could read stale build
-  output.
+  The static `import BtcVerified` makes the built library a compile-time
+  prerequisite of this executable, so `lake exe module-audit` rebuilds stale
+  `.olean`s before loading them into a runtime environment. The checker in
+  `ModuleAudit` is independent of the audited library.
 -/
 
 open Lean Meta

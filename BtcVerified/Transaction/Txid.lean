@@ -24,6 +24,8 @@ import BtcVerified.Crypto.Hash256
     concrete `sha256d` collision.
   * `Tx.wtxid_binding`: equal wtxids imply equal transactions (witnesses
     included), or a concrete `sha256d` collision.
+  * `Tx.map_wtxid_binding`: equal wtxid *lists* imply equal transaction
+    lists — the form the witness commitment lifts through the merkle layer.
   * `Tx.wtxid_legacy`: a legacy transaction's wtxid is its txid.
 -/
 
@@ -75,5 +77,27 @@ theorem Tx.wtxid_binding {t₁ t₂ : Tx} (h : t₁.wtxid = t₂.wtxid) :
   · exact Or.inl ht
   · exact Or.inr ⟨Codec.encode t₁, Codec.encode t₂,
       fun he => ht (encode_injective he), congrArg Subtype.val h⟩
+
+/-- Equal wtxid lists mean equal transaction lists, witnesses included — or
+two concrete byte strings witnessing a double-SHA-256 collision.
+`Tx.wtxid_binding` lifted pointwise, in the form the witness commitment's
+binding theorem carries through the merkle layer. -/
+theorem Tx.map_wtxid_binding {l₁ l₂ : List Tx}
+    (h : l₁.map Tx.wtxid = l₂.map Tx.wtxid) : l₁ = l₂ ∨ Sha256.Collision := by
+  induction l₁ generalizing l₂ with
+  | nil =>
+    cases l₂ with
+    | nil => exact Or.inl rfl
+    | cons t r => exact absurd h (by simp)
+  | cons t₁ r₁ ih =>
+    cases l₂ with
+    | nil => exact absurd h (by simp)
+    | cons t₂ r₂ =>
+      simp only [List.map_cons, List.cons.injEq] at h
+      rcases Tx.wtxid_binding h.1 with ht | c
+      · rcases ih h.2 with hr | c
+        · exact Or.inl (by rw [ht, hr])
+        · exact Or.inr c
+      · exact Or.inr c
 
 end BtcVerified
