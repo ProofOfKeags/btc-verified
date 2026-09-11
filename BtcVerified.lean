@@ -32,6 +32,7 @@ import BtcVerified.Block.BlockHash
 import BtcVerified.Block.Chain
 import BtcVerified.Consensus.Limits
 import BtcVerified.Consensus.LockTime
+import BtcVerified.Consensus.LockTimeClock
 import BtcVerified.Consensus.TxContext
 import BtcVerified.Consensus.ScriptCheck
 import BtcVerified.Consensus.TxStateless
@@ -40,14 +41,3 @@ import BtcVerified.Consensus.ApplyChecked
 import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle
 import BtcVerified.Packed.Codec
-import BtcVerified.Packed.Bytes
-import BtcVerified.Packed.CompactSize
-import BtcVerified.Packed.CountedList
-import BtcVerified.Packed.OutPoint
-import BtcVerified.Packed.Script
-import BtcVerified.Packed.TxIn
-import BtcVerified.Packed.TxOut
-import BtcVerified.Packed.TxBody
-import BtcVerified.Packed.Tx
-import BtcVerified.Packed.BlockHeader
-import BtcVerified.Packed.Block

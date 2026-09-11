@@ -21,6 +21,11 @@ Checked claims:
   fixed proof-of-work preimage size.
 - `instCodecBlock`: the block codec satisfies round-trip and canonicality.
 
+`BlockHeader.lean` and `Block.lean` also contain their packed codec instances
+and agreement proofs, in separate `BtcVerified.Packed` sections. See the
+[packed-codec overview](../Packed/README.md) for the executable transport
+and its end-to-end claims.
+
 The golden vectors decode the genesis block and block 170 (the first block with
 a non-coinbase transaction) from real mainnet bytes, spot-check the headers and
 coinbases, and re-encode byte-for-byte; block 170's embedded payment must

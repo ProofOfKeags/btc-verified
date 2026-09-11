@@ -1,7 +1,7 @@
 # BtcVerified/Packed
 
 The executable form of the serialization layer (issue #52). The specification
-keeps `List UInt8` as its byte type; these modules run the same codecs over
+keeps `List UInt8` as its byte type; packed instances run the same codecs over
 `ByteArray` — zero-copy slice reads on the way in, in-place buffer appends on
 the way out — and prove, instance by instance, that the packed codec computes
 exactly what the spec codec computes on every input. Nothing here carries
@@ -12,6 +12,12 @@ for free. Any run of a packed codec *is* a run of the verified one.
 The construction mirrors the spec layer combinator for combinator, so every
 structure that gets its spec codec by composition gets its packed codec, and
 its agreement, the same way — and future spec leaves inherit the pattern.
+
+`Packed/Codec.lean` owns the class, generic combinators, and instances for
+Core/dependency types. Each project type owns its spec and packed instances
+in the same module, with the packed definitions and agreement proofs in a
+separate section. Their names remain in the `BtcVerified.Packed` namespace.
+This page is the overview of that implementation across the owning modules.
 
 On the block-481824 fixture (989,323 bytes, 1,866 transactions), one
 development machine measured the packed path at 195x the spec decoder
@@ -70,7 +76,7 @@ spec layer, so the executable representation never grows proof obligations of
 its own — the discipline scales to every future wire structure at the cost of
 one instance declaration.
 
-## `BtcVerified.Packed.CompactSize`
+## `BtcVerified.Serialize.CompactSize`
 
 The packed CompactSize integer, mirroring the spec's factoring: one
 fixed-width marker-payload form shared by the three marker branches, and the
@@ -87,7 +93,7 @@ Why it matters: CompactSize prefixes every count on the wire, so the packed
 counted-list codec — and through it every vector field in a block — stands on
 this agreement.
 
-## `BtcVerified.Packed.CountedList`
+## `BtcVerified.Serialize.CountedList`
 
 The packed counted list — packed count, then elements through their own
 packed codec — plus the byte-content fast path: for `CountedList UInt8`
@@ -110,7 +116,7 @@ the fast path is the difference between paying a typeclass dispatch per byte
 and moving the region in one pass, and it is proved against the same spec
 instance as the generic walk.
 
-## `BtcVerified.Packed.Tx`
+## `BtcVerified.Transaction.Tx`
 
 The packed transaction codec: hand-written mirrors of the spec's hand-written
 branches — legacy, Core's degenerate empty object, and the BIP144 marker/flag
@@ -135,11 +141,11 @@ diverge from the spec; the agreement theorem forecloses exactly that.
 
 `Bytes n` is the one other hand-written leaf: a bulk `readBytes`/`pushBytes`
 pair with agreement proofs `abstractParse_readBytes` / `toList_pushBytes`
-(`Bytes.lean`) — at width 32 this is the packed `Hash256` codec. `OutPoint`,
+(`Serialize/Bytes.lean`) — at width 32 this is the packed `Hash256` codec. `OutPoint`,
 `Script`, `TxIn`, `TxOut`, `TxBody`, `BlockHeader`, and `Block` each get
-their packed codec by applying `PackedCodec.ofEquiv` to the same bijection
-their spec codec uses — one declaration per structure, no hand-written
-proofs. The block level restates
+their packed codec in their defining module by applying `PackedCodec.ofEquiv`
+to the same bijection their spec codec uses — one declaration per structure,
+no hand-written proofs. `Block/Block.lean` restates
 the end-to-end result:
 
 Checked claims:
