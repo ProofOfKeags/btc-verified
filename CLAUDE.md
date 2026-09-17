@@ -12,6 +12,7 @@ lake build BtcVerified.Transaction.Tx       # one module — the fast iteration 
 lake build Tests                            # golden vectors + axiom audit only
 lake test                                   # fixture checks (block 481824; fetched on first run, cached gitignored)
 lake lint                                   # batteries runLinter, mathlib standard linter set
+lake exe module-audit                       # module discipline: one type per module, instances with their type
 ```
 
 - After changing `lean-toolchain` or the mathlib pin, run `lake exe cache get`
@@ -83,9 +84,12 @@ doesn't build it.
    `Tx.legacy` carries the non-empty-inputs proof because `0x00` is the SegWit
    marker).
 
-Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
-`ByteArray` for efficiency — that happens later by transporting proofs across
-`List UInt8 ≃ ByteArray`.
+Spec/transport split: `Codec` specifies serialization over `List UInt8`;
+`PackedCodec` runs it over `ByteArray`/`ByteSlice` and proves agreement with
+that specification. Each type's packed definitions, proofs, and instance live
+beside its spec codec, in a separate section under `BtcVerified.Packed`.
+The `PackedCodec` class, generic combinators, and instances for dependency
+types live in `Packed/Codec.lean`.
 
 ## Conventions
 
@@ -95,9 +99,12 @@ Spec/transport split: the spec byte type is `List UInt8`. Do not switch to
   (e.g. `instCodecUInt8…64` in `Serialize/Codec.lean`); sum-type arm-records may
   share a module if they never appear in an outside signature. Tightly-coupled
   clusters become a directory of one-type modules under an umbrella facade (see
-  `BitVM/BitCommitment/`). A `lake`-run introspection audit to enforce this
-  mechanically is planned — tracked as issue #9; until it lands, review
-  enforces it.
+  `BitVM/BitCommitment/`). Enforced by `lake exe module-audit`, an
+  environment-introspection executable run in CI. For project-defined classes,
+  instance placement follows the target type's defining module, or the class's
+  defining module when the target comes from a dependency; no per-instance
+  allowlist is needed. The arm-record-cluster allowlist lives in
+  `ModuleAudit.lean`.
 - **Naming**: rigid Lean/mathlib casing. `UpperCamelCase` for types, props,
   and predicates; `lowerCamelCase` for defs; theorem names describe the
   conclusion mathlib-style (`decode_encode`, `encodeBitVecLE_length`). Full

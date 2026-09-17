@@ -24,7 +24,9 @@ they prove.
   anonymous.
 - **One type per module**: a module defines at most one `structure`/`inductive`,
   with its instances alongside it (see `CLAUDE.md` for the exact rule and its
-  two exceptions).
+  two exceptions). For project-defined classes, instances for dependency types
+  live with the class; the module audit checks ownership without an instance
+  allowlist. A type's spec and packed codec instances both live beside that type.
 
 ## Workflow
 
@@ -41,6 +43,7 @@ lake exe cache get   # once, after cloning or bumping mathlib
 lake build           # builds the library and the tests
 lake test            # real blocks through the block codec (fetched on first run, cached)
 lake lint
+lake exe module-audit  # one type per module and instance ownership
 ```
 
 A new proof leaf should:

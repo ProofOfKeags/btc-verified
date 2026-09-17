@@ -118,10 +118,11 @@ nix develop
 ```
 
 ```
-lake exe cache get   # fetch the mathlib cache (first build only)
-lake build           # the library, plus the golden vectors and axiom audit
-lake test            # block 481824 through the block codec (fetched on first run)
+lake exe cache get     # fetch the mathlib cache (first build only)
+lake build             # the library, plus the golden vectors and axiom audit
+lake test              # block 481824 through the block codec (fetched on first run)
 lake lint
+lake exe module-audit  # one type per module and instance ownership
 ```
 
 `lake build` also elaborates `Tests/`: golden vectors that run the verified
@@ -129,6 +130,11 @@ decoder over real mainnet bytes (the first Bitcoin payment, the SegWit
 activation coinbase, the first SegWit spend, the genesis block, block 170,
 and the genesis → block 1 chain link) and an axiom audit that fails the
 build if any headline theorem depends on `sorry` or an unexpected axiom.
+`lake exe module-audit` checks the compiled library's module discipline.
+For project-defined classes, instances live with the target type when that
+type belongs to this project, or with the class when the type comes from a
+dependency. The checker selects a single type argument and rejects cases
+where it cannot determine an owner; it needs no per-instance allowlist.
 `lake test` decodes the full SegWit activation block,
 fetching it from a block explorer on first run and caching it locally (it is
 public chain data, so it is not committed). See `CONTRIBUTING.md` for the

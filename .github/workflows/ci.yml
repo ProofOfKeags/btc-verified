@@ -37,6 +37,12 @@ jobs:
           build: true
           test: true
           lint: true
+      # The module-discipline audit (one type per module; instances live
+      # with their type): an environment-introspection executable. Its
+      # compile-time library import means `lake exe` rebuilds anything
+      # stale first, so it audits exactly what was just built.
+      - name: Module-discipline audit
+        run: lake exe module-audit
 
   nix-develop:
     name: nix develop

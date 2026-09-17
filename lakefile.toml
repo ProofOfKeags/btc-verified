@@ -1,7 +1,7 @@
 name = "btc-verified"
 version = "0.1.0"
 license = "Apache-2.0"
-defaultTargets = ["BtcVerified", "Tests"]
+defaultTargets = ["BtcVerified", "ModuleAudit", "Tests"]
 testDriver = "tests"
 lintDriver = "batteries/runLinter"
 
@@ -14,9 +14,17 @@ name = "BtcVerified"
 [[lean_lib]]
 name = "Tests"
 
+[[lean_lib]]
+name = "ModuleAudit"
+
 [[lean_exe]]
 name = "tests"
 root = "TestsMain"
+
+[[lean_exe]]
+name = "module-audit"
+root = "ModuleAuditMain"
+supportInterpreter = true
 
 [[lean_exe]]
 name = "bench"

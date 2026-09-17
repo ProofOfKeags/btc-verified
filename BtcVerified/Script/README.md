@@ -8,6 +8,9 @@ Checked claims:
 
 - `instCodecScript`: the script codec satisfies round-trip and canonicality,
   inherited from the counted byte list.
+- `Packed.instPackedCodecScript`: the packed encoder and decoder agree with
+  the specification, inherited from the packed counted-list codec. Both
+  instances live beside `Script` in `Script.lean`.
 
 Keeping the program text raw is a protocol fact, not a simplification: Bitcoin
 tokenizes a script only at execution time, and consensus never requires the

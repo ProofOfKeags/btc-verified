@@ -21,7 +21,9 @@ every step is done.
   `instCodecBitVec256` sit in `Serialize/Codec.lean`; (B) record arms of a sum
   type may share a module *only if* those arm types never appear in a
   signature outside it (so `SegwitInput`, which appears in `Tx`'s constructor
-  and codec, earns its own module). The audit (issue #9) enforces this.
+  and codec, earns its own module). `lake exe module-audit` enforces this;
+  instance placement follows module ownership without a per-instance allowlist.
+  The arm-record-cluster allowlist lives in `ModuleAudit.lean`.
 - Files sit under the matching directory (`Serialize/`, `Transaction/`,
   `Block/`, `Crypto/`, `BitVM/`); a leaf with several tightly-coupled types
   becomes a directory of one-type modules under an umbrella facade that
@@ -39,11 +41,15 @@ every step is done.
 - Codec by composition: write `Foo.equivProd : Foo ≃ (A × B × ...)` and
   `instance instCodecFoo : Codec Foo := Codec.ofEquiv Foo.equivProd
   inferInstance`. Hand-write `encode`/`decode` (plus both law proofs) ONLY
-  when wire order and model order genuinely differ — `TxCodec.lean` is the
+  when wire order and model order genuinely differ — `Transaction/Tx.lean` is the
   reference for that case.
 - CompactSize-prefixed fields are `CountedList`s. Structural wire facts
   become type-level invariants, not side conditions.
-- Spec stays `List UInt8`; never introduce `ByteArray` here.
+- Spec codecs stay `List UInt8`. Packed codecs use `ByteArray`/`ByteSlice` and
+  prove agreement with the spec. Put a type's packed definitions, proofs, and
+  instance beside the type's spec codec, in a separate section under
+  `BtcVerified.Packed`; keep the class and dependency-type instances in
+  `Packed/Codec.lean`. Follow `CLAUDE.md`'s explicit instance-naming convention.
 
 ## 3. Wiring
 
@@ -66,10 +72,10 @@ every step is done.
 ## 4. Verification
 
 ```sh
-lake build && lake test && lake lint
+lake build && lake test && lake lint && lake exe module-audit
 ```
 
-All three must pass clean. `lake build BtcVerified.<Module>` is the fast loop
+All four must pass clean. `lake build BtcVerified.<Module>` is the fast loop
 while iterating.
 
 ## 5. The README section
