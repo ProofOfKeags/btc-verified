@@ -149,10 +149,10 @@ jobs:
             echo "=== $log ==="
             cat "$log"
             if command -v addr2line >/dev/null 2>&1; then
-              rg -o '\+0x[0-9a-f]+' "$log" | sort -u | while read -r offset; do
+              grep -oE '\+0x[0-9a-f]+' "$log" | sort -u | while read -r offset; do
                 echo "--- ${offset#+} ---"
                 addr2line -f -C -i -e .lake/fuzz/transaction "${offset#+}"
-              done
+              done || true
             else
               echo "addr2line unavailable"
             fi
