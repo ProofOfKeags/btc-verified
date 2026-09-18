@@ -9,3 +9,12 @@ repository = "https://github.com/bitcoin/bitcoin"
 # https://github.com/bitcoin/bitcoin/commit/1bec7fa22c9f159eda42b95543e231322df1f755
 # Pin the complete Core source tree. For bitcoinfuzz, pass rev as BITCOINKERNEL_REF.
 rev = "fc6923cec5b440b611700f6629d8c6a61c6f11bd"
+
+[campaign]
+# These fixed controls make the pull-request campaign bounded and replayable.
+seed = 1
+runs = 100000
+max_len = 4096
+timeout_seconds = 10
+rss_limit_mb = 2048
+use_value_profile = true

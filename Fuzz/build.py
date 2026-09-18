@@ -4,8 +4,9 @@
 Requires the pinned Core checkout, an existing instrumented CMake build,
 and an installed Lean toolchain with local dependency checkouts. No cloning,
 configuration, package installation, or build-cache downloads are performed.
-Lean objects retain their existing instrumentation; this is not an ASan build
-of the Lean compiler/runtime or every generated Lean object.
+Lean objects retain their existing instrumentation; when AddressSanitizer is
+selected, this is not an ASan build of the Lean compiler/runtime or every
+generated Lean object.
 """
 
 import argparse
@@ -59,24 +60,32 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=ARTIFACTS / "transaction")
     parser.add_argument("--fuzzer-library", type=Path,
                         help="explicit standalone libFuzzer archive (e.g. for Apple Clang)")
+    parser.add_argument("--sanitizers",
+                        default="fuzzer" if sys.platform == "darwin" else "fuzzer,address",
+                        help="comma-separated Core/link sanitizers; must include fuzzer")
     parser.add_argument("--macos-deployment-target",
                         help="final link minimum macOS version; defaults to Core's cache")
     args = parser.parse_args()
+    sanitizers = args.sanitizers.split(",")
+    require(all(name in {"fuzzer", "address"} for name in sanitizers),
+            "--sanitizers supports only fuzzer and address")
+    require("fuzzer" in sanitizers and len(sanitizers) == len(set(sanitizers)),
+            "--sanitizers must include fuzzer exactly once and contain no duplicates")
     source, build, output = args.core_source.resolve(), args.core_build.resolve(), args.output.resolve()
     require(output.is_relative_to(ARTIFACTS.resolve()), "--output must be inside .lake/fuzz")
     pin = tomllib.loads((ROOT / "fuzz.toml").read_text())["bitcoinkernel"]["rev"]
     require(isinstance(pin, str) and re.fullmatch(r"[0-9a-fA-F]{40}", pin) is not None,
             "fuzz.toml must contain an exact 40-hex bitcoinkernel.rev")
     require(run("git", "-C", source, "rev-parse", "HEAD") == pin.lower(), "Core HEAD differs from fuzz.toml")
-    require(not run("git", "-C", source, "status", "--porcelain", "--untracked-files=no"),
-            "Core has tracked changes; use a clean checkout of the pinned revision")
+    require(not run("git", "-C", source, "status", "--porcelain", "--untracked-files=all"),
+            "Core has local files or changes; use a clean checkout of the pinned revision")
     cache = cmake_cache(build / "CMakeCache.txt")
     require(Path(cache["CMAKE_HOME_DIRECTORY"]).resolve() == source, "Core build uses another source tree")
     require(enabled(cache.get("BUILD_KERNEL_LIB", "")), "Core build must enable BUILD_KERNEL_LIB")
     require(not enabled(cache.get("BUILD_SHARED_LIBS", "OFF")), "Core build must use a static kernel")
     require(not enabled(cache.get("BUILD_FOR_FUZZING", "OFF")), "BUILD_FOR_FUZZING disables the kernel")
-    require(set(cache.get("SANITIZERS", "").split(",")) == {"fuzzer", "address"},
-            "Core build must set SANITIZERS=fuzzer,address")
+    require(set(cache.get("SANITIZERS", "").split(",")) == set(sanitizers),
+            f"Core build must set SANITIZERS={args.sanitizers}")
     compiler = Path(cache["CMAKE_CXX_COMPILER"])
     require(compiler.is_file(), "Configured C++ compiler is missing")
     fuzzer = args.fuzzer_library.resolve() if args.fuzzer_library else None
@@ -115,7 +124,11 @@ def main() -> None:
     flags_text = run("lake", "env", "leanc", "--print-ldflags")
     # leanc prints space-separated flags; protect the known prefix if it contains spaces.
     lean_flags = shlex.split(flags_text.replace(str(prefix), shlex.quote(str(prefix))))
-    sanitizer = "fuzzer-no-link,address" if fuzzer else "fuzzer,address"
+    link_sanitizers = [
+        "fuzzer-no-link" if name == "fuzzer" and fuzzer else name
+        for name in sanitizers
+    ]
+    sanitizer = ",".join(link_sanitizers)
     command = [str(compiler), "-std=c++20", "-O1", "-g", "-fno-omit-frame-pointer",
                f"-fsanitize={sanitizer}", "-DBITCOINKERNEL_STATIC", *platform_flags,
                "-I", str(source / "src"), "-I", str(prefix / "include"),
@@ -127,7 +140,8 @@ def main() -> None:
     # Record only a completed link. If linking fails, metadata for an older
     # executable remains paired with that older executable.
     (ARTIFACTS / "build.json").write_text(json.dumps({"core_rev": pin, "core_build": str(build),
-        "lean_prefix": str(prefix), "object_count": len(objects), "link_command": command}, indent=2) + "\n")
+        "lean_prefix": str(prefix), "object_count": len(objects), "sanitizers": sanitizers,
+        "link_command": command}, indent=2) + "\n")
     print(f"Built {output}; no fuzzing was executed.")
 
 

@@ -132,7 +132,9 @@ build if any headline theorem depends on `sorry` or an unexpected axiom.
 `lake test` decodes the full SegWit activation block,
 fetching it from a block explorer on first run and caching it locally (it is
 public chain data, so it is not committed). See `CONTRIBUTING.md` for the
-contribution workflow.
+contribution workflow. The separate [transaction conformance check](Fuzz/README.md)
+builds the pinned Bitcoin Core kernel and differentially checks these executable
+semantics through the same command used by CI.
 
 ## License
 

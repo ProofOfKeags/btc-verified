@@ -4,16 +4,19 @@ import Tests.GoldenVectors
 
   Materialize the repository's existing transaction vectors as raw binary
   inputs for libFuzzer. Generated seeds live separately from the evolving
-  corpus, under the gitignored `.lake/fuzz/` directory. Run from the repository
-  root with `lake env lean --run Fuzz/SeedCorpus.lean`.
+  corpus, under the gitignored `.lake/fuzz/` directory. An optional first
+  argument selects the output directory; it defaults to `.lake/fuzz/seeds`.
 -/
 
 open Tests.GoldenVectors
 
 /-- Write existing golden vectors and a few malformed boundary cases as raw
 transaction inputs, failing if a vector cannot be decoded from hex. -/
-def main : IO Unit := do
-  let directory : System.FilePath := ".lake/fuzz/seeds"
+def main (args : List String) : IO Unit := do
+  let directory : System.FilePath :=
+    match args with
+    | path :: _ => path
+    | [] => ".lake/fuzz/seeds"
   IO.FS.createDirAll directory
   let vectors := [
     ("first-payment", firstBitcoinPaymentHex),

@@ -10,6 +10,7 @@
 #include "transaction_cases.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -43,6 +44,15 @@ using Transaction =
 using ValidationState =
     std::unique_ptr<btck_TxValidationState, decltype(&btck_tx_validation_state_destroy)>;
 
+constexpr std::string_view mismatch_injection_token{"transaction-observation-v1"};
+std::atomic_size_t fuzz_executions{0};
+
+bool deliberate_mismatch_enabled()
+{
+    const char* value = std::getenv("BTC_VERIFIED_INJECT_MISMATCH");
+    return value != nullptr && value == mismatch_injection_token;
+}
+
 void print_hex(const char* label, Input bytes)
 {
     std::fprintf(stderr, "%s (%zu bytes): ", label, bytes.size());
@@ -56,8 +66,26 @@ void print_hex(const char* label, Input bytes)
 [[noreturn]] void fail(const char* reason, Input input, Input core = {}, Input lean = {})
 {
     std::fprintf(stderr, "btc-verified transaction fuzz failure: %s\n", reason);
-    // libFuzzer saves the complete triggering input. Named deterministic cases
-    // are independently reproducible with --regression=large.
+    std::fprintf(stderr, "btc-verified fuzz executions before failure: %zu\n",
+                 fuzz_executions.load(std::memory_order_relaxed));
+    if (const char* artifact = std::getenv("BTC_VERIFIED_FAILURE_ARTIFACT");
+        artifact != nullptr && *artifact != '\0') {
+        try {
+            const std::filesystem::path path{artifact};
+            if (!path.parent_path().empty()) {
+                std::filesystem::create_directories(path.parent_path());
+            }
+            std::ofstream file(path, std::ios::binary);
+            file.exceptions(std::ios::failbit | std::ios::badbit);
+            if (!input.empty()) {
+                file.write(reinterpret_cast<const char*>(input.data()), input.size());
+            }
+            std::fprintf(stderr, "saved complete failure input: %s\n", path.string().c_str());
+        } catch (const std::exception& error) {
+            std::fprintf(stderr, "could not save complete failure input: %s\n", error.what());
+        }
+    }
+    // libFuzzer also saves the complete triggering input during a campaign.
     print_hex("input", input);
     print_hex("Core response", core);
     print_hex("Lean response", lean);
@@ -213,7 +241,14 @@ void compare_input(Input input, const transaction_cases::Case* expected = nullpt
 {
     try {
         const Bytes core = core_observe(input);
-        const Bytes lean = lean_observe(input);
+        Bytes lean = lean_observe(input);
+        if (deliberate_mismatch_enabled()) {
+            // Negative control for the surrounding CI runner. Mutate only the
+            // already-validated observation, never either implementation.
+            std::fputs("btc-verified: deliberate mismatch injection enabled\n", stderr);
+            if (lean[0] == 1) lean[1] ^= 1;
+            else lean[0] ^= 1;
+        }
         if (core != lean) {
             if (expected) std::fprintf(stderr, "deterministic case: %s\n", expected->name.c_str());
             const auto difference = std::mismatch(core.begin(), core.end(), lean.begin(), lean.end());
@@ -257,14 +292,18 @@ void check_controls(bool large, const std::filesystem::path& corpus = {})
 
 void replay_directory(const std::filesystem::path& path)
 {
-    size_t count = 0;
+    std::vector<std::filesystem::path> inputs;
     for (const auto& entry : std::filesystem::directory_iterator(path)) {
-        if (!entry.is_regular_file()) continue;
-        std::ifstream file(entry.path(), std::ios::binary);
+        if (entry.is_regular_file()) inputs.push_back(entry.path());
+    }
+    std::sort(inputs.begin(), inputs.end());
+    size_t count = 0;
+    for (const auto& input_path : inputs) {
+        std::ifstream file(input_path, std::ios::binary);
         if (!file) throw std::runtime_error("Cannot read replay input");
         const Bytes input{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
         if (file.bad()) throw std::runtime_error("Replay input read failed");
-        std::fprintf(stderr, "replay: %s\n", entry.path().filename().string().c_str());
+        std::fprintf(stderr, "replay: %s\n", input_path.filename().string().c_str());
         compare_input(input);
         ++count;
     }
@@ -291,16 +330,16 @@ extern "C" __attribute__((visibility("default"))) int LLVMFuzzerInitialize(int* 
             replay = arg.substr(9);
         }
     }
-    if ((!corpus.empty() || !replay.empty()) && !regression) {
-        fail("--write-corpus and --replay require --regression=small or large", {});
+    if (!corpus.empty() && !regression) {
+        fail("--write-corpus requires --regression=small or large", {});
     }
     try {
-        check_controls(large, corpus);
+        if (regression) check_controls(large, corpus);
         if (!replay.empty()) replay_directory(replay);
     } catch (const std::exception& error) {
         fail(error.what(), {});
     }
-    if (regression) std::exit(0); // Exit before the fuzz engine starts.
+    if (regression || !replay.empty()) std::exit(0); // Exit before the fuzz engine starts.
     std::fprintf(stderr, "btc-verified: parsing, field, and context-free check comparisons enabled; "
                          "campaign size limit is controlled by libFuzzer -max_len\n");
     return 0;
@@ -310,6 +349,7 @@ extern "C" __attribute__((visibility("default"))) int LLVMFuzzerTestOneInput(
     const uint8_t* data, size_t size)
 {
     initialize_lean();
+    fuzz_executions.fetch_add(1, std::memory_order_relaxed);
     compare_input(Input{data, size});
     return 0;
 }
