@@ -111,6 +111,11 @@ libFuzzer. On macOS, the runner uses libFuzzer without AddressSanitizer because
 LLVM's ASan runtime can spin during initialization before `main` on macOS 26.
 The report records the actual instrumentation, and both platforms run the same
 semantic comparisons, corpus replay, bounded campaign, and negative control.
+The pinned Lean runtime and Lake objects are prebuilt without ASan. On Linux,
+LeakSanitizer excludes allocations made during Lean initialization and Lean
+observation calls: even an empty replay otherwise reports retained Lean GMP
+values and mutexes at process exit. Leak detection remains active for Core and
+the C++ harness, and AddressSanitizer remains active throughout.
 
 ## Lower-level commands
 

@@ -34,6 +34,17 @@ lean_obj_res initialize_btc_x2dverified_Fuzz_Transaction(uint8_t builtin);
 lean_obj_res btc_verified_transaction_observe(lean_obj_arg input);
 }
 
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define BTC_VERIFIED_HAS_LSAN 1
+#endif
+#endif
+
+#if defined(BTC_VERIFIED_HAS_LSAN)
+extern "C" void __lsan_disable();
+extern "C" void __lsan_enable();
+#endif
+
 namespace {
 
 using Bytes = std::vector<uint8_t>;
@@ -43,6 +54,30 @@ using Transaction =
     std::unique_ptr<btck_Transaction, decltype(&btck_transaction_destroy)>;
 using ValidationState =
     std::unique_ptr<btck_TxValidationState, decltype(&btck_tx_validation_state_destroy)>;
+
+// The pinned Lean runtime and Lake objects are prebuilt without ASan. Module
+// initialization retains GMP values and mutexes, and the small regression
+// suite retains one more GMP value. Ignore allocations inside those Lean calls
+// while leaving Core and this C++ harness subject to LeakSanitizer.
+class LeanAllocationScope {
+public:
+    LeanAllocationScope() noexcept
+    {
+#if defined(BTC_VERIFIED_HAS_LSAN)
+        __lsan_disable();
+#endif
+    }
+
+    ~LeanAllocationScope()
+    {
+#if defined(BTC_VERIFIED_HAS_LSAN)
+        __lsan_enable();
+#endif
+    }
+
+    LeanAllocationScope(const LeanAllocationScope&) = delete;
+    LeanAllocationScope& operator=(const LeanAllocationScope&) = delete;
+};
 
 constexpr std::string_view mismatch_injection_token{"transaction-observation-v1"};
 std::atomic_size_t fuzz_executions{0};
@@ -99,6 +134,7 @@ void initialize_lean()
     // The module initializer also initializes its imported modules. Its ABI is
     // package-qualified and takes only `builtin` in Lean v4.30.0-rc2.
     static const bool initialized = [] {
+        LeanAllocationScope lean_allocations;
         lean_initialize();
         LeanObject result{initialize_btc_x2dverified_Fuzz_Transaction(1), &lean_dec};
         lean_io_mark_end_initialization();
@@ -215,7 +251,12 @@ Bytes lean_observe(Input input)
     if (!input.empty()) {
         std::memcpy(lean_sarray_cptr(bytes.get()), input.data(), input.size());
     }
-    const LeanObject result{btc_verified_transaction_observe(bytes.release()), &lean_dec};
+    lean_object* observed;
+    {
+        LeanAllocationScope lean_allocations;
+        observed = btc_verified_transaction_observe(bytes.release());
+    }
+    const LeanObject result{observed, &lean_dec};
     if (!result || lean_is_scalar(result.get()) || !lean_is_sarray(result.get()) ||
         lean_sarray_elem_size(result.get()) != 1) {
         throw std::runtime_error("Lean returned an invalid ByteArray representation");
