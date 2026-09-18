@@ -1,4 +1,4 @@
-import BtcVerified.Packed.Tx
+import BtcVerified.Transaction.Tx
 import BtcVerified.Consensus.TxStateless
 /-!
   # Native transaction conformance boundary

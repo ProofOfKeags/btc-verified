@@ -5,6 +5,12 @@ repo is built on, and the primitives Bitcoin composes everywhere — fixed-width
 byte strings, fixed-width little-endian integers, and CompactSize-prefixed
 vectors.
 
+`Bytes`, `CompactSize`, and `CountedList` also carry their packed encoders,
+decoders, and agreement proofs in these same modules, under
+`BtcVerified.Packed`. The shared `PackedCodec` class and its instances for
+dependency types live in `../Packed/Codec.lean`; see the
+[packed-codec overview](../Packed/README.md) for the checked claims.
+
 ## The `Codec` discipline
 
 The `Codec` typeclass bundles an encoder, a prefix-consuming decoder, and the

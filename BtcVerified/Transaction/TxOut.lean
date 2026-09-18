@@ -6,6 +6,16 @@ import BtcVerified.Script.Script
   must be satisfied to spend it. The script is a `Script` — raw program bytes,
   tokenized only at execution time — and the codec comes by composition over
   the two fields in wire order.
+
+  ## Packed codec
+
+  The packed `TxOut` codec (issue #52): the same field-product transport as
+  the spec codec, so agreement with `instCodecTxOut` holds by construction.
+
+  Checked claims:
+
+  * `instPackedCodecTxOut`: the packed codec agrees with the
+    specification encoder and decoder on every input.
 -/
 
 namespace BtcVerified
@@ -34,3 +44,16 @@ instance instCodecTxOut : Codec TxOut :=
   Codec.ofEquiv TxOut.equivProd inferInstance
 
 end BtcVerified
+
+/-! ## Packed codec -/
+
+namespace BtcVerified.Packed
+
+open BtcVerified.Serialize BtcVerified
+
+/-- The packed `TxOut` codec, agreeing with `instCodecTxOut` by transport
+over the same field product. -/
+instance instPackedCodecTxOut : PackedCodec TxOut :=
+  PackedCodec.ofEquiv TxOut.equivProd inferInstance inferInstance
+
+end BtcVerified.Packed

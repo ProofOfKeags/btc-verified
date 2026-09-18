@@ -8,6 +8,18 @@ import BtcVerified.Transaction.TxOut
   serialization, and the witness-stripped form a SegWit transaction presents
   to non-upgraded nodes. Its codec comes by composition over the fields in
   wire order, and *is* the legacy transaction serialization.
+
+  ## Packed codec
+
+  The packed `TxBody` codec (issue #52): the same field-product transport as
+  the spec codec, so agreement with `instCodecTxBody` — and hence with the
+  legacy transaction serialization and the txid preimage — holds by
+  construction.
+
+  Checked claims:
+
+  * `instPackedCodecTxBody`: the packed codec agrees with the
+    specification encoder and decoder on every input.
 -/
 
 namespace BtcVerified
@@ -44,3 +56,16 @@ instance instCodecTxBody : Codec TxBody :=
   Codec.ofEquiv TxBody.equivProd inferInstance
 
 end BtcVerified
+
+/-! ## Packed codec -/
+
+namespace BtcVerified.Packed
+
+open BtcVerified.Serialize BtcVerified
+
+/-- The packed `TxBody` codec, agreeing with `instCodecTxBody` by transport
+over the same field product. -/
+instance instPackedCodecTxBody : PackedCodec TxBody :=
+  PackedCodec.ofEquiv TxBody.equivProd inferInstance inferInstance
+
+end BtcVerified.Packed

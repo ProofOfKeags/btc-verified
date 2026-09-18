@@ -1,5 +1,6 @@
 import BtcVerified.Crypto.Hash256
 import BtcVerified.Serialize.Codec
+import BtcVerified.Serialize.Bytes
 /-!
   # The block header
 
@@ -20,6 +21,17 @@ import BtcVerified.Serialize.Codec
     canonicality, inherited field by field.
   * `BlockHeader.encode_length`: every header encodes to exactly 80 bytes —
     the fixed proof-of-work preimage size.
+
+  ## Packed codec
+
+  The packed `BlockHeader` codec (issue #52): the same field-product
+  transport as the spec codec, so agreement with `instCodecBlockHeader` —
+  the 80-byte proof-of-work preimage — holds by construction.
+
+  Checked claims:
+
+  * `instPackedCodecBlockHeader`: the packed codec agrees with the
+    specification encoder and decoder on every input.
 -/
 
 namespace BtcVerified
@@ -67,3 +79,16 @@ theorem BlockHeader.encode_length (h : BlockHeader) : (Codec.encode h).length = 
   simp [Codec.encode, List.length_append, encodeBitVecLE_length]
 
 end BtcVerified
+
+/-! ## Packed codec -/
+
+namespace BtcVerified.Packed
+
+open BtcVerified.Serialize BtcVerified
+
+/-- The packed `BlockHeader` codec, agreeing with `instCodecBlockHeader` by
+transport over the same field product. -/
+instance instPackedCodecBlockHeader : PackedCodec BlockHeader :=
+  PackedCodec.ofEquiv BlockHeader.equivProd inferInstance inferInstance
+
+end BtcVerified.Packed

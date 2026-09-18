@@ -7,6 +7,16 @@ import BtcVerified.Script.Script
   the unlocking script, and the sequence number. The script is a `Script` —
   raw program bytes, tokenized only at execution time — and the codec comes
   by composition over the fields in wire order.
+
+  ## Packed codec
+
+  The packed `TxIn` codec (issue #52): the same field-product transport as
+  the spec codec, so agreement with `instCodecTxIn` holds by construction.
+
+  Checked claims:
+
+  * `instPackedCodecTxIn`: the packed codec agrees with the
+    specification encoder and decoder on every input.
 -/
 
 namespace BtcVerified
@@ -38,3 +48,16 @@ instance instCodecTxIn : Codec TxIn :=
   Codec.ofEquiv TxIn.equivProd inferInstance
 
 end BtcVerified
+
+/-! ## Packed codec -/
+
+namespace BtcVerified.Packed
+
+open BtcVerified.Serialize BtcVerified
+
+/-- The packed `TxIn` codec, agreeing with `instCodecTxIn` by transport over
+the same field product. -/
+instance instPackedCodecTxIn : PackedCodec TxIn :=
+  PackedCodec.ofEquiv TxIn.equivProd inferInstance inferInstance
+
+end BtcVerified.Packed
