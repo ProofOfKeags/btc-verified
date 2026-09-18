@@ -25,8 +25,16 @@
           default = pkgs.mkShell {
             packages = with pkgs; [
               cacert
+              boost
+              ccache
+              cmake
               curl
               git
+              llvmPackages.clang
+              llvmPackages.compiler-rt
+              ninja
+              pkg-config
+              python3
               stdenv.cc
 
               # elan is used instead of nixpkgs#lean4 because nixpkgs currently

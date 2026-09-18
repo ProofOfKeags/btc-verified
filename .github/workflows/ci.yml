@@ -60,3 +60,117 @@ jobs:
         run: nix develop -c lake exe cache get
       - name: Build through dev shell
         run: nix develop -c lake build
+
+  transaction-conformance:
+    name: transaction conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      # Keep Lean state separate from .lake/fuzz, whose Core source, reports,
+      # corpora, and native products are intentionally not a dependency cache.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elan
+            .lake/build
+            .lake/packages
+          key: ${{ runner.os }}-lake-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-lake-
+      - name: Read pinned Core revision
+        id: core_pin
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import hashlib
+          import os
+          import re
+          import tomllib
+
+          with open("fuzz.toml", "rb") as config_file:
+              revision = tomllib.load(config_file)["bitcoinkernel"]["rev"]
+          if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+              raise SystemExit("fuzz.toml must contain an exact lowercase 40-hex Core revision")
+          print(f"revision={revision}")
+          print(f"workspace={hashlib.sha256(os.getcwd().encode()).hexdigest()[:16]}")
+          PY
+      # Core source and its configured minimal build are immutable for a given
+      # revision, platform, Nix toolchain, and build recipe. Restoring this
+      # cache makes CMake's bitcoinkernel build an up-to-date check instead of
+      # recompiling Core. The current Lean objects and harness are still linked
+      # on every run.
+      - uses: actions/cache/restore@v4
+        id: core_cache
+        with:
+          path: |
+            .lake/fuzz/core
+            .lake/fuzz/core-build-ci
+          # CMake build trees contain absolute paths, so the fixed runner image
+          # and workspace identity are part of this exact-only cache key.
+          key: ubuntu-24.04-${{ runner.arch }}-transaction-core-${{ steps.core_pin.outputs.workspace }}-${{ steps.core_pin.outputs.revision }}-${{ hashFiles('flake.nix', 'flake.lock', 'Fuzz/check.py', 'Fuzz/build.py') }}
+      # A compiler-object cache remains useful after a deliberate Core retarget
+      # or build-recipe change. ccache validates compiler flags and input
+      # contents before reusing an object.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ubuntu-24.04-${{ runner.arch }}-transaction-ccache-${{ steps.core_pin.outputs.revision }}-${{ hashFiles('flake.nix', 'flake.lock', 'Fuzz/check.py', 'Fuzz/build.py') }}
+          restore-keys: |
+            ubuntu-24.04-${{ runner.arch }}-transaction-ccache-${{ steps.core_pin.outputs.revision }}-
+            ubuntu-24.04-${{ runner.arch }}-transaction-ccache-
+      - name: Run transaction conformance check
+        run: nix develop -c python3 -B Fuzz/check.py
+      - name: Diagnose transaction conformance failure
+        if: failure()
+        shell: bash
+        run: |
+          set -u
+          run_dir="$(find .lake/fuzz/runs -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
+          if [[ -z "$run_dir" || ! -x .lake/fuzz/transaction ]]; then
+            echo "No built transaction harness to diagnose"
+            exit 0
+          fi
+
+          mkdir -p "$run_dir/inputs/empty-replay"
+          options=detect_leaks=1:fast_unwind_on_malloc=0:malloc_context_size=30
+          ASAN_OPTIONS="$options" .lake/fuzz/transaction \
+            --replay="$run_dir/inputs/empty-replay" \
+            >"$run_dir/logs/diagnostic-empty.log" 2>&1 || true
+          ASAN_OPTIONS="$options" .lake/fuzz/transaction --regression=small \
+            >"$run_dir/logs/diagnostic-small.log" 2>&1 || true
+
+          for log in "$run_dir/logs/09-regression-small.log" \
+                     "$run_dir/logs/diagnostic-empty.log" \
+                     "$run_dir/logs/diagnostic-small.log"; do
+            [[ -f "$log" ]] || continue
+            echo "=== $log ==="
+            cat "$log"
+            if command -v addr2line >/dev/null 2>&1; then
+              grep -oE '\+0x[0-9a-f]+' "$log" | sort -u | while read -r offset; do
+                echo "--- ${offset#+} ---"
+                addr2line -f -C -i -e .lake/fuzz/transaction "${offset#+}"
+              done || true
+            else
+              echo "addr2line unavailable"
+            fi
+          done
+      # Save the expensive pinned Core build even when the comparison fails.
+      - uses: actions/cache/save@v4
+        if: always() && steps.core_pin.outcome == 'success' && steps.core_cache.outcome == 'success' && steps.core_cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            .lake/fuzz/core
+            .lake/fuzz/core-build-ci
+          key: ubuntu-24.04-${{ runner.arch }}-transaction-core-${{ steps.core_pin.outputs.workspace }}-${{ steps.core_pin.outputs.revision }}-${{ hashFiles('flake.nix', 'flake.lock', 'Fuzz/check.py', 'Fuzz/build.py') }}
+      - name: Upload transaction conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transaction-conformance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .lake/fuzz/runs
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
