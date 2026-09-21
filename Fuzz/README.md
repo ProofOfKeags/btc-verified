@@ -59,20 +59,23 @@ From a clean checkout, the complete check is one command:
 nix develop -c python3 -B Fuzz/check.py
 ```
 
-This requires Nix with flakes enabled. The first invocation needs network
+This requires Nix with flakes enabled. The first Linux invocation needs network
 access to realize the development shell, fetch Lean caches, and fetch the
-pinned Core commit; later runs reuse those local inputs.
+pinned Core and Lean commits. It also performs a substantial source build of
+Lean's sanitizer stage 1; later CI runs reuse only an exact-key cache of that
+source/build pair.
 
 `Fuzz/check.py` reads the Core revision and campaign bounds from `fuzz.toml`.
-It creates or reuses an ignored checkout at that exact revision, configures a
-minimal static kernel build with Clang and libFuzzer, builds the current Lean
-and C++ sources, and then runs, in order:
+It creates or reuses ignored checkouts at the exact Core and Lean revisions,
+configures a minimal static kernel build with Clang and libFuzzer, builds the
+current Lean and C++ sources, and then runs, in order:
 
 1. the small deterministic controls;
 2. the large deterministic controls;
 3. a sorted replay of the repository's nine generated transaction seeds;
 4. the count-bounded libFuzzer campaign; and
-5. a deliberate-mismatch negative control.
+5. a deliberate-mismatch negative control; and
+6. on supported Linux ASan builds, a dynamic-Lean-allocation leak control.
 
 The large suite explicitly exercises stripped sizes 999,999, 1,000,000, and
 1,000,001 bytes, large witness data that does not count toward that limit, and
@@ -89,7 +92,7 @@ artifacts. A fuzz mismatch also records the exact execution count reached before
 the failure. Each phase has a separate complete log. The report is finalized
 even when checkout, configuration, build, regression, replay, or fuzzing fails.
 
-The negative control first confirms a known transaction agrees normally. It
+The semantic negative control first confirms a known transaction agrees normally. It
 then alters one byte of the completed Lean observation through an explicitly
 test-only environment seam. The child comparison must abort for the expected
 semantic-difference reason, save the complete input, and that input must pass
@@ -97,25 +100,49 @@ with injection disabled and fail again with injection enabled. An arbitrary
 process failure does not satisfy the control. The saved report includes a
 portable replay script that resolves an extracted artifact's own directory.
 
+The leak control separately replays the same raw input cleanly, then abandons
+exactly one ordinary dynamic `ByteArray` returned by the real Lean observation.
+The injected child must exit with the configured LeakSanitizer code, name
+`lean_observe` in the allocation stack, and report exactly that one direct
+allocation; the saved input must then reproduce both the clean and injected
+outcomes. A crash, a C++-only allocation, or an unsymbolized leak report does
+not satisfy the control. Unsupported platforms record this check as
+unavailable, never passed.
+
 CI executes the same command on every push and pull request to `master`. Lean
-dependencies, the exact Core checkout, its minimal CMake build tree, and Core
-compiler objects are cached outside Git. The Core build cache is keyed by the
-pinned revision, runner platform, Nix toolchain, and build scripts. On an exact
-cache hit, CMake verifies that `bitcoinkernel` is up to date instead of
-recompiling it; the harness is still relinked against the current Lean objects.
+dependencies, the exact Core checkout, its minimal CMake build tree, the exact
+sanitizer Lean source/stage-1 build, and Core compiler objects are cached
+outside Git. The source-build caches are exact-only and keyed by their pinned
+revision, runner/workspace identity, Nix toolchain, and build scripts. On an
+exact Core cache hit, CMake verifies that `bitcoinkernel` is up to date; the
+harness and project-generated Lean C are still rebuilt against current inputs.
 The complete run directory is uploaded for 30 days even when the job fails, so
 logs and reproducing inputs are available from the workflow run.
 
-Linux CI instruments the native boundary with both AddressSanitizer and
-libFuzzer. On macOS, the runner uses libFuzzer without AddressSanitizer because
-LLVM's ASan runtime can spin during initialization before `main` on macOS 26.
-The report records the actual instrumentation, and both platforms run the same
-semantic comparisons, corpus replay, bounded campaign, and negative control.
-The pinned Lean runtime and Lake objects are prebuilt without ASan. On Linux,
-LeakSanitizer excludes allocations made during Lean initialization and Lean
-observation calls: even an empty replay otherwise reports retained Lean GMP
-values and mutexes at process exit. Leak detection remains active for Core and
-the C++ harness, and AddressSanitizer remains active throughout.
+Linux CI instruments Core, the harness, every transitive project/dependency C
+module, and the pinned Lean stage-1 runtime/libraries with AddressSanitizer.
+The stage uses Lean's official `sanitize` preset with `USE_MIMALLOC=OFF`,
+`SMALL_ALLOCATOR=OFF`, `BSYMBOLIC=OFF`, and `USE_LAKE=OFF`; it bootstraps from
+the exact ordinary toolchain selected by `lean-toolchain`, including that
+prefix's `cadical` and `leantar`, and preserves the `rc2` version descriptor.
+Ordinary Lake still
+elaborates the project and generates C, but those C files are recompiled with
+the complete sanitizer-stage `leanc --print-cflags` contract plus
+`LEAN_EXPORTING`; both address and undefined sanitizers are required. The final
+link names that stage's static Lean archives explicitly. No call scope disables
+LeakSanitizer.
+
+Lean's own precise persistent-object transition remains enabled: the pinned
+runtime marks the intended process-lifetime object graph and, in an ASan build,
+annotates those objects individually for LeakSanitizer. The admission rules,
+identified fixed-lifetime allocations, exact source references, and limits of
+that evidence are in [`MEMORY.md`](MEMORY.md). Any new unexplained report is a
+failure to investigate, not a leak budget or permission to widen suppression.
+
+On macOS, the runner uses libFuzzer without AddressSanitizer because LLVM's
+ASan runtime can spin during initialization before `main` on macOS 26. The
+report records memory checking as unavailable there. Both platforms retain the
+semantic comparisons, corpus replay, bounded campaign, and mismatch control.
 
 ## Lower-level commands
 
@@ -137,7 +164,9 @@ lake env lean --run Fuzz/SeedCorpus.lean .lake/fuzz/seeds
 .lake/fuzz/transaction --regression=large --write-corpus=.lake/fuzz/generated-corpus
 ```
 
-A successful report means no disagreement was found in the deterministic,
-replayed, or generated inputs that invocation executed, and that the mismatch
-detector's negative control worked. It is evidence for this stated boundary,
-not proof of equivalence to Core, full transaction validity, or block validity.
+A successful Linux report means no disagreement was found in the deterministic,
+replayed, or generated inputs that invocation executed, the mismatch detector
+worked, the ordinary leak replay was clean, and the injected dynamic Lean leak
+was detected. It is evidence for these tested boundaries, not proof of
+equivalence to Core, complete leak freedom, full transaction validity, or block
+validity.

@@ -30,8 +30,11 @@
               cmake
               curl
               git
+              gmp
+              libuv
               llvmPackages.clang
               llvmPackages.compiler-rt
+              llvmPackages.llvm # llvm-symbolizer for precise ASan/LSan controls
               ninja
               pkg-config
               python3

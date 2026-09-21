@@ -4,9 +4,9 @@
 The default invocation provisions the pinned Bitcoin Core source under the
 gitignored .lake/fuzz directory, configures its static kernel with Clang and
 sanitizers, builds the current Lean/C++ sources, runs deterministic and corpus
-checks, executes the bounded campaign from fuzz.toml, and verifies the
-deliberate-mismatch negative control. Every phase is recorded under
-.lake/fuzz/runs even when the check fails.
+checks, executes the bounded campaign from fuzz.toml, and verifies separate
+semantic-mismatch and dynamic-Lean-allocation negative controls. Every phase
+is recorded under .lake/fuzz/runs even when the check fails.
 """
 
 from __future__ import annotations
@@ -26,6 +26,14 @@ import sys
 import time
 import tomllib
 from typing import Any
+
+from leak_control import (
+    ARTIFACT_ENV as LEAK_ARTIFACT_ENV,
+    INJECT_ENV as LEAK_INJECT_ENV,
+    SANITIZER_ENVIRONMENT,
+    LeakControlFailed,
+    run_leak_control,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -175,6 +183,8 @@ class EvidenceRun:
         # These test controls must never leak accidentally into ordinary phases.
         child_environment.pop(INJECT_ENV, None)
         child_environment.pop(FAILURE_ENV, None)
+        child_environment.pop(LEAK_INJECT_ENV, None)
+        child_environment.pop(LEAK_ARTIFACT_ENV, None)
         child_environment.update(overrides)
         print(f"\n==> {name}: {shlex.join(arguments)}", flush=True)
         started = time.monotonic()
@@ -351,6 +361,36 @@ def ensure_core(run: EvidenceRun, source: Path, repository: str, revision: str) 
         raise CheckFailed("Core checkout has local files or changes; exact pinned source is required")
 
 
+def ensure_lean_source(run: EvidenceRun, source: Path, repository: str, revision: str) -> None:
+    """Create or reuse the ignored, exact Lean source used for sanitizer stage 1."""
+    if not (source / ".git").is_dir():
+        if source.exists() and any(source.iterdir()):
+            raise CheckFailed(f"Lean source path is nonempty but is not a Git checkout: {source}")
+        source.mkdir(parents=True, exist_ok=True)
+        run.phase("lean-source-init", ["git", "init", source])
+    remote = "btc-verified-upstream"
+    remote_url = capture("git", "-C", source, "config", "--get", f"remote.{remote}.url")
+    if not remote_url:
+        run.phase("lean-source-add-remote", [
+            "git", "-C", source, "remote", "add", remote, repository])
+    elif remote_url != repository:
+        raise CheckFailed(f"Lean {remote} URL is {remote_url!r}, expected {repository!r}")
+    if not command_succeeds("git", "-C", source, "cat-file", "-e", f"{revision}^{{commit}}"):
+        run.phase("lean-source-fetch", [
+            "git", "-C", source, "fetch", "--depth=1", remote, revision])
+    head = capture("git", "-C", source, "rev-parse", "HEAD")
+    if head != revision:
+        tracked = capture("git", "-C", source, "status", "--porcelain", "--untracked-files=no")
+        if tracked:
+            raise CheckFailed("Lean source has tracked changes; refusing to change revisions")
+        run.phase("lean-source-checkout", [
+            "git", "-C", source, "checkout", "--detach", revision])
+    if capture("git", "-C", source, "rev-parse", "HEAD") != revision:
+        raise CheckFailed("Lean source did not resolve to its exact configured revision")
+    if capture("git", "-C", source, "status", "--porcelain=v1", "--untracked-files=all"):
+        raise CheckFailed("Lean source has local files or changes; exact pinned source is required")
+
+
 def toolchain_snapshot(cc: Path, cxx: Path) -> dict[str, Any]:
     return {
         "platform": platform.platform(),
@@ -395,10 +435,30 @@ def configure_command(source: Path, build: Path, cc: Path, cxx: Path,
     return command
 
 
+def lean_sanitizer_configure_command(source: Path, build: Path, cc: Path, cxx: Path,
+                                     ordinary_prefix: Path) -> list[str]:
+    """Configure pinned stage 1 with Lean's official leak-visible preset."""
+    cadical = ordinary_prefix / "bin/cadical"
+    leantar = ordinary_prefix / "bin/leantar"
+    if not cadical.is_file() or not leantar.is_file():
+        raise CheckFailed("ordinary Lean toolchain must provide cadical and leantar")
+    return [
+        "cmake", "--preset", "sanitize", "-S", str(source), "-B", str(build),
+        f"-DCMAKE_C_COMPILER={cc}", f"-DCMAKE_CXX_COMPILER={cxx}",
+        f"-DSTAGE1_PREV_STAGE={ordinary_prefix}", f"-DSTAGE1_LEANC_CC={cc}",
+        f"-DCADICAL={cadical}", f"-DLEANTAR={leantar}",
+        "-DLEAN_SPECIAL_VERSION_DESC=rc2",
+        "-DUSE_MIMALLOC=OFF", "-DSMALL_ALLOCATOR=OFF", "-DBSYMBOLIC=OFF",
+        "-DUSE_LAKE=OFF",
+    ]
+
+
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--core-source", type=Path, default=FUZZ_ROOT / "core")
     parser.add_argument("--core-build", type=Path, default=FUZZ_ROOT / "core-build-ci")
+    parser.add_argument("--lean-source", type=Path, default=FUZZ_ROOT / "lean4-source")
+    parser.add_argument("--lean-build", type=Path, default=FUZZ_ROOT / "lean4-build-sanitize")
     parser.add_argument("--output", type=Path, default=FUZZ_ROOT / "transaction")
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument("--cc", default="clang")
@@ -437,10 +497,19 @@ def main() -> int:
     try:
         if configuration_error is not None:
             raise CheckFailed(f"could not read fuzz.toml: {configuration_error}")
+        lean_config = configuration["lean"]
         core_config = configuration["bitcoinkernel"]
         campaign = configuration["campaign"]
-        if not isinstance(core_config, dict) or not isinstance(campaign, dict):
-            raise CheckFailed("fuzz.toml bitcoinkernel and campaign entries must be tables")
+        if (not isinstance(lean_config, dict) or not isinstance(core_config, dict) or
+                not isinstance(campaign, dict)):
+            raise CheckFailed("fuzz.toml lean, bitcoinkernel, and campaign entries must be tables")
+        lean_revision = lean_config["rev"]
+        lean_repository = lean_config["repository"]
+        if (not isinstance(lean_revision, str) or
+                re.fullmatch(r"[0-9a-f]{40}", lean_revision) is None):
+            raise CheckFailed("fuzz.toml must contain an exact lowercase 40-hex lean.rev")
+        if not isinstance(lean_repository, str) or not lean_repository:
+            raise CheckFailed("fuzz.toml must contain a nonempty lean.repository")
         revision = core_config["rev"]
         repository = core_config["repository"]
         if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
@@ -450,6 +519,8 @@ def main() -> int:
         validate_campaign(campaign)
         source = args.core_source.resolve()
         build = args.core_build.resolve()
+        lean_source = args.lean_source.resolve()
+        lean_build = args.lean_build.resolve()
         output = args.output.resolve()
         cc_name = shutil.which(args.cc)
         cxx_name = shutil.which(args.cxx)
@@ -460,12 +531,20 @@ def main() -> int:
         # ASan coverage; Darwin still runs the complete semantic comparison
         # and negative control with libFuzzer itself.
         sanitizers = "fuzzer" if sys.platform == "darwin" else "fuzzer,address"
+        ordinary_lean_prefix_text = capture("lean", "--print-prefix")
+        ordinary_lean_version = capture("lean", "--version")
+        if not ordinary_lean_prefix_text or f"commit {lean_revision}" not in ordinary_lean_version:
+            raise CheckFailed("active ordinary Lean toolchain does not match fuzz.toml lean.rev")
+        ordinary_lean_prefix = Path(ordinary_lean_prefix_text).resolve()
         run.report["toolchain"] = toolchain_snapshot(cc, cxx)
         run.report["instrumentation"] = {
             "sanitizers": sanitizers.split(","),
             "address_sanitizer_coverage": sys.platform != "darwin",
+            "lean_allocator_visibility": (
+                "sanitized-stage1-system-allocator" if sys.platform == "linux" else "unavailable"),
         }
         run.write()
+        run.phase("control-unit-tests", [sys.executable, "-B", "Fuzz/test_leak_control.py"])
         ensure_core(run, source, repository, revision)
         run.report["core"] = {
             "repository": repository,
@@ -479,6 +558,35 @@ def main() -> int:
 
         if not args.skip_lean_cache:
             run.phase("lean-cache", ["lake", "exe", "cache", "get"])
+        lean_prefix: Path | None = None
+        if sys.platform == "linux":
+            ensure_lean_source(run, lean_source, lean_repository, lean_revision)
+            run.report["lean_sanitizer"] = {
+                "repository": lean_repository,
+                "configured_revision": lean_revision,
+                "head": capture("git", "-C", lean_source, "rev-parse", "HEAD"),
+                "source": run.relative(lean_source),
+                "build": run.relative(lean_build),
+                "preset": "sanitize",
+                "stage1_prev_stage": str(ordinary_lean_prefix),
+                "stage1_tools": {
+                    "cadical": str(ordinary_lean_prefix / "bin/cadical"),
+                    "leantar": str(ordinary_lean_prefix / "bin/leantar"),
+                },
+                "special_version_desc": "rc2",
+                "allocator_options": {
+                    "USE_MIMALLOC": False,
+                    "SMALL_ALLOCATOR": False,
+                    "BSYMBOLIC": False,
+                    "USE_LAKE": False,
+                },
+            }
+            run.write()
+            run.phase("lean-sanitize-configure", lean_sanitizer_configure_command(
+                lean_source, lean_build, cc, cxx, ordinary_lean_prefix))
+            run.phase("lean-sanitize-build", [
+                "cmake", "--build", lean_build, "--target", "stage1", "--parallel", "2"])
+            lean_prefix = lean_build / "stage1"
         run.phase("core-configure", configure_command(source, build, cc, cxx, sanitizers))
         build_command: list[str | Path] = [
             sys.executable, "-B", "Fuzz/build.py", "--core-source", source,
@@ -486,6 +594,11 @@ def main() -> int:
         ]
         if args.fuzzer_library:
             build_command += ["--fuzzer-library", args.fuzzer_library.resolve()]
+        if lean_prefix is not None:
+            build_command += [
+                "--lean-source", lean_source, "--lean-build", lean_build,
+                "--lean-prefix", lean_prefix,
+            ]
         run.phase("build", build_command)
         build_record = FUZZ_ROOT / "build.json"
         if not build_record.is_file():
@@ -500,8 +613,13 @@ def main() -> int:
         corpus.mkdir(parents=True)
         run.phase("generate-seeds", ["lake", "env", "lean", "--run", "Fuzz/SeedCorpus.lean", seeds])
 
+        memory_environment = SANITIZER_ENVIRONMENT if sys.platform == "linux" else {}
+
         def failure_environment(name: str) -> dict[str, str]:
-            return {FAILURE_ENV: str(failures / f"{name}.input")}
+            return {
+                **memory_environment,
+                FAILURE_ENV: str(failures / f"{name}.input"),
+            }
 
         run.phase("regression-small", [output, "--regression=small"],
                   environment=failure_environment("regression-small"))
@@ -551,11 +669,18 @@ def main() -> int:
         control = negative_corpus / "first-payment"
         shutil.copy2(seeds / "first-payment", control)
         run.phase("negative-baseline", [output, f"--replay={negative_corpus}"],
-                  environment={FAILURE_ENV: str(negative / "unexpected-baseline.input")})
+                  environment={
+                      **memory_environment,
+                      FAILURE_ENV: str(negative / "unexpected-baseline.input"),
+                  })
         reproducer = negative / "injected-mismatch.input"
         injected_exit_code = run.phase(
             "negative-injected", [output, f"--replay={negative_corpus}"],
-            environment={INJECT_ENV: INJECT_TOKEN, FAILURE_ENV: str(reproducer)},
+            environment={
+                **memory_environment,
+                INJECT_ENV: INJECT_TOKEN,
+                FAILURE_ENV: str(reproducer),
+            },
             expect_success=False)
         injected_log = run.logs / f"{len(run.report['phases']):02d}-negative-injected.log"
         injected_text = injected_log.read_text(errors="replace")
@@ -572,10 +697,17 @@ def main() -> int:
         replay_input = replay_corpus / "injected-mismatch.input"
         shutil.copy2(reproducer, replay_input)
         run.phase("negative-reproduce-clean", [output, f"--replay={replay_corpus}"],
-                  environment={FAILURE_ENV: str(negative / "unexpected-replay.input")})
+                  environment={
+                      **memory_environment,
+                      FAILURE_ENV: str(negative / "unexpected-replay.input"),
+                  })
         reproduced = negative / "reproduced-mismatch.input"
         run.phase("negative-reproduce-injected", [output, f"--replay={replay_corpus}"],
-                  environment={INJECT_ENV: INJECT_TOKEN, FAILURE_ENV: str(reproduced)},
+                  environment={
+                      **memory_environment,
+                      INJECT_ENV: INJECT_TOKEN,
+                      FAILURE_ENV: str(reproduced),
+                  },
                   expect_success=False)
         reproduced_log = run.logs / f"{len(run.report['phases']):02d}-negative-reproduce-injected.log"
         reproduced_text = reproduced_log.read_text(errors="replace")
@@ -592,7 +724,9 @@ def main() -> int:
             "report_dir=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n"
             f"export {INJECT_ENV}={INJECT_TOKEN}\n"
             f"unset {FAILURE_ENV}\n"
-            "exec \"$repo_root/.lake/fuzz/transaction\" --replay=\"$report_dir/replay\"\n")
+            + "".join(f"export {key}={shlex.quote(value)}\n"
+                      for key, value in memory_environment.items())
+            + "exec \"$repo_root/.lake/fuzz/transaction\" --replay=\"$report_dir/replay\"\n")
         reproduce_script.chmod(0o755)
         run.report["negative_control"] = {
             "status": "passed",
@@ -604,10 +738,13 @@ def main() -> int:
                 "from a btc-verified checkout after Fuzz/check.py has built "
                 ".lake/fuzz/transaction. The script may live in an extracted CI artifact."),
         }
+        run_leak_control(
+            run, output, seeds / "first-payment",
+            enabled=sys.platform == "linux" and "address" in sanitizers.split(","))
         run.report["failure_artifacts"] = file_manifest(failures, report_directory)
         run.write()
         exit_code = 0
-    except (CheckFailed, OSError, ValueError, KeyError, subprocess.SubprocessError,
+    except (CheckFailed, LeakControlFailed, OSError, ValueError, KeyError, subprocess.SubprocessError,
             KeyboardInterrupt) as exception:
         error = f"{type(exception).__name__}: {exception}"
         print(f"transaction conformance check failed: {exception}", file=sys.stderr)
@@ -617,6 +754,11 @@ def main() -> int:
         if negative_manifest:
             negative_report = run.report.setdefault("negative_control", {"status": "incomplete"})
             negative_report.setdefault("artifacts", negative_manifest)
+        leak_manifest = file_manifest(report_directory / "leak-negative-control", report_directory)
+        if leak_manifest:
+            leak_report = run.report.setdefault(
+                "leak_negative_control", {"status": "incomplete"})
+            leak_report.setdefault("artifacts", leak_manifest)
         run.finish("passed" if exit_code == 0 else "failed", error)
         print(f"transaction conformance report: {report_directory / 'report.json'}")
     return exit_code
