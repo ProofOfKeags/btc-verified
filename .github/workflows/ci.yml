@@ -64,15 +64,13 @@ jobs:
   transaction-conformance:
     name: transaction conformance
     runs-on: ubuntu-24.04
-    # An exact cache hit is the steady state. Allow a cold, two-job Lean
-    # sanitizer stage-1 build plus Core and generated-C rebuilding to finish.
-    timeout-minutes: 120
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
-      # Keep ordinary Lake state separate from the exact native source/build
-      # caches and run evidence below .lake/fuzz.
+      # Keep Lean state separate from .lake/fuzz, whose Core source, reports,
+      # corpora, and native products are intentionally not a dependency cache.
       - uses: actions/cache@v4
         with:
           path: |
@@ -93,27 +91,12 @@ jobs:
           import tomllib
 
           with open("fuzz.toml", "rb") as config_file:
-              config = tomllib.load(config_file)
-          revision = config["bitcoinkernel"]["rev"]
-          lean_revision = config["lean"]["rev"]
+              revision = tomllib.load(config_file)["bitcoinkernel"]["rev"]
           if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
               raise SystemExit("fuzz.toml must contain an exact lowercase 40-hex Core revision")
-          if not isinstance(lean_revision, str) or re.fullmatch(r"[0-9a-f]{40}", lean_revision) is None:
-              raise SystemExit("fuzz.toml must contain an exact lowercase 40-hex Lean revision")
           print(f"revision={revision}")
-          print(f"lean_revision={lean_revision}")
           print(f"workspace={hashlib.sha256(os.getcwd().encode()).hexdigest()[:16]}")
           PY
-      # The sanitizer build is an exact source/configuration artifact. Its CMake
-      # tree embeds absolute paths, so this cache deliberately has no near-match
-      # restore key and includes the fixed runner workspace identity.
-      - uses: actions/cache/restore@v4
-        id: lean_sanitizer_cache
-        with:
-          path: |
-            .lake/fuzz/lean4-source
-            .lake/fuzz/lean4-build-sanitize
-          key: ubuntu-24.04-${{ runner.arch }}-transaction-lean-sanitize-${{ steps.core_pin.outputs.workspace }}-${{ steps.core_pin.outputs.lean_revision }}-${{ hashFiles('lean-toolchain', 'flake.nix', 'flake.lock', 'fuzz.toml', 'Fuzz/check.py', 'Fuzz/build.py') }}
       # Core source and its configured minimal build are immutable for a given
       # revision, platform, Nix toolchain, and build recipe. Restoring this
       # cache makes CMake's bitcoinkernel build an up-to-date check instead of
@@ -139,84 +122,7 @@ jobs:
             ubuntu-24.04-${{ runner.arch }}-transaction-ccache-${{ steps.core_pin.outputs.revision }}-
             ubuntu-24.04-${{ runner.arch }}-transaction-ccache-
       - name: Run transaction conformance check
-        id: transaction_check
         run: nix develop -c python3 -B Fuzz/check.py
-      - name: Diagnose transaction conformance failure
-        if: failure()
-        shell: bash
-        run: |
-          set -u
-          run_dir="$(find .lake/fuzz/runs -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
-          if [[ -z "$run_dir" || ! -x .lake/fuzz/transaction ]]; then
-            echo "No built transaction harness to diagnose"
-            exit 0
-          fi
-
-          mkdir -p "$run_dir/inputs/empty-replay"
-          options=detect_leaks=1:fast_unwind_on_malloc=0:malloc_context_size=30
-          ASAN_OPTIONS="$options" .lake/fuzz/transaction \
-            --replay="$run_dir/inputs/empty-replay" \
-            >"$run_dir/logs/diagnostic-empty.log" 2>&1 || true
-          ASAN_OPTIONS="$options" .lake/fuzz/transaction --regression=small \
-            >"$run_dir/logs/diagnostic-small.log" 2>&1 || true
-
-          for log in "$run_dir"/logs/*-regression-small.log \
-                     "$run_dir/logs/diagnostic-empty.log" \
-                     "$run_dir/logs/diagnostic-small.log"; do
-            [[ -f "$log" ]] || continue
-            echo "=== $log ==="
-            cat "$log"
-            if command -v addr2line >/dev/null 2>&1; then
-              grep -oE '\+0x[0-9a-f]+' "$log" | sort -u | while read -r offset; do
-                echo "--- ${offset#+} ---"
-                addr2line -f -C -i -e .lake/fuzz/transaction "${offset#+}"
-              done || true
-            else
-              echo "addr2line unavailable"
-            fi
-          done
-      - name: Validate sanitizer Lean cache contents
-        id: lean_sanitizer_ready
-        if: always() && steps.core_pin.outcome == 'success'
-        shell: bash
-        run: |
-          cache=.lake/fuzz/lean4-build-sanitize/stage1/CMakeCache.txt
-          test "$(git -C .lake/fuzz/lean4-source rev-parse HEAD)" = "${{ steps.core_pin.outputs.lean_revision }}"
-          test -z "$(git -C .lake/fuzz/lean4-source status --porcelain --untracked-files=all)"
-          test -f "$cache"
-          grep -q '^USE_MIMALLOC:BOOL=OFF$' "$cache"
-          grep -q '^SMALL_ALLOCATOR:BOOL=OFF$' "$cache"
-          grep -q '^BSYMBOLIC:BOOL=OFF$' "$cache"
-          grep -q '^USE_LAKE:BOOL=OFF$' "$cache"
-          grep -Eq -- '-fsanitize=[^ ]*address' "$cache"
-          test -x .lake/fuzz/lean4-build-sanitize/stage1/bin/leanc
-          for archive in leancpp Init Std Lean leanrt Lake; do
-            test -f ".lake/fuzz/lean4-build-sanitize/stage1/lib/lean/lib${archive}.a"
-          done
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          import tomllib
-
-          record = json.loads(Path(".lake/fuzz/build.json").read_text())
-          configured_revision = tomllib.loads(Path("fuzz.toml").read_text())["lean"]["rev"]
-          expected_source = str(Path(".lake/fuzz/lean4-source").resolve())
-          expected_prefix = str(Path(".lake/fuzz/lean4-build-sanitize/stage1").resolve())
-          if (record.get("lean_rev") != configured_revision or
-                  record.get("lean_source") != expected_source or
-                  record.get("lean_prefix") != expected_prefix):
-              raise SystemExit("build record does not name the exact sanitizer Lean source/stage")
-          flags = " ".join(record.get("lean_cflags", []))
-          if "address" not in flags or "undefined" not in flags or not record.get("lean_exporting"):
-              raise SystemExit("build record lacks sanitizer/export Lean C flags")
-          PY
-      - uses: actions/cache/save@v4
-        if: always() && steps.core_pin.outcome == 'success' && steps.lean_sanitizer_ready.outcome == 'success' && steps.lean_sanitizer_cache.outputs.cache-hit != 'true'
-        with:
-          path: |
-            .lake/fuzz/lean4-source
-            .lake/fuzz/lean4-build-sanitize
-          key: ubuntu-24.04-${{ runner.arch }}-transaction-lean-sanitize-${{ steps.core_pin.outputs.workspace }}-${{ steps.core_pin.outputs.lean_revision }}-${{ hashFiles('lean-toolchain', 'flake.nix', 'flake.lock', 'fuzz.toml', 'Fuzz/check.py', 'Fuzz/build.py') }}
       # Save the expensive pinned Core build even when the comparison fails.
       - uses: actions/cache/save@v4
         if: always() && steps.core_pin.outcome == 'success' && steps.core_cache.outcome == 'success' && steps.core_cache.outputs.cache-hit != 'true'

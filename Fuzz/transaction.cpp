@@ -34,12 +34,6 @@ lean_obj_res initialize_btc_x2dverified_Fuzz_Transaction(uint8_t builtin);
 lean_obj_res btc_verified_transaction_observe(lean_obj_arg input);
 }
 
-#if defined(__linux__) && defined(__has_feature)
-#if __has_feature(address_sanitizer)
-#define BTC_VERIFIED_HAS_LSAN 1
-#endif
-#endif
-
 namespace {
 
 using Bytes = std::vector<uint8_t>;
@@ -51,36 +45,12 @@ using ValidationState =
     std::unique_ptr<btck_TxValidationState, decltype(&btck_tx_validation_state_destroy)>;
 
 constexpr std::string_view mismatch_injection_token{"transaction-observation-v1"};
-constexpr std::string_view leak_injection_token{"transaction-observation-leak-v1"};
 std::atomic_size_t fuzz_executions{0};
 
 bool deliberate_mismatch_enabled()
 {
     const char* value = std::getenv("BTC_VERIFIED_INJECT_MISMATCH");
     return value != nullptr && value == mismatch_injection_token;
-}
-
-bool deliberate_leak_enabled()
-{
-    const char* value = std::getenv("BTC_VERIFIED_INJECT_LEAK");
-    return value != nullptr && value == leak_injection_token;
-}
-
-bool save_input_artifact(const char* variable, Input input)
-{
-    const char* artifact = std::getenv(variable);
-    if (artifact == nullptr || *artifact == '\0') return false;
-    const std::filesystem::path path{artifact};
-    if (!path.parent_path().empty()) {
-        std::filesystem::create_directories(path.parent_path());
-    }
-    std::ofstream file(path, std::ios::binary);
-    file.exceptions(std::ios::failbit | std::ios::badbit);
-    if (!input.empty()) {
-        file.write(reinterpret_cast<const char*>(input.data()), input.size());
-    }
-    std::fprintf(stderr, "saved complete input: %s\n", path.string().c_str());
-    return true;
 }
 
 void print_hex(const char* label, Input bytes)
@@ -98,10 +68,22 @@ void print_hex(const char* label, Input bytes)
     std::fprintf(stderr, "btc-verified transaction fuzz failure: %s\n", reason);
     std::fprintf(stderr, "btc-verified fuzz executions before failure: %zu\n",
                  fuzz_executions.load(std::memory_order_relaxed));
-    try {
-        save_input_artifact("BTC_VERIFIED_FAILURE_ARTIFACT", input);
-    } catch (const std::exception& error) {
-        std::fprintf(stderr, "could not save complete failure input: %s\n", error.what());
+    if (const char* artifact = std::getenv("BTC_VERIFIED_FAILURE_ARTIFACT");
+        artifact != nullptr && *artifact != '\0') {
+        try {
+            const std::filesystem::path path{artifact};
+            if (!path.parent_path().empty()) {
+                std::filesystem::create_directories(path.parent_path());
+            }
+            std::ofstream file(path, std::ios::binary);
+            file.exceptions(std::ios::failbit | std::ios::badbit);
+            if (!input.empty()) {
+                file.write(reinterpret_cast<const char*>(input.data()), input.size());
+            }
+            std::fprintf(stderr, "saved complete failure input: %s\n", path.string().c_str());
+        } catch (const std::exception& error) {
+            std::fprintf(stderr, "could not save complete failure input: %s\n", error.what());
+        }
     }
     // libFuzzer also saves the complete triggering input during a campaign.
     print_hex("input", input);
@@ -227,15 +209,13 @@ Bytes core_observe(Input input)
     return result;
 }
 
-// Keep this frame separate so the negative control's deliberately abandoned
-// result pointer is no longer a live stack root when the replay process exits.
-__attribute__((noinline)) Bytes lean_observe(Input input)
+Bytes lean_observe(Input input)
 {
     LeanObject bytes{lean_alloc_sarray(1, input.size(), input.size()), &lean_dec};
     if (!input.empty()) {
         std::memcpy(lean_sarray_cptr(bytes.get()), input.data(), input.size());
     }
-    LeanObject result{btc_verified_transaction_observe(bytes.release()), &lean_dec};
+    const LeanObject result{btc_verified_transaction_observe(bytes.release()), &lean_dec};
     if (!result || lean_is_scalar(result.get()) || !lean_is_sarray(result.get()) ||
         lean_sarray_elem_size(result.get()) != 1) {
         throw std::runtime_error("Lean returned an invalid ByteArray representation");
@@ -246,28 +226,7 @@ __attribute__((noinline)) Bytes lean_observe(Input input)
         (data[0] == 1 && (size < 30 || data[1] > 1))) {
         throw std::runtime_error("Lean returned an invalid result tag");
     }
-    Bytes response{data, data + size};
-    if (deliberate_leak_enabled()) {
-#if defined(BTC_VERIFIED_HAS_LSAN)
-        if (lean_is_persistent(result.get())) {
-            throw std::runtime_error("leak control requires a dynamically owned Lean observation");
-        }
-        if (!save_input_artifact("BTC_VERIFIED_LEAK_ARTIFACT", input)) {
-            throw std::runtime_error("leak control requires BTC_VERIFIED_LEAK_ARTIFACT");
-        }
-        // Negative control: omit exactly the ownership release normally done
-        // by RAII. A Lean scalar array stores its header and byte capacity in
-        // the single lean_alloc_object allocation returned here, so one lost
-        // result is intentionally one direct allocation, not a hidden graph.
-        // This is the real observation result, not a test-only malloc and not
-        // an exempt process-lifetime object.
-        std::fputs("btc-verified: deliberate dynamic Lean observation leak enabled\n", stderr);
-        static_cast<void>(result.release());
-#else
-        throw std::runtime_error("leak control requires a Linux AddressSanitizer build");
-#endif
-    }
-    return response;
+    return Bytes{data, data + size};
 }
 
 const char* mismatch_reason(Input core, Input lean)

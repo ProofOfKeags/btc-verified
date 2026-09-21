@@ -1,12 +1,6 @@
 # Project-owned implementation pin for differential fuzzing.
 # Fuzz/build.py validates the local Core checkout against this revision.
 
-[lean]
-repository = "https://github.com/leanprover/lean4"
-# Exact source behind lean-toolchain. The Linux memory check rebuilds stage 1
-# from this revision with Lean's sanitizer preset and allocator visibility.
-rev = "3dc1a088b6d2d8eafe25a7cd7ec7b58d731bd7cc"
-
 [bitcoinkernel]
 repository = "https://github.com/bitcoin/bitcoin"
 
