@@ -17,6 +17,9 @@ require "leanprover-community" / "mathlib"
 lean_lib Fuzz where
   roots := #[`Fuzz.Transaction]
 @[default_target] lean_lib FuzzTests
+lean_lib Kernel where
+  roots := #[`Kernel.Transaction]
+@[default_target] lean_lib KernelTests
 
 lean_exe tests where
   root := `TestsMain
