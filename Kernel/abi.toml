@@ -1,0 +1,4 @@
+# The public ABI is the unmodified upstream header at the Core revision in
+# ../fuzz.toml. This digest makes header-only downloads independently checkable.
+header_path = "src/kernel/bitcoinkernel.h"
+header_sha256 = "d682bfdacdf972914922385047f64f32369b7dcc01c3dc4d993dc24b833cb438"
