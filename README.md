@@ -138,7 +138,32 @@ where it cannot determine an owner; it needs no per-instance allowlist.
 `lake test` decodes the full SegWit activation block,
 fetching it from a block explorer on first run and caching it locally (it is
 public chain data, so it is not committed). See `CONTRIBUTING.md` for the
-contribution workflow.
+contribution workflow. The separate [transaction conformance check](Fuzz/README.md)
+builds the pinned Bitcoin Core kernel and differentially checks these executable
+semantics through the same command used by CI.
+
+The [kernel C ABI](Kernel/README.md) builds btc-verified as a shared library
+implementing the transaction portion of the pinned `bitcoinkernel.h`. Ordinary
+C callers use the upstream header and `btck_*` symbols without a Lean-specific
+interface. The handwritten shim and lifecycle tests are C-only and compile with
+a C compiler; semantic parsing, serialization, checking, and hashing still run
+in Lean before immutable native snapshots cross the ABI. The generated Lean
+objects and inherited runtime may retain C++ linkage, so this is not a claim that
+the transitive library artifact is C++-free. Its standalone build and ABI tests
+do not build or execute Core:
+
+```sh
+nix develop -c lake exe kernel-check --test
+```
+
+The generated symbol report records the exact 42 implemented functions out of
+the pinned header's 136 and the unsupported functions that remain unavailable
+at link time. The library must stay loaded for the process lifetime. It is not
+yet wired into the separate differential check above.
+
+The kernel build is a dependency-tracked Lake target (`lake build kernel`);
+the standalone check and symbol audit are Lean programs. This path requires no
+Python. The older differential-check tooling in `Fuzz/` still uses Python.
 
 ## License
 
