@@ -30,8 +30,10 @@ lean_lib Kernel where
   roots := #[`Kernel.Transaction]
 @[default_target] lean_lib KernelTests
 @[default_target] lean_lib KernelTools where
-  roots := #[`Kernel.Tools.Options, `Kernel.Tools.Check,
-    `Kernel.Tools.Symbols, `Kernel.Tools.SymbolReport]
+  -- Check imports every tooling module, so Batteries needs only one lint pass.
+  -- Keep all tooling modules in the library's build and discovery set.
+  roots := #[`Kernel.Tools.Check]
+  globs := #[.submodules `Kernel.Tools]
 @[default_target] lean_lib KernelToolsTests
 
 lean_exe tests where
