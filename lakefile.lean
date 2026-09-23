@@ -7,7 +7,8 @@ open Lake DSL System Lean
   # Project and native kernel build
 
   Lake owns the Lean/C dependency graph. The native target authenticates only
-  Core's public header; it never builds or executes Core.
+  Core's public header; it never builds or executes Core. Operational audits
+  and standalone C-client tests are performed by `lake exe kernel-check`.
 -/
 
 package «btc-verified» where
@@ -28,6 +29,10 @@ lean_lib Fuzz where
 lean_lib Kernel where
   roots := #[`Kernel.Transaction]
 @[default_target] lean_lib KernelTests
+@[default_target] lean_lib KernelTools where
+  roots := #[`Kernel.Tools.Options, `Kernel.Tools.Check,
+    `Kernel.Tools.Symbols, `Kernel.Tools.SymbolReport]
+@[default_target] lean_lib KernelToolsTests
 
 lean_exe tests where
   root := `TestsMain
@@ -36,6 +41,8 @@ lean_exe «module-audit» where
   supportInterpreter := true
 lean_exe bench where
   root := `BenchMain
+lean_exe «kernel-check» where
+  root := `KernelCheck
 
 namespace KernelBuild
 
