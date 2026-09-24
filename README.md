@@ -111,6 +111,10 @@ tracks the work items; in outline:
 
 ## Build
 
+The separate [Lean kernel boundary](Kernel/README.md) adapts this specification
+for a future `bitcoinkernel.h` implementation. Its pure operations and transport
+proofs are built and tested today; it does not yet provide the public C ABI.
+
 With Nix, enter the development shell first:
 
 ```
