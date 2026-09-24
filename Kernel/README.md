@@ -6,6 +6,10 @@ encoding, transaction-local checks, field snapshots, and txid computation.
 `Kernel/` is a consumer of the specification in `BtcVerified/`, not another
 consensus model or a dependency of the specification.
 
+`regularCheck` evaluates the [six named specification predicates](../BtcVerified/Consensus/README.md#transaction-local-premises).
+Only `StrippedSizeLeMaxLegacySerializedSize` needs a kernel-local implementation:
+it measures packed bytes, with agreement established by the transport proof.
+
 Checked claims:
 
 - `regularCheck_eq_isWellFormed`: packed size measurement preserves the existing

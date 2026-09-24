@@ -64,6 +64,12 @@ private def witnessedBytes : List UInt8 :=
           && Kernel.outputScript output == ([0, 0x6a, 0xff] : List UInt8).toByteArray
           && Kernel.encodeStripped tx == legacyBytes.toByteArray
           && Kernel.txid tx == tx.txid.val.toByteArray
+          && decide tx.ExistsInput
+          && decide tx.ExistsOutput
+          && decide tx.PairwiseDistinctInputOutpoints
+          && decide tx.AllInputOutpointsNeNull
+          && decide tx.TotalOutputValueLeMaxMoney
+          && decide tx.StrippedSizeLeMaxLegacySerializedSize
     | _, _ => false
 
 #guard match Kernel.decode legacyBytes.toByteArray with
@@ -76,6 +82,7 @@ private def witnessedBytes : List UInt8 :=
 #guard match hexBytes? coreEmptyTxHex >>= (Kernel.decode ·.toByteArray) with
   | some tx => (Kernel.inputs tx).isEmpty && (Kernel.outputs tx).isEmpty
       && (Kernel.witnesses tx).isEmpty && Kernel.locktime tx == 0
+      && !decide tx.ExistsInput && !decide tx.ExistsOutput
   | none => false
 
 -- Truncation, unknown witness flags, and a noncanonical CompactSize input count.
@@ -102,6 +109,24 @@ private def hasCheckResult (bytes : ByteArray) (expected : Bool) : Bool :=
 #guard hasCheckResult (smallTransaction [inputBytes] []) false
 #guard hasCheckResult (smallTransaction [inputBytes, inputBytes] [outputBytes]) false
 #guard hasCheckResult (smallTransaction [inputBytes, coinbaseInput 2] [outputBytes]) false
+
+-- Exercise named predicates independently of the combined checker.
+private def predicateResult (predicate : Tx → Prop) [DecidablePred predicate]
+    (bytes : ByteArray) (expected : Bool) : Bool :=
+  match Kernel.decode bytes with
+  | some tx => decide (predicate tx) == expected
+  | none => false
+
+#guard predicateResult Tx.PairwiseDistinctInputOutpoints
+  (smallTransaction [inputBytes, inputBytes.dropLast ++ [0]] [outputBytes]) false
+#guard predicateResult Tx.AllInputOutpointsNeNull
+  (smallTransaction [coinbaseInput 2] [outputBytes]) false
+private def maxMoneyBytes : List UInt8 := [0, 0x40, 7, 0x5a, 0xf0, 0x75, 7, 0]
+#guard predicateResult Tx.TotalOutputValueLeMaxMoney
+  (smallTransaction [inputBytes] [maxMoneyBytes ++ [0]]) true
+#guard predicateResult Tx.TotalOutputValueLeMaxMoney
+  (smallTransaction [inputBytes] [maxMoneyBytes ++ [0], [1, 0, 0, 0, 0, 0, 0, 0, 0]]) false
+
 -- Signed-negative wire amounts retain their bits and fail the natural-value bound.
 #guard match Kernel.decode
     (smallTransaction [inputBytes] [List.replicate 8 0xff ++ [0]]) with

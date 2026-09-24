@@ -68,6 +68,22 @@ rule. Current Core expresses the equivalent predicate in block-weight units;
 without making the semantic rule depend on SegWit constants. The coinbase's
 positional structural checks remain block rules (#37).
 
+The six reusable predicates name the logical premises independently of their
+Boolean evaluation:
+
+- `Tx.ExistsInput` and `Tx.ExistsOutput`: nonempty input and output lists.
+- `Tx.PairwiseDistinctInputOutpoints`: no repeated outpoint within one transaction.
+- `Tx.AllInputOutpointsNeNull`: every input outpoint differs from `OutPoint.null`.
+- `Tx.TotalOutputValueLeMaxMoney`: summed output value ≤ `Consensus.maxMoney`.
+- `Tx.StrippedSizeLeMaxLegacySerializedSize`: witness-stripped bytes ≤
+  `Consensus.maxLegacySerializedSize`.
+
+`Tx.WellFormed` collects these propositions, and `Tx.isWellFormed` decides them.
+The existential names assert membership in the transaction's own lists, not
+availability in a UTXO set. Distinctness is transaction-local, and both numeric
+bounds include equality. The kernel reuses this vocabulary and proves its packed
+size measurement leaves the checker unchanged.
+
 Checked claims:
 
 - `Tx.stripped_size_bound_iff_core`: the semantic legacy serialized-size

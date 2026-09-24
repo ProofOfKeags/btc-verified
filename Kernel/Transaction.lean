@@ -90,16 +90,20 @@ def encode (tx : Tx) : ByteArray :=
 def encodeStripped (tx : Tx) : ByteArray :=
   PackedCodec.encode tx.body
 
+-- The packed implementation of `Tx.StrippedSizeLeMaxLegacySerializedSize`;
+-- `regularCheck_eq_isWellFormed` transports this measurement to the spec.
+private def checkStrippedSizeLeMaxLegacySerializedSize (tx : Tx) : Bool :=
+  decide ((PackedCodec.encode tx.body).size ≤ Consensus.maxLegacySerializedSize)
+
 /-- Decide the regular-position transaction-local premises while measuring
 stripped size through the packed encoder. -/
 def regularCheck (tx : Tx) : Bool :=
-  decide (tx.body.inputs.val ≠ [])
-    && decide (tx.body.outputs.val ≠ [])
-    && decide tx.body.spends.Nodup
-    && tx.body.spends.all (· != OutPoint.null)
-    && decide ((tx.body.outputs.val.map fun output => output.value.toNat).sum
-        ≤ Consensus.maxMoney)
-    && decide ((PackedCodec.encode tx.body).size ≤ Consensus.maxLegacySerializedSize)
+  decide tx.ExistsInput
+    && decide tx.ExistsOutput
+    && decide tx.PairwiseDistinctInputOutpoints
+    && decide tx.AllInputOutpointsNeNull
+    && decide tx.TotalOutputValueLeMaxMoney
+    && checkStrippedSizeLeMaxLegacySerializedSize tx
 
 /-- Measuring stripped size with the packed encoder leaves the existing
 regular-position transaction checker unchanged on every transaction. -/
@@ -109,7 +113,9 @@ theorem regularCheck_eq_isWellFormed (tx : Tx) :
     have h := congrArg List.length (PackedCodec.toList_encode tx.body)
     simpa only [ByteArray.toList_eq_data_toList, ByteArray.size,
       Array.length_toList, Tx.strippedSize] using h
-  simp only [regularCheck, Tx.isWellFormed, hsize]
+  apply Bool.eq_iff_iff.mpr
+  simp only [regularCheck, Tx.isWellFormed, checkStrippedSizeLeMaxLegacySerializedSize,
+    Bool.and_eq_true, decide_eq_true_eq, Tx.StrippedSizeLeMaxLegacySerializedSize, hsize]
 
 /-- The standalone transaction-local adapter: the regular checker plus a
 single-null-input coinbase branch with scriptSig length bounds. This follows
@@ -120,11 +126,9 @@ def check (tx : Tx) : Bool :=
   match tx.body.inputs.val with
   | [input] =>
     if input.prevout == OutPoint.null then
-      !tx.body.outputs.val.isEmpty
-        && decide ((tx.body.outputs.val.map fun output => output.value.toNat).sum
-          ≤ Consensus.maxMoney)
-        && decide ((PackedCodec.encode tx.body).size
-          ≤ Consensus.maxLegacySerializedSize)
+      decide tx.ExistsOutput
+        && decide tx.TotalOutputValueLeMaxMoney
+        && checkStrippedSizeLeMaxLegacySerializedSize tx
         && decide (2 ≤ input.scriptSig.code.val.length)
         && decide (input.scriptSig.code.val.length ≤ 100)
     else regularCheck tx

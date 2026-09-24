@@ -16,7 +16,8 @@ import BtcVerified.Consensus.Limits
 
   The enforced rule is the checker `Tx.isWellFormed`; `Tx.WellFormed` is the
   specification it is proved to enforce (`Tx.isWellFormed_iff`). Downstream
-  theorems consume the specification's named fields.
+  theorems consume the specification's named fields. Each field refers to a
+  reusable predicate whose name exposes its quantifier, relation, or named bound.
 
   Core checks represented differently here, and why:
 
@@ -72,6 +73,67 @@ theorem Tx.stripped_size_bound_iff_core {tx : Tx} :
     Consensus.maxBlockWeight
   omega
 
+/-- At least one input occurs in the transaction. This is list nonemptiness,
+not the existence of the referenced outputs in a UTXO set. -/
+def Tx.ExistsInput (tx : Tx) : Prop :=
+  tx.body.inputs.val ≠ []
+
+/-- At least one output occurs in the transaction. -/
+def Tx.ExistsOutput (tx : Tx) : Prop :=
+  tx.body.outputs.val ≠ []
+
+/-- Distinct input positions reference distinct outpoints. This excludes
+duplicate spends within this transaction, not conflicts with other transactions. -/
+def Tx.PairwiseDistinctInputOutpoints (tx : Tx) : Prop :=
+  tx.body.spends.Nodup
+
+/-- Every input outpoint differs from the null outpoint. -/
+def Tx.AllInputOutpointsNeNull (tx : Tx) : Prop :=
+  ∀ outpoint ∈ tx.body.spends, outpoint ≠ OutPoint.null
+
+/-- The sum of all output values is at most `Consensus.maxMoney` satoshis. -/
+def Tx.TotalOutputValueLeMaxMoney (tx : Tx) : Prop :=
+  (tx.body.outputs.val.map fun output => output.value.toNat).sum ≤ Consensus.maxMoney
+
+/-- Witness-stripped serialization is at most `Consensus.maxLegacySerializedSize`
+bytes. This is not a bound on the full witness-inclusive encoding. -/
+def Tx.StrippedSizeLeMaxLegacySerializedSize (tx : Tx) : Prop :=
+  tx.strippedSize ≤ Consensus.maxLegacySerializedSize
+
+-- Expand decision instances before compilation so `&&` keeps later checks conditional,
+-- particularly the serialization-based size check.
+/-- Decide whether an input exists. -/
+@[macro_inline]
+instance instDecidableExistsInput : DecidablePred Tx.ExistsInput :=
+  fun _ => by unfold Tx.ExistsInput; infer_instance
+
+/-- Decide whether an output exists. -/
+@[macro_inline]
+instance instDecidableExistsOutput : DecidablePred Tx.ExistsOutput :=
+  fun _ => by unfold Tx.ExistsOutput; infer_instance
+
+/-- Decide whether input outpoints are pairwise distinct. -/
+@[macro_inline]
+instance instDecidablePairwiseDistinctInputOutpoints :
+    DecidablePred Tx.PairwiseDistinctInputOutpoints :=
+  fun _ => by unfold Tx.PairwiseDistinctInputOutpoints; infer_instance
+
+/-- Decide whether every input outpoint differs from the null outpoint. -/
+@[macro_inline]
+instance instDecidableAllInputOutpointsNeNull : DecidablePred Tx.AllInputOutpointsNeNull :=
+  fun _ => by unfold Tx.AllInputOutpointsNeNull; infer_instance
+
+/-- Decide whether total output value is at most `Consensus.maxMoney`. -/
+@[macro_inline]
+instance instDecidableTotalOutputValueLeMaxMoney : DecidablePred Tx.TotalOutputValueLeMaxMoney :=
+  fun _ => by unfold Tx.TotalOutputValueLeMaxMoney; infer_instance
+
+/-- Decide whether stripped size is at most `Consensus.maxLegacySerializedSize`. -/
+@[macro_inline]
+instance instDecidableStrippedSizeLeMaxLegacySerializedSize :
+    DecidablePred Tx.StrippedSizeLeMaxLegacySerializedSize :=
+  fun _ => by unfold Tx.StrippedSizeLeMaxLegacySerializedSize; infer_instance
+
 /-- Decide the transaction-local admissibility premises for a regular
 transaction: some input and output exist, no outpoint is spent twice, no input claims
 the null outpoint, the outputs create at most `maxMoney` satoshis in total,
@@ -80,13 +142,12 @@ ceiling. Core v28 expresses the equivalent check in weight units
 ([Bitcoin Core v28.0, `tx_check.cpp` lines
 18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
 def Tx.isWellFormed (tx : Tx) : Bool :=
-  decide (tx.body.inputs.val ≠ [])
-    && decide (tx.body.outputs.val ≠ [])
-    && decide tx.body.spends.Nodup
-    && tx.body.spends.all (· != OutPoint.null)
-    && decide ((tx.body.outputs.val.map fun o => o.value.toNat).sum
-        ≤ Consensus.maxMoney)
-    && decide (tx.strippedSize ≤ Consensus.maxLegacySerializedSize)
+  decide tx.ExistsInput
+    && decide tx.ExistsOutput
+    && decide tx.PairwiseDistinctInputOutpoints
+    && decide tx.AllInputOutpointsNeNull
+    && decide tx.TotalOutputValueLeMaxMoney
+    && decide tx.StrippedSizeLeMaxLegacySerializedSize
 
 /-- The specification `Tx.isWellFormed` enforces — the regular-transaction
 projection of Core's `CheckTransaction`, one field per rule ([Bitcoin Core
@@ -95,38 +156,35 @@ v28.0, `tx_check.cpp` lines
 structure Tx.WellFormed (tx : Tx) : Prop where
   /-- There is at least one input (`bad-txns-vin-empty`; [Bitcoin Core v28.0,
   `tx_check.cpp` lines 14–15](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L14-L15)). -/
-  inputs_ne_nil : tx.body.inputs.val ≠ []
+  inputs_ne_nil : tx.ExistsInput
   /-- There is at least one output (`bad-txns-vout-empty`; [Bitcoin Core v28.0,
   `tx_check.cpp` lines 16–17](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L16-L17)). -/
-  outputs_ne_nil : tx.body.outputs.val ≠ []
+  outputs_ne_nil : tx.ExistsOutput
   /-- No two inputs consume the same outpoint (`bad-txns-inputs-duplicate`;
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   36–44](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L36-L44)). -/
-  spends_nodup : tx.body.spends.Nodup
+  spends_nodup : tx.PairwiseDistinctInputOutpoints
   /-- No regular input claims the null outpoint (`bad-txns-prevout-null`;
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   47–56](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L47-L56)). -/
-  spends_ne_null : ∀ o ∈ tx.body.spends, o ≠ OutPoint.null
+  spends_ne_null : tx.AllInputOutpointsNeNull
   /-- The outputs create at most `maxMoney` satoshis in total — which in
   `Nat` also bounds every individual output (`bad-txns-vout-toolarge`,
   `bad-txns-txouttotal-toolarge`; [Bitcoin Core v28.0, `tx_check.cpp` lines
   23–33](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L23-L33)). -/
-  values_bounded : (tx.body.outputs.val.map fun o => o.value.toNat).sum
-    ≤ Consensus.maxMoney
+  values_bounded : tx.TotalOutputValueLeMaxMoney
   /-- The stripped serialization fits within the historical one-million-byte
   ceiling (`bad-txns-oversize`). Core v28's weight-unit expression is proved
   equivalent by `Tx.stripped_size_bound_iff_core` ([Bitcoin Core v28.0,
   `tx_check.cpp` lines
   18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
-  stripped_size_bounded : tx.strippedSize
-    ≤ Consensus.maxLegacySerializedSize
+  stripped_size_bounded : tx.StrippedSizeLeMaxLegacySerializedSize
 
 /-- The checker enforces exactly its specification: `isWellFormed` accepts a
 transaction iff it is `WellFormed`. -/
 theorem Tx.isWellFormed_iff {tx : Tx} :
     tx.isWellFormed = true ↔ tx.WellFormed := by
-  simp only [isWellFormed, Bool.and_eq_true, decide_eq_true_eq,
-    List.all_eq_true, bne_iff_ne]
+  simp only [isWellFormed, Bool.and_eq_true, decide_eq_true_eq]
   constructor
   · rintro ⟨⟨⟨⟨⟨hinputs, houtputs⟩, hnodup⟩, hnull⟩, hbound⟩, hsize⟩
     exact ⟨hinputs, houtputs, hnodup, hnull, hbound, hsize⟩
@@ -179,7 +237,7 @@ theorem Tx.WellFormed.outputs_length_le {tx : Tx} (h : tx.WellFormed) :
     simp only [List.length_append]
     omega
   have hsize := h.stripped_size_bounded
-  unfold Consensus.maxLegacySerializedSize at hsize
+  unfold Tx.StrippedSizeLeMaxLegacySerializedSize Consensus.maxLegacySerializedSize at hsize
   omega
 
 instance instDecidableWellFormed : DecidablePred Tx.WellFormed :=
