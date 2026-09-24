@@ -30,7 +30,7 @@ limit) are theorems only, never runtime checks.
 ## The shape of a rule
 
 `Limits.lean` holds the numeric constants (`maxMoney`, `coinbaseMaturity`,
-`maxLegacySerializedSize`, `maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
+`maxStrippedTransactionSize`, `maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
 `sequenceFinal`), each citing its Core counterpart. `LockTime.lean` interprets
 the raw transaction lock-time field as disabled, an absolute block height, or
 an absolute time; BIP68 relative locks remain the separate sequence-field leaf
@@ -62,7 +62,7 @@ empty-input/output object Core's witness-aware decoder accepts
 220–252](https://github.com/bitcoin/bitcoin/blob/v28.0/src/primitives/transaction.h#L220-L252)).
 Negative amounts remain unrepresentable, and in `Nat` one total-value bound
 subsumes Core's per-output and running-total `MoneyRange` checks. The
-legacy one-million-byte stripped-size ceiling is also a transaction-local
+one-million-byte stripped-size ceiling is also a transaction-local
 rule. Current Core expresses the equivalent predicate in block-weight units;
 `Tx.stripped_size_bound_iff_core` records that implementation correspondence
 without making the semantic rule depend on SegWit constants. The coinbase's
@@ -75,8 +75,8 @@ Boolean evaluation:
 - `Tx.PairwiseDistinctInputOutpoints`: no repeated outpoint within one transaction.
 - `Tx.AllInputOutpointsNeNull`: every input outpoint differs from `OutPoint.null`.
 - `Tx.TotalOutputValueLeMaxMoney`: summed output value ≤ `Consensus.maxMoney`.
-- `Tx.StrippedSizeLeMaxLegacySerializedSize`: witness-stripped bytes ≤
-  `Consensus.maxLegacySerializedSize`.
+- `Tx.StrippedSizeLeMaxStrippedTransactionSize`: witness-stripped bytes ≤
+  `Consensus.maxStrippedTransactionSize`.
 
 `Tx.WellFormed` collects these propositions, and `Tx.isWellFormed` decides them.
 The existential names assert membership in the transaction's own lists, not
@@ -86,12 +86,12 @@ size measurement leaves the checker unchanged.
 
 Checked claims:
 
-- `Tx.stripped_size_bound_iff_core`: the semantic legacy serialized-size
+- `Tx.stripped_size_bound_iff_core`: the semantic stripped transaction-size
   bound is exactly equivalent to Core v28's weight-unit expression.
 - `Tx.isWellFormed_iff`: the stateless checker accepts a transaction exactly
   when some input and output exist, no outpoint is spent twice, no input claims
   the null outpoint, the outputs create at most `maxMoney` satoshis, and the
-  stripped serialization fits within the legacy one-million-byte ceiling.
+  stripped serialization fits within the one-million-byte ceiling.
 - `Tx.WellFormed.outputs_length_le`: that stripped-size rule implies every
   accepted transaction has at most `2 ^ 32` outputs, so its `UInt32` output
   indices cannot wrap.

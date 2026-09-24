@@ -69,7 +69,7 @@ private def witnessedBytes : List UInt8 :=
           && decide tx.PairwiseDistinctInputOutpoints
           && decide tx.AllInputOutpointsNeNull
           && decide tx.TotalOutputValueLeMaxMoney
-          && decide tx.StrippedSizeLeMaxLegacySerializedSize
+          && decide tx.StrippedSizeLeMaxStrippedTransactionSize
     | _, _ => false
 
 #guard match Kernel.decode legacyBytes.toByteArray with

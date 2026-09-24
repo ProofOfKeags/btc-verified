@@ -39,7 +39,7 @@ import BtcVerified.Consensus.Limits
 
   Checked claims:
 
-  * `Tx.stripped_size_bound_iff_core`: the semantic legacy serialized-size
+  * `Tx.stripped_size_bound_iff_core`: the semantic stripped transaction-size
     bound is equivalent to Core v28's weight-unit expression.
   * `Tx.isWellFormed_iff`: the checker accepts a transaction exactly when it
     satisfies the six stateless rules — some input and output exist, no outpoint
@@ -60,16 +60,16 @@ serialization ([Bitcoin Core v28.0, `tx_check.cpp` lines
 def Tx.strippedSize (tx : Tx) : Nat :=
   (Serialize.Codec.encode tx.body).length
 
-/-- The semantic legacy serialized-size bound is exactly equivalent to the
+/-- The semantic stripped transaction-size bound is exactly equivalent to the
 weight-unit expression Core v28 uses in `CheckTransaction`. This theorem keeps
 the historical protocol rule primary while making the implementation
 correspondence explicit ([Bitcoin Core v28.0, `tx_check.cpp` lines
 18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
 theorem Tx.stripped_size_bound_iff_core {tx : Tx} :
-    tx.strippedSize ≤ Consensus.maxLegacySerializedSize ↔
+    tx.strippedSize ≤ Consensus.maxStrippedTransactionSize ↔
       tx.strippedSize * Consensus.witnessScaleFactor
         ≤ Consensus.maxBlockWeight := by
-  unfold Consensus.maxLegacySerializedSize Consensus.witnessScaleFactor
+  unfold Consensus.maxStrippedTransactionSize Consensus.witnessScaleFactor
     Consensus.maxBlockWeight
   omega
 
@@ -95,10 +95,10 @@ def Tx.AllInputOutpointsNeNull (tx : Tx) : Prop :=
 def Tx.TotalOutputValueLeMaxMoney (tx : Tx) : Prop :=
   (tx.body.outputs.val.map fun output => output.value.toNat).sum ≤ Consensus.maxMoney
 
-/-- Witness-stripped serialization is at most `Consensus.maxLegacySerializedSize`
+/-- Witness-stripped serialization is at most `Consensus.maxStrippedTransactionSize`
 bytes. This is not a bound on the full witness-inclusive encoding. -/
-def Tx.StrippedSizeLeMaxLegacySerializedSize (tx : Tx) : Prop :=
-  tx.strippedSize ≤ Consensus.maxLegacySerializedSize
+def Tx.StrippedSizeLeMaxStrippedTransactionSize (tx : Tx) : Prop :=
+  tx.strippedSize ≤ Consensus.maxStrippedTransactionSize
 
 -- Expand decision instances before compilation so `&&` keeps later checks conditional,
 -- particularly the serialization-based size check.
@@ -128,11 +128,11 @@ instance instDecidableAllInputOutpointsNeNull : DecidablePred Tx.AllInputOutpoin
 instance instDecidableTotalOutputValueLeMaxMoney : DecidablePred Tx.TotalOutputValueLeMaxMoney :=
   fun _ => by unfold Tx.TotalOutputValueLeMaxMoney; infer_instance
 
-/-- Decide whether stripped size is at most `Consensus.maxLegacySerializedSize`. -/
+/-- Decide whether stripped size is at most `Consensus.maxStrippedTransactionSize`. -/
 @[macro_inline]
-instance instDecidableStrippedSizeLeMaxLegacySerializedSize :
-    DecidablePred Tx.StrippedSizeLeMaxLegacySerializedSize :=
-  fun _ => by unfold Tx.StrippedSizeLeMaxLegacySerializedSize; infer_instance
+instance instDecidableStrippedSizeLeMaxStrippedTransactionSize :
+    DecidablePred Tx.StrippedSizeLeMaxStrippedTransactionSize :=
+  fun _ => by unfold Tx.StrippedSizeLeMaxStrippedTransactionSize; infer_instance
 
 /-- Decide the transaction-local admissibility premises for a regular
 transaction: some input and output exist, no outpoint is spent twice, no input claims
@@ -147,7 +147,7 @@ def Tx.isWellFormed (tx : Tx) : Bool :=
     && decide tx.PairwiseDistinctInputOutpoints
     && decide tx.AllInputOutpointsNeNull
     && decide tx.TotalOutputValueLeMaxMoney
-    && decide tx.StrippedSizeLeMaxLegacySerializedSize
+    && decide tx.StrippedSizeLeMaxStrippedTransactionSize
 
 /-- The specification `Tx.isWellFormed` enforces — the regular-transaction
 projection of Core's `CheckTransaction`, one field per rule ([Bitcoin Core
@@ -178,7 +178,7 @@ structure Tx.WellFormed (tx : Tx) : Prop where
   equivalent by `Tx.stripped_size_bound_iff_core` ([Bitcoin Core v28.0,
   `tx_check.cpp` lines
   18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
-  stripped_size_bounded : tx.StrippedSizeLeMaxLegacySerializedSize
+  stripped_size_bounded : tx.StrippedSizeLeMaxStrippedTransactionSize
 
 /-- The checker enforces exactly its specification: `isWellFormed` accepts a
 transaction iff it is `WellFormed`. -/
@@ -210,7 +210,7 @@ private theorem TxOut.list_length_le_encodeElems_length (outputs : List TxOut) :
     omega
 
 /-- A transaction satisfying the local premises has at most `2 ^ 32` outputs:
-the legacy serialized-size rule is far tighter than the width of an outpoint's
+the stripped transaction-size rule is far tighter than the width of an outpoint's
 `vout`, so the `UInt32` indices used by the UTXO action cannot wrap
 ([Bitcoin Core v28.0, `tx_check.cpp` lines
 18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
@@ -237,7 +237,7 @@ theorem Tx.WellFormed.outputs_length_le {tx : Tx} (h : tx.WellFormed) :
     simp only [List.length_append]
     omega
   have hsize := h.stripped_size_bounded
-  unfold Tx.StrippedSizeLeMaxLegacySerializedSize Consensus.maxLegacySerializedSize at hsize
+  unfold Tx.StrippedSizeLeMaxStrippedTransactionSize Consensus.maxStrippedTransactionSize at hsize
   omega
 
 instance instDecidableWellFormed : DecidablePred Tx.WellFormed :=

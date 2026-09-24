@@ -3,8 +3,8 @@
 
   The numeric constants Bitcoin's consensus rules compare against, collected in
   one place so every rule cites a named limit instead of a bare literal. Each
-  constant corresponds 1:1 to a constant in Bitcoin Core (the file is named in
-  the doc-string); none of them carries activation information — a limit is a
+  constant cites its corresponding Bitcoin Core constant or check in the
+  doc-string; none of them carries activation information — a limit is a
   number, and which rules consult it at which heights is the ruleset mapping's
   business.
 
@@ -25,7 +25,10 @@ spent ([Bitcoin Core v28.0, `COINBASE_MATURITY`, `consensus.h` lines
 18–19](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L18-L19)). -/
 def coinbaseMaturity : Nat := 100
 
-/-- The historical ceiling on legacy serialized size: one million bytes.
+/-- The transaction-local ceiling on witness-stripped serialization: one million
+bytes, for both legacy and SegWit transactions. This bound alone does not ensure
+the transaction fits in a valid block; block overhead and total weight still matter.
+
 Before SegWit, Core applied `MAX_BLOCK_SIZE` directly to each transaction's
 serialization ([Bitcoin Core v0.12.1, `main.cpp` lines
 940–946](https://github.com/bitcoin/bitcoin/blob/v0.12.1/src/main.cpp#L940-L946)),
@@ -34,7 +37,7 @@ with the constant defined at [`consensus.h` lines
 Current Core preserves the same rule on the stripped serialization, expressed
 indirectly in weight units; `Tx.stripped_size_bound_iff_core` proves the two
 statements equivalent. -/
-def maxLegacySerializedSize : Nat := 1_000_000
+def maxStrippedTransactionSize : Nat := 1_000_000
 
 /-- The maximum total weight of a block under SegWit
 ([Bitcoin Core v28.0, `consensus.h` line 15](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L15)). -/

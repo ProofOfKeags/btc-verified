@@ -90,10 +90,10 @@ def encode (tx : Tx) : ByteArray :=
 def encodeStripped (tx : Tx) : ByteArray :=
   PackedCodec.encode tx.body
 
--- The packed implementation of `Tx.StrippedSizeLeMaxLegacySerializedSize`;
+-- The packed implementation of `Tx.StrippedSizeLeMaxStrippedTransactionSize`;
 -- `regularCheck_eq_isWellFormed` transports this measurement to the spec.
-private def checkStrippedSizeLeMaxLegacySerializedSize (tx : Tx) : Bool :=
-  decide ((PackedCodec.encode tx.body).size ≤ Consensus.maxLegacySerializedSize)
+private def checkStrippedSizeLeMaxStrippedTransactionSize (tx : Tx) : Bool :=
+  decide ((PackedCodec.encode tx.body).size ≤ Consensus.maxStrippedTransactionSize)
 
 /-- Decide the regular-position transaction-local premises while measuring
 stripped size through the packed encoder. -/
@@ -103,7 +103,7 @@ def regularCheck (tx : Tx) : Bool :=
     && decide tx.PairwiseDistinctInputOutpoints
     && decide tx.AllInputOutpointsNeNull
     && decide tx.TotalOutputValueLeMaxMoney
-    && checkStrippedSizeLeMaxLegacySerializedSize tx
+    && checkStrippedSizeLeMaxStrippedTransactionSize tx
 
 /-- Measuring stripped size with the packed encoder leaves the existing
 regular-position transaction checker unchanged on every transaction. -/
@@ -114,8 +114,8 @@ theorem regularCheck_eq_isWellFormed (tx : Tx) :
     simpa only [ByteArray.toList_eq_data_toList, ByteArray.size,
       Array.length_toList, Tx.strippedSize] using h
   apply Bool.eq_iff_iff.mpr
-  simp only [regularCheck, Tx.isWellFormed, checkStrippedSizeLeMaxLegacySerializedSize,
-    Bool.and_eq_true, decide_eq_true_eq, Tx.StrippedSizeLeMaxLegacySerializedSize, hsize]
+  simp only [regularCheck, Tx.isWellFormed, checkStrippedSizeLeMaxStrippedTransactionSize,
+    Bool.and_eq_true, decide_eq_true_eq, Tx.StrippedSizeLeMaxStrippedTransactionSize, hsize]
 
 /-- The standalone transaction-local adapter: the regular checker plus a
 single-null-input coinbase branch with scriptSig length bounds. This follows
@@ -128,7 +128,7 @@ def check (tx : Tx) : Bool :=
     if input.prevout == OutPoint.null then
       decide tx.ExistsOutput
         && decide tx.TotalOutputValueLeMaxMoney
-        && checkStrippedSizeLeMaxLegacySerializedSize tx
+        && checkStrippedSizeLeMaxStrippedTransactionSize tx
         && decide (2 ≤ input.scriptSig.code.val.length)
         && decide (input.scriptSig.code.val.length ≤ 100)
     else regularCheck tx
