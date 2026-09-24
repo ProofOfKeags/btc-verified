@@ -83,7 +83,8 @@ Each proof field mirrors its predicate's name with a lowercase initial:
 `inputsNonempty : tx.InputsNonempty`, for example.
 Nonemptiness concerns the transaction's own lists, not the availability of
 referenced outputs in a UTXO set. Distinctness is transaction-local, and both numeric
-bounds include equality.
+bounds include equality. The kernel reuses this vocabulary and proves its packed
+size measurement leaves the checker unchanged.
 
 Checked claims:
 
