@@ -17,7 +17,8 @@ import BtcVerified.Consensus.Limits
   The enforced rule is the checker `Tx.isWellFormed`; `Tx.WellFormed` is the
   specification it is proved to enforce (`Tx.isWellFormed_iff`). Downstream
   theorems consume the specification's named fields. Each field refers to a
-  reusable predicate whose name exposes its quantifier, relation, or named bound.
+  reusable predicate whose name guides intuition and whose definition supplies
+  the precise logical meaning.
 
   Core checks represented differently here, and why:
 
@@ -82,9 +83,10 @@ def Tx.ExistsInput (tx : Tx) : Prop :=
 def Tx.ExistsOutput (tx : Tx) : Prop :=
   tx.body.outputs.val ≠ []
 
-/-- Distinct input positions reference distinct outpoints. This excludes
-duplicate spends within this transaction, not conflicts with other transactions. -/
-def Tx.PairwiseDistinctInputOutpoints (tx : Tx) : Prop :=
+/-- All input outpoints are distinct: no two input positions reference the same
+outpoint. This excludes duplicate spends within this transaction, not conflicts
+with other transactions. -/
+def Tx.AllInputOutpointsDistinct (tx : Tx) : Prop :=
   tx.body.spends.Nodup
 
 /-- Every input outpoint differs from the null outpoint. -/
@@ -112,11 +114,11 @@ instance instDecidableExistsInput : DecidablePred Tx.ExistsInput :=
 instance instDecidableExistsOutput : DecidablePred Tx.ExistsOutput :=
   fun _ => by unfold Tx.ExistsOutput; infer_instance
 
-/-- Decide whether input outpoints are pairwise distinct. -/
+/-- Decide whether all input outpoints are distinct. -/
 @[macro_inline]
-instance instDecidablePairwiseDistinctInputOutpoints :
-    DecidablePred Tx.PairwiseDistinctInputOutpoints :=
-  fun _ => by unfold Tx.PairwiseDistinctInputOutpoints; infer_instance
+instance instDecidableAllInputOutpointsDistinct :
+    DecidablePred Tx.AllInputOutpointsDistinct :=
+  fun _ => by unfold Tx.AllInputOutpointsDistinct; infer_instance
 
 /-- Decide whether every input outpoint differs from the null outpoint. -/
 @[macro_inline]
@@ -144,7 +146,7 @@ ceiling. Core v28 expresses the equivalent check in weight units
 def Tx.isWellFormed (tx : Tx) : Bool :=
   decide tx.ExistsInput
     && decide tx.ExistsOutput
-    && decide tx.PairwiseDistinctInputOutpoints
+    && decide tx.AllInputOutpointsDistinct
     && decide tx.AllInputOutpointsNeNull
     && decide tx.TotalOutputValueLeMaxMoney
     && decide tx.StrippedSizeLeMaxStrippedTransactionSize
@@ -164,7 +166,7 @@ structure Tx.WellFormed (tx : Tx) : Prop where
   /-- No two inputs consume the same outpoint (`bad-txns-inputs-duplicate`;
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   36–44](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L36-L44)). -/
-  pairwiseDistinctInputOutpoints : tx.PairwiseDistinctInputOutpoints
+  allInputOutpointsDistinct : tx.AllInputOutpointsDistinct
   /-- No regular input claims the null outpoint (`bad-txns-prevout-null`;
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   47–56](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L47-L56)). -/

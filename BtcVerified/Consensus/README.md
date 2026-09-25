@@ -72,7 +72,7 @@ The six reusable predicates name the logical premises independently of their
 Boolean evaluation:
 
 - `Tx.ExistsInput` and `Tx.ExistsOutput`: nonempty input and output lists.
-- `Tx.PairwiseDistinctInputOutpoints`: no repeated outpoint within one transaction.
+- `Tx.AllInputOutpointsDistinct`: no repeated outpoint within one transaction.
 - `Tx.AllInputOutpointsNeNull`: every input outpoint differs from `OutPoint.null`.
 - `Tx.TotalOutputValueLeMaxMoney`: summed output value ≤ `Consensus.maxMoney`.
 - `Tx.StrippedSizeLeMaxStrippedTransactionSize`: witness-stripped bytes ≤

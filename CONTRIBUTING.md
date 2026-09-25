@@ -17,10 +17,13 @@ they prove.
 - **Naming** follows mathlib conventions: `UpperCamelCase` types and
   predicates, `lowerCamelCase` defs, conclusion-describing theorem names.
   Bitcoin's own nomenclature (`scriptSig`, `nBits`, `vout`) is kept verbatim.
-- **Semantic predicate names** expose logical structure: `Exists`, `All`, or
-  `Pairwise` for quantification; `Eq`, `Ne`, `Lt`, `Le`, `Gt`, or `Ge` for the
-  relation. Name bounds explicitly (`TotalOutputValueLeMaxMoney`), not just
-  "limit" or "valid". Aggregate inequalities need no artificial quantifier.
+- **Semantic predicate names** serve intuition first; their definitions supply
+  precise, unambiguous meaning. Prefer subject–predicate phrasing:
+  "All input outpoints are distinct" becomes `AllInputOutpointsDistinct`.
+  Avoid redundant logical qualifiers such as "pairwise" when "distinct"
+  already conveys the intended meaning. Use logical words and relations where
+  they aid readability, and name bounds explicitly (`TotalOutputValueLeMaxMoney`),
+  not just "limit" or "valid". Aggregate inequalities need no artificial quantifier.
   Authoritative predicates belong in the specification; optimized checkers
   retain their connection through refinement proofs.
 - **Instance names**: give every handwritten public `instance` an explicit

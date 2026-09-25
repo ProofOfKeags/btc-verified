@@ -100,7 +100,7 @@ stripped size through the packed encoder. -/
 def regularCheck (tx : Tx) : Bool :=
   decide tx.ExistsInput
     && decide tx.ExistsOutput
-    && decide tx.PairwiseDistinctInputOutpoints
+    && decide tx.AllInputOutpointsDistinct
     && decide tx.AllInputOutpointsNeNull
     && decide tx.TotalOutputValueLeMaxMoney
     && checkStrippedSizeLeMaxStrippedTransactionSize tx

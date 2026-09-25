@@ -66,7 +66,7 @@ private def witnessedBytes : List UInt8 :=
           && Kernel.txid tx == tx.txid.val.toByteArray
           && decide tx.ExistsInput
           && decide tx.ExistsOutput
-          && decide tx.PairwiseDistinctInputOutpoints
+          && decide tx.AllInputOutpointsDistinct
           && decide tx.AllInputOutpointsNeNull
           && decide tx.TotalOutputValueLeMaxMoney
           && decide tx.StrippedSizeLeMaxStrippedTransactionSize
@@ -117,7 +117,7 @@ private def predicateResult (predicate : Tx → Prop) [DecidablePred predicate]
   | some tx => decide (predicate tx) == expected
   | none => false
 
-#guard predicateResult Tx.PairwiseDistinctInputOutpoints
+#guard predicateResult Tx.AllInputOutpointsDistinct
   (smallTransaction [inputBytes, inputBytes.dropLast ++ [0]] [outputBytes]) false
 #guard predicateResult Tx.AllInputOutpointsNeNull
   (smallTransaction [coinbaseInput 2] [outputBytes]) false
