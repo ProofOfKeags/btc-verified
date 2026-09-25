@@ -40,7 +40,7 @@ import BtcVerified.Consensus.Limits
 
   Checked claims:
 
-  * `Tx.stripped_size_bound_iff_core`: the semantic stripped transaction-size
+  * `Tx.strippedSize_bound_iff_core`: the semantic stripped transaction-size
     bound is equivalent to Core v28's weight-unit expression.
   * `Tx.isWellFormed_iff`: the checker accepts a transaction exactly when it
     satisfies the six stateless rules — some input and output exist, no outpoint
@@ -66,7 +66,7 @@ weight-unit expression Core v28 uses in `CheckTransaction`. This theorem keeps
 the historical protocol rule primary while making the implementation
 correspondence explicit ([Bitcoin Core v28.0, `tx_check.cpp` lines
 18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
-theorem Tx.stripped_size_bound_iff_core {tx : Tx} :
+theorem Tx.strippedSize_bound_iff_core {tx : Tx} :
     tx.strippedSize ≤ Consensus.maxStrippedTransactionSize ↔
       tx.strippedSize * Consensus.witnessScaleFactor
         ≤ Consensus.maxBlockWeight := by
@@ -178,7 +178,7 @@ structure Tx.WellFormed (tx : Tx) : Prop where
   totalOutputValueLeMaxMoney : tx.TotalOutputValueLeMaxMoney
   /-- The stripped serialization fits within the historical one-million-byte
   ceiling (`bad-txns-oversize`). Core v28's weight-unit expression is proved
-  equivalent by `Tx.stripped_size_bound_iff_core` ([Bitcoin Core v28.0,
+  equivalent by `Tx.strippedSize_bound_iff_core` ([Bitcoin Core v28.0,
   `tx_check.cpp` lines
   18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
   strippedSizeLeMaxStrippedTransactionSize : tx.StrippedSizeLeMaxStrippedTransactionSize

@@ -64,7 +64,7 @@ Negative amounts remain unrepresentable, and in `Nat` one total-value bound
 subsumes Core's per-output and running-total `MoneyRange` checks. The
 one-million-byte stripped-size ceiling is also a transaction-local
 rule. Current Core expresses the equivalent predicate in block-weight units;
-`Tx.stripped_size_bound_iff_core` records that implementation correspondence
+`Tx.strippedSize_bound_iff_core` records that implementation correspondence
 without making the semantic rule depend on SegWit constants. The coinbase's
 positional structural checks remain block rules (#37).
 
@@ -88,7 +88,7 @@ size measurement leaves the checker unchanged.
 
 Checked claims:
 
-- `Tx.stripped_size_bound_iff_core`: the semantic stripped transaction-size
+- `Tx.strippedSize_bound_iff_core`: the semantic stripped transaction-size
   bound is exactly equivalent to Core v28's weight-unit expression.
 - `Tx.isWellFormed_iff`: the stateless checker accepts a transaction exactly
   when some input and output exist, no outpoint is spent twice, no input claims

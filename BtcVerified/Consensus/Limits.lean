@@ -35,7 +35,7 @@ serialization ([Bitcoin Core v0.12.1, `main.cpp` lines
 with the constant defined at [`consensus.h` lines
 9–10](https://github.com/bitcoin/bitcoin/blob/v0.12.1/src/consensus/consensus.h#L9-L10).
 Current Core preserves the same rule on the stripped serialization, expressed
-indirectly in weight units; `Tx.stripped_size_bound_iff_core` proves the two
+indirectly in weight units; `Tx.strippedSize_bound_iff_core` proves the two
 statements equivalent. -/
 def maxStrippedTransactionSize : Nat := 1_000_000
 
