@@ -71,7 +71,7 @@ positional structural checks remain block rules (#37).
 The six reusable predicates name the logical premises independently of their
 Boolean evaluation:
 
-- `Tx.ExistsInput` and `Tx.ExistsOutput`: nonempty input and output lists.
+- `Tx.InputsNonempty` and `Tx.OutputsNonempty`: nonempty input and output lists.
 - `Tx.AllInputOutpointsDistinct`: no repeated outpoint within one transaction.
 - `Tx.AllInputOutpointsNeNull`: every input outpoint differs from `OutPoint.null`.
 - `Tx.TotalOutputValueLeMaxMoney`: summed output value ≤ `Consensus.maxMoney`.
@@ -80,9 +80,9 @@ Boolean evaluation:
 
 `Tx.WellFormed` collects these propositions, and `Tx.isWellFormed` decides them.
 Each proof field mirrors its predicate's name with a lowercase initial:
-`existsInput : tx.ExistsInput`, for example.
-The existential names assert membership in the transaction's own lists, not
-availability in a UTXO set. Distinctness is transaction-local, and both numeric
+`inputsNonempty : tx.InputsNonempty`, for example.
+Nonemptiness concerns the transaction's own lists, not the availability of
+referenced outputs in a UTXO set. Distinctness is transaction-local, and both numeric
 bounds include equality. The kernel reuses this vocabulary and proves its packed
 size measurement leaves the checker unchanged.
 

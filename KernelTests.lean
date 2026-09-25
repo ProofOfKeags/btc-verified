@@ -64,8 +64,8 @@ private def witnessedBytes : List UInt8 :=
           && Kernel.outputScript output == ([0, 0x6a, 0xff] : List UInt8).toByteArray
           && Kernel.encodeStripped tx == legacyBytes.toByteArray
           && Kernel.txid tx == tx.txid.val.toByteArray
-          && decide tx.ExistsInput
-          && decide tx.ExistsOutput
+          && decide tx.InputsNonempty
+          && decide tx.OutputsNonempty
           && decide tx.AllInputOutpointsDistinct
           && decide tx.AllInputOutpointsNeNull
           && decide tx.TotalOutputValueLeMaxMoney
@@ -82,7 +82,7 @@ private def witnessedBytes : List UInt8 :=
 #guard match hexBytes? coreEmptyTxHex >>= (Kernel.decode ·.toByteArray) with
   | some tx => (Kernel.inputs tx).isEmpty && (Kernel.outputs tx).isEmpty
       && (Kernel.witnesses tx).isEmpty && Kernel.locktime tx == 0
-      && !decide tx.ExistsInput && !decide tx.ExistsOutput
+      && !decide tx.InputsNonempty && !decide tx.OutputsNonempty
   | none => false
 
 -- Truncation, unknown witness flags, and a noncanonical CompactSize input count.

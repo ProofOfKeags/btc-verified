@@ -98,8 +98,8 @@ private def checkStrippedSizeLeMaxStrippedTransactionSize (tx : Tx) : Bool :=
 /-- Decide the regular-position transaction-local premises while measuring
 stripped size through the packed encoder. -/
 def regularCheck (tx : Tx) : Bool :=
-  decide tx.ExistsInput
-    && decide tx.ExistsOutput
+  decide tx.InputsNonempty
+    && decide tx.OutputsNonempty
     && decide tx.AllInputOutpointsDistinct
     && decide tx.AllInputOutpointsNeNull
     && decide tx.TotalOutputValueLeMaxMoney
@@ -126,7 +126,7 @@ def check (tx : Tx) : Bool :=
   match tx.body.inputs.val with
   | [input] =>
     if input.prevout == OutPoint.null then
-      decide tx.ExistsOutput
+      decide tx.OutputsNonempty
         && decide tx.TotalOutputValueLeMaxMoney
         && checkStrippedSizeLeMaxStrippedTransactionSize tx
         && decide (2 ≤ input.scriptSig.code.val.length)

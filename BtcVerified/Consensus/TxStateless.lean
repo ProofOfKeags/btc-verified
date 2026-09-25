@@ -74,13 +74,13 @@ theorem Tx.strippedSize_bound_iff_core {tx : Tx} :
     Consensus.maxBlockWeight
   omega
 
-/-- At least one input occurs in the transaction. This is list nonemptiness,
+/-- The transaction's input list is nonempty. This is list nonemptiness,
 not the existence of the referenced outputs in a UTXO set. -/
-def Tx.ExistsInput (tx : Tx) : Prop :=
+def Tx.InputsNonempty (tx : Tx) : Prop :=
   tx.body.inputs.val ≠ []
 
-/-- At least one output occurs in the transaction. -/
-def Tx.ExistsOutput (tx : Tx) : Prop :=
+/-- The transaction's output list is nonempty. -/
+def Tx.OutputsNonempty (tx : Tx) : Prop :=
   tx.body.outputs.val ≠ []
 
 /-- All input outpoints are distinct: no two input positions reference the same
@@ -104,15 +104,15 @@ def Tx.StrippedSizeLeMaxStrippedTransactionSize (tx : Tx) : Prop :=
 
 -- Expand decision instances before compilation so `&&` keeps later checks conditional,
 -- particularly the serialization-based size check.
-/-- Decide whether an input exists. -/
+/-- Decide whether the input list is nonempty. -/
 @[macro_inline]
-instance instDecidableExistsInput : DecidablePred Tx.ExistsInput :=
-  fun _ => by unfold Tx.ExistsInput; infer_instance
+instance instDecidableInputsNonempty : DecidablePred Tx.InputsNonempty :=
+  fun _ => by unfold Tx.InputsNonempty; infer_instance
 
-/-- Decide whether an output exists. -/
+/-- Decide whether the output list is nonempty. -/
 @[macro_inline]
-instance instDecidableExistsOutput : DecidablePred Tx.ExistsOutput :=
-  fun _ => by unfold Tx.ExistsOutput; infer_instance
+instance instDecidableOutputsNonempty : DecidablePred Tx.OutputsNonempty :=
+  fun _ => by unfold Tx.OutputsNonempty; infer_instance
 
 /-- Decide whether all input outpoints are distinct. -/
 @[macro_inline]
@@ -144,8 +144,8 @@ ceiling. Core v28 expresses the equivalent check in weight units
 ([Bitcoin Core v28.0, `tx_check.cpp` lines
 18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
 def Tx.isWellFormed (tx : Tx) : Bool :=
-  decide tx.ExistsInput
-    && decide tx.ExistsOutput
+  decide tx.InputsNonempty
+    && decide tx.OutputsNonempty
     && decide tx.AllInputOutpointsDistinct
     && decide tx.AllInputOutpointsNeNull
     && decide tx.TotalOutputValueLeMaxMoney
@@ -159,10 +159,10 @@ Each proof field uses its predicate's name with a lowercase initial. -/
 structure Tx.WellFormed (tx : Tx) : Prop where
   /-- There is at least one input (`bad-txns-vin-empty`; [Bitcoin Core v28.0,
   `tx_check.cpp` lines 14–15](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L14-L15)). -/
-  existsInput : tx.ExistsInput
+  inputsNonempty : tx.InputsNonempty
   /-- There is at least one output (`bad-txns-vout-empty`; [Bitcoin Core v28.0,
   `tx_check.cpp` lines 16–17](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L16-L17)). -/
-  existsOutput : tx.ExistsOutput
+  outputsNonempty : tx.OutputsNonempty
   /-- No two inputs consume the same outpoint (`bad-txns-inputs-duplicate`;
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   36–44](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L36-L44)). -/
