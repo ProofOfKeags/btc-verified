@@ -10,7 +10,7 @@ import BtcVerified.Consensus.Limits
   11–59](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L11-L59),
   specialized to a transaction in regular position. A transaction in coinbase
   position is judged by block rules (#37), because coinbase-ness is positional;
-  here its null prevout simply fails `spends_ne_null`. Passing these premises is
+  here its null prevout simply fails `Tx.AllInputOutpointsNeNull`. Passing these premises is
   not a standalone consensus verdict; block-extension validity composes them
   with contextual and block-wide premises.
 
@@ -30,7 +30,7 @@ import BtcVerified.Consensus.Limits
     ([`amount.h` lines 11–12](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/amount.h#L11-L12),
     [`tx_check.cpp` lines 23–30](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L23-L30)).
   * per-output and running-total `MoneyRange` — in `Nat` the single sum
-    bound `values_bounded` subsumes every per-output bound; no overflow
+    bound `Tx.TotalOutputValueLeMaxMoney` subsumes every per-output bound; no overflow
     exists to re-check ([Bitcoin Core v28.0, `tx_check.cpp` lines
     23–33](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L23-L33)).
   * coinbase scriptSig length — a block rule (#37), with the rest of the
@@ -152,33 +152,34 @@ def Tx.isWellFormed (tx : Tx) : Bool :=
 /-- The specification `Tx.isWellFormed` enforces — the regular-transaction
 projection of Core's `CheckTransaction`, one field per rule ([Bitcoin Core
 v28.0, `tx_check.cpp` lines
-11–59](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L11-L59)). -/
+11–59](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L11-L59)).
+Each proof field uses its predicate's name with a lowercase initial. -/
 structure Tx.WellFormed (tx : Tx) : Prop where
   /-- There is at least one input (`bad-txns-vin-empty`; [Bitcoin Core v28.0,
   `tx_check.cpp` lines 14–15](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L14-L15)). -/
-  inputs_ne_nil : tx.ExistsInput
+  existsInput : tx.ExistsInput
   /-- There is at least one output (`bad-txns-vout-empty`; [Bitcoin Core v28.0,
   `tx_check.cpp` lines 16–17](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L16-L17)). -/
-  outputs_ne_nil : tx.ExistsOutput
+  existsOutput : tx.ExistsOutput
   /-- No two inputs consume the same outpoint (`bad-txns-inputs-duplicate`;
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   36–44](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L36-L44)). -/
-  spends_nodup : tx.PairwiseDistinctInputOutpoints
+  pairwiseDistinctInputOutpoints : tx.PairwiseDistinctInputOutpoints
   /-- No regular input claims the null outpoint (`bad-txns-prevout-null`;
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   47–56](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L47-L56)). -/
-  spends_ne_null : tx.AllInputOutpointsNeNull
+  allInputOutpointsNeNull : tx.AllInputOutpointsNeNull
   /-- The outputs create at most `maxMoney` satoshis in total — which in
   `Nat` also bounds every individual output (`bad-txns-vout-toolarge`,
   `bad-txns-txouttotal-toolarge`; [Bitcoin Core v28.0, `tx_check.cpp` lines
   23–33](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L23-L33)). -/
-  values_bounded : tx.TotalOutputValueLeMaxMoney
+  totalOutputValueLeMaxMoney : tx.TotalOutputValueLeMaxMoney
   /-- The stripped serialization fits within the historical one-million-byte
   ceiling (`bad-txns-oversize`). Core v28's weight-unit expression is proved
   equivalent by `Tx.stripped_size_bound_iff_core` ([Bitcoin Core v28.0,
   `tx_check.cpp` lines
   18–21](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L18-L21)). -/
-  stripped_size_bounded : tx.StrippedSizeLeMaxStrippedTransactionSize
+  strippedSizeLeMaxStrippedTransactionSize : tx.StrippedSizeLeMaxStrippedTransactionSize
 
 /-- The checker enforces exactly its specification: `isWellFormed` accepts a
 transaction iff it is `WellFormed`. -/
@@ -236,7 +237,7 @@ theorem Tx.WellFormed.outputs_length_le {tx : Tx} (h : tx.WellFormed) :
             ++ Serialize.Codec.encode tx.body.lockTime))).length
     simp only [List.length_append]
     omega
-  have hsize := h.stripped_size_bounded
+  have hsize := h.strippedSizeLeMaxStrippedTransactionSize
   unfold Tx.StrippedSizeLeMaxStrippedTransactionSize Consensus.maxStrippedTransactionSize at hsize
   omega
 

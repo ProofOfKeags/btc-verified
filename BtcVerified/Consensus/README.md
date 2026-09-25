@@ -79,6 +79,8 @@ Boolean evaluation:
   `Consensus.maxStrippedTransactionSize`.
 
 `Tx.WellFormed` collects these propositions, and `Tx.isWellFormed` decides them.
+Each proof field mirrors its predicate's name with a lowercase initial:
+`existsInput : tx.ExistsInput`, for example.
 The existential names assert membership in the transaction's own lists, not
 availability in a UTXO set. Distinctness is transaction-local, and both numeric
 bounds include equality. The kernel reuses this vocabulary and proves its packed

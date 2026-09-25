@@ -62,7 +62,7 @@ theorem UtxoSet.totalValue_apply_of_admissible {scriptOk : ScriptCheck}
       = utxos.totalValue
         + (tx.body.outputs.val.map fun output => output.value.toNat).sum :=
   totalValue_apply (Tx.WellFormed.outputs_length_le hwf)
-    hwf.spends_nodup hadm.spends_mem
+    hwf.pairwiseDistinctInputOutpoints hadm.spends_mem
     (Tx.creates_do_not_overwrite_after_spend hadm)
 
 /-- A premise-passing transaction never increases the total value the set
