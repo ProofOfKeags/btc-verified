@@ -1,0 +1,18 @@
+# Exact upstream C contract. No Core build or fuzz configuration is needed.
+repository = "https://github.com/bitcoin/bitcoin"
+revision = "fc6923cec5b440b611700f6629d8c6a61c6f11bd"
+header_path = "src/kernel/bitcoinkernel.h"
+header_sha256 = "d682bfdacdf972914922385047f64f32369b7dcc01c3dc4d993dc24b833cb438"
+
+# btc-verified's supported subset; the library defines only these public exports.
+exports = [
+  "btck_transaction_check",
+  "btck_transaction_copy",
+  "btck_transaction_create",
+  "btck_transaction_destroy",
+  "btck_transaction_to_bytes",
+  "btck_tx_validation_state_create",
+  "btck_tx_validation_state_destroy",
+  "btck_tx_validation_state_get_tx_validation_result",
+  "btck_tx_validation_state_get_validation_mode",
+]
