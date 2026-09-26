@@ -8,7 +8,7 @@ active ruleset, not whether a transaction is valid in isolation. Rules
 therefore separate along two axes — their scope (transaction-local premises
 vs block-wide conditions) and what they need (nothing beyond the object vs
 chain state and position). This directory currently supplies the reusable
-transaction premises and regular-transaction transition step; the block fold
+transaction premises and non-coinbase transaction transition step; the block fold
 that composes them into extension validity is next (#37).
 
 Three disciplines hold everywhere. First, this is an abstract reasoning model:
@@ -22,16 +22,17 @@ and other implementations or forks can be compared against the same object.
 Second, no premise embeds an activation height: premises take evaluation
 context (the admitting block's height, block time, and median-time-past) plus
 an explicit lock-time-clock choice, and "which rules are in force when" is an
-external mapping, a later leaf (#38). Third, an enforced premise is a runnable `Bool` checker (the
-definition), a `Prop` specification record naming its structural content, and a
-proved equivalence between them; derived properties (conservation, the supply
+external mapping, a later leaf (#38). Third, enforced premises have named `Prop`
+specifications and executable decisions. An optimized `Bool` checker carries a
+proved equivalence to its specification; derived properties (conservation, the supply
 limit) are theorems only, never runtime checks.
 
 ## The shape of a rule
 
 `Limits.lean` holds the numeric constants (`maxMoney`, `coinbaseMaturity`,
 `maxStrippedTransactionSize`, `maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
-`sequenceFinal`), each citing its Core counterpart. `LockTime.lean` interprets
+`sequenceFinal`, `minCoinbaseScriptSigSize`, `maxCoinbaseScriptSigSize`), each citing
+its Core counterpart. `LockTime.lean` interprets
 the raw transaction lock-time field as disabled, an absolute block height, or
 an absolute time; BIP68 relative locks remain the separate sequence-field leaf
 #46. `TxContext.lean` carries the admitting height plus separately named block
@@ -52,7 +53,7 @@ indexed interface is backed by a pointwise alignment theorem.
 
 ## Transaction-local premises
 
-`TxStateless.lean`: what a regular transaction must satisfy before any chain
+`TxStateless.lean`: what a non-coinbase transaction must satisfy before any chain
 state is consulted — Core's [`CheckTransaction`, Bitcoin Core v28.0,
 `tx_check.cpp` lines
 11–59](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L11-L59).
@@ -65,8 +66,8 @@ subsumes Core's per-output and running-total `MoneyRange` checks. The
 one-million-byte stripped-size ceiling is also a transaction-local
 rule. Current Core expresses the equivalent predicate in block-weight units;
 `Tx.strippedSize_bound_iff_core` records that implementation correspondence
-without making the semantic rule depend on SegWit constants. The coinbase's
-positional structural checks remain block rules (#37).
+without making the semantic rule depend on SegWit constants. Coinbase placement
+remains a block rule (#37); its transaction-local premises are specified below.
 
 The six reusable predicates name the logical premises independently of their
 Boolean evaluation:
@@ -99,12 +100,40 @@ Checked claims:
   indices cannot wrap.
 Why it matters: these are reusable premises a block validator establishes for
 every transaction before it ever reads the UTXO set, and the null-outpoint
-rule is what separates the coinbase (judged positionally, by block rules) from
-the regular transactions judged here.
+rule excludes coinbase-shaped transactions from the non-coinbase judgment.
+
+## Coinbase transaction-local premises
+
+`CoinbaseStateless.lean` separates classification from well-formedness.
+`Tx.Coinbase` means exactly one null-prevout input, following Core's
+[`IsCoinBase`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/primitives/transaction.h#L341-L344).
+A malformed coinbase still satisfies that classification.
+
+`Tx.CoinbaseWellFormed` collects the classification, `OutputsNonempty`,
+`TotalOutputValueLeMaxMoney`, `StrippedSizeLeMaxStrippedTransactionSize`, and:
+
+- `AllScriptSigSizesGeMinCoinbaseScriptSigSize`: every input scriptSig has at
+  least `Consensus.minCoinbaseScriptSigSize` bytes (2).
+- `AllScriptSigSizesLeMaxCoinbaseScriptSigSize`: every input scriptSig has at
+  most `Consensus.maxCoinbaseScriptSigSize` bytes (100).
+
+Both bounds are inclusive. The single-input classification makes these bounds
+apply to the coinbase's sole scriptSig and already ensures nonempty, distinct
+inputs. Proof fields mirror the predicates' names, as in `Tx.WellFormed`.
+
+Checked claims:
+
+- `Tx.coinbaseWellFormed_iff`: the specification record holds exactly when
+  its six named premises hold; these premises supply its decision procedure.
+
+Why it matters: coinbase transaction-local semantics now live in the main
+specification. The [kernel](../../Kernel/README.md) proves its packed checker
+decides these premises. Block position, height commitments, subsidy, and fees
+are outside this judgment (#37/#38); it does not establish full validity.
 
 ## Contextual transaction premises
 
-`TxContextual.lean`: what a regular transaction must satisfy relative to the
+`TxContextual.lean`: what a non-coinbase transaction must satisfy relative to the
 UTXO set and the admitting block — Core's [`Consensus::CheckTxInputs`, Bitcoin
 Core v28.0, `tx_verify.cpp` lines
 164–204](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L204)
@@ -148,14 +177,14 @@ hypotheses of the machine's action theorems. They are the contextual premises
 the block fold consumes, stated in exactly the vocabulary the ledger
 accounting uses.
 
-## Guarded regular-transaction step
+## Guarded non-coinbase transaction step
 
 `ApplyChecked.lean`: where transaction premises meet the machine. The
 discharge lemma converts an admissible transaction's guarantees into the
 action theorems'
 hypotheses, the gated conservation theorems specialize the accounting
 identity with every local machine obligation discharged, and `applyChecked`
-is the internal regular-transaction step that #37's block fold will iterate.
+is the internal non-coinbase transaction step that #37's block fold will iterate.
 It is not a root consensus interface: only the complete fold, coinbase
 epilogue, and block-wide premises establish a valid extension. Fees are not
 spec objects: conservation is the accounting identity, and "the total drops

@@ -1,4 +1,4 @@
-import BtcVerified.Consensus.TxStateless
+import BtcVerified.Consensus.CoinbaseStateless
 import BtcVerified.Transaction.Txid
 /-!
   # Lean transaction kernel boundary
@@ -28,8 +28,10 @@ import BtcVerified.Transaction.Txid
 
   Checked claims:
 
-  * `regularCheck_eq_isWellFormed`: the packed-size regular checker computes the
-    existing regular-position consensus checker.
+  * `nonCoinbaseCheck_eq_isWellFormed`: the packed-size non-coinbase checker
+    computes the existing non-coinbase consensus checker.
+  * `coinbaseCheck_iff`: the packed-size coinbase checker accepts exactly the
+    transactions satisfying `Tx.CoinbaseWellFormed`.
   * `witnesses_size_eq_inputs_size`: every exported witness snapshot is aligned
     one-for-one with the exported inputs.
   * `encodeStripped_toList`: the native stripped encoding is exactly the
@@ -100,13 +102,23 @@ def encodeStripped (tx : Tx) : ByteArray :=
   PackedCodec.encode tx.body
 
 -- The packed implementation of `Tx.StrippedSizeLeMaxStrippedTransactionSize`;
--- `regularCheck_eq_isWellFormed` transports this measurement to the spec.
+-- both transaction-local checker proofs transport this measurement to the spec.
 private def checkStrippedSizeLeMaxStrippedTransactionSize (tx : Tx) : Bool :=
   decide ((PackedCodec.encode tx.body).size ≤ Consensus.maxStrippedTransactionSize)
 
-/-- Decide the regular-position transaction-local premises while measuring
+private theorem checkStrippedSizeLeMaxStrippedTransactionSize_iff (tx : Tx) :
+    checkStrippedSizeLeMaxStrippedTransactionSize tx = true ↔
+      tx.StrippedSizeLeMaxStrippedTransactionSize := by
+  have hsize : (PackedCodec.encode tx.body).size = tx.strippedSize := by
+    have h := congrArg List.length (PackedCodec.toList_encode tx.body)
+    simpa only [ByteArray.toList_eq_data_toList, ByteArray.size,
+      Array.length_toList, Tx.strippedSize] using h
+  simp only [checkStrippedSizeLeMaxStrippedTransactionSize, decide_eq_true_eq,
+    Tx.StrippedSizeLeMaxStrippedTransactionSize, hsize]
+
+/-- Decide the non-coinbase transaction-local premises while measuring
 stripped size through the packed encoder. -/
-def regularCheck (tx : Tx) : Bool :=
+def nonCoinbaseCheck (tx : Tx) : Bool :=
   decide tx.InputsNonempty
     && decide tx.OutputsNonempty
     && decide tx.AllInputOutpointsDistinct
@@ -115,19 +127,46 @@ def regularCheck (tx : Tx) : Bool :=
     && checkStrippedSizeLeMaxStrippedTransactionSize tx
 
 /-- Measuring stripped size with the packed encoder leaves the existing
-regular-position transaction checker unchanged on every transaction. -/
-theorem regularCheck_eq_isWellFormed (tx : Tx) :
-    regularCheck tx = tx.isWellFormed := by
-  have hsize : (PackedCodec.encode tx.body).size = tx.strippedSize := by
-    have h := congrArg List.length (PackedCodec.toList_encode tx.body)
-    simpa only [ByteArray.toList_eq_data_toList, ByteArray.size,
-      Array.length_toList, Tx.strippedSize] using h
+non-coinbase transaction checker unchanged on every transaction. -/
+theorem nonCoinbaseCheck_eq_isWellFormed (tx : Tx) :
+    nonCoinbaseCheck tx = tx.isWellFormed := by
   apply Bool.eq_iff_iff.mpr
-  simp only [regularCheck, Tx.isWellFormed, checkStrippedSizeLeMaxStrippedTransactionSize,
-    Bool.and_eq_true, decide_eq_true_eq, Tx.StrippedSizeLeMaxStrippedTransactionSize, hsize]
+  simp only [nonCoinbaseCheck, Tx.isWellFormed, Bool.and_eq_true, decide_eq_true_eq,
+    checkStrippedSizeLeMaxStrippedTransactionSize_iff]
 
-/-- The standalone transaction-local adapter: the regular checker plus a
-single-null-input coinbase branch with scriptSig length bounds. This follows
+/-- Decide the transaction-local coinbase premises: exactly one null-prevout
+input, nonempty outputs, bounded total output value and stripped size, and a
+scriptSig of 2–100 bytes. The input shape follows Core's
+[`IsCoinBase`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/primitives/transaction.h#L341-L344);
+block position is a separate constraint. -/
+def coinbaseCheck (tx : Tx) : Bool :=
+  match tx.body.inputs.val with
+  | [input] =>
+      input.prevout == OutPoint.null
+        && decide tx.OutputsNonempty
+        && decide tx.TotalOutputValueLeMaxMoney
+        && checkStrippedSizeLeMaxStrippedTransactionSize tx
+        && decide (Consensus.minCoinbaseScriptSigSize ≤ input.scriptSig.code.val.length)
+        && decide (input.scriptSig.code.val.length ≤ Consensus.maxCoinbaseScriptSigSize)
+  | _ => false
+
+/-- The packed coinbase checker accepts exactly the transactions satisfying
+the specification's transaction-local coinbase premises. -/
+theorem coinbaseCheck_iff (tx : Tx) :
+    coinbaseCheck tx = true ↔ tx.CoinbaseWellFormed := by
+  rw [Tx.coinbaseWellFormed_iff]
+  cases hinputs : tx.body.inputs.val with
+  | nil => simp [coinbaseCheck, Tx.Coinbase, hinputs]
+  | cons input rest =>
+    cases rest with
+    | nil =>
+      simp [coinbaseCheck, Tx.Coinbase, Tx.AllScriptSigSizesGeMinCoinbaseScriptSigSize,
+        Tx.AllScriptSigSizesLeMaxCoinbaseScriptSigSize, hinputs,
+        checkStrippedSizeLeMaxStrippedTransactionSize_iff, and_assoc]
+    | cons next rest => simp [coinbaseCheck, Tx.Coinbase, hinputs]
+
+/-- The standalone transaction-local adapter: select the coinbase or non-coinbase
+checker using Core's single-null-input coinbase classification. This follows
 pinned Core's [`CheckTransaction`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/consensus/tx_check.cpp#L19-L67);
 no theorem of Core equivalence or full consensus validity is claimed. -/
 @[export btcv_kernel_check]
@@ -135,13 +174,9 @@ def check (tx : Tx) : Bool :=
   match tx.body.inputs.val with
   | [input] =>
     if input.prevout == OutPoint.null then
-      decide tx.OutputsNonempty
-        && decide tx.TotalOutputValueLeMaxMoney
-        && checkStrippedSizeLeMaxStrippedTransactionSize tx
-        && decide (2 ≤ input.scriptSig.code.val.length)
-        && decide (input.scriptSig.code.val.length ≤ 100)
-    else regularCheck tx
-  | _ => regularCheck tx
+      coinbaseCheck tx
+    else nonCoinbaseCheck tx
+  | _ => nonCoinbaseCheck tx
 
 /-- Return the transaction locktime. -/
 @[export btcv_kernel_locktime]

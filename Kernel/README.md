@@ -6,14 +6,24 @@ encoding, transaction-local checks, field snapshots, and txid computation.
 `Kernel/` is a consumer of the specification in `BtcVerified/`, not another
 consensus model or a dependency of the specification.
 
-`regularCheck` evaluates the [six named specification predicates](../BtcVerified/Consensus/README.md#transaction-local-premises).
+`nonCoinbaseCheck` evaluates the [six named specification predicates](../BtcVerified/Consensus/README.md#transaction-local-premises).
 Only `StrippedSizeLeMaxStrippedTransactionSize` needs a kernel-local implementation:
 it measures packed bytes, with agreement established by the transport proof.
 
+`coinbaseCheck` checks the single-null-input coinbase shape, nonempty outputs,
+output-value and stripped-size bounds, and the 2–100-byte scriptSig bound.
+Its authoritative specification is `Tx.CoinbaseWellFormed` in
+[`Consensus/CoinbaseStateless.lean`](../BtcVerified/Consensus/CoinbaseStateless.lean);
+`Tx.Coinbase` names the classification alone, including malformed coinbases.
+`check` selects between the two checkers using the input shape; placement as
+the first transaction is a separate block constraint.
+
 Checked claims:
 
-- `regularCheck_eq_isWellFormed`: packed size measurement preserves the existing
-  regular-position checker.
+- `nonCoinbaseCheck_eq_isWellFormed`: packed size measurement preserves the existing
+  non-coinbase checker.
+- `coinbaseCheck_iff`: the packed coinbase checker accepts exactly when
+  `Tx.CoinbaseWellFormed` holds.
 - `witnesses_size_eq_inputs_size`: witness snapshots align with input counts.
 - `encodeStripped_toList`: stripped bytes equal the specification encoding.
 - `txid_eq_txid`: hashing those bytes returns the specification's txid.

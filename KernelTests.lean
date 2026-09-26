@@ -32,11 +32,12 @@ set_option linter.hashCommand false
 /-! ## 1. Proof dependencies
 
   These are not fixture tests. Reject unexpected axioms (including `sorryAx`)
-  in the checker refinement, witness-count equality, stripped encoding,
+  in the two checker refinements, witness-count equality, stripped encoding,
   and txid agreement. The allowed assumptions are defined in `Tests.AxiomAudit`.
 -/
 
-#assert_axioms Kernel.regularCheck_eq_isWellFormed
+#assert_axioms Kernel.nonCoinbaseCheck_eq_isWellFormed
+#assert_axioms Kernel.coinbaseCheck_iff
 #assert_axioms Kernel.witnesses_size_eq_inputs_size
 #assert_axioms Kernel.encodeStripped_toList
 #assert_axioms Kernel.txid_eq_txid
@@ -206,15 +207,17 @@ private def coinbaseInput (scriptLength : Nat) : List UInt8 :=
 private def hasCheckResult (bytes : ByteArray) (expected : Bool) : Bool :=
   decodedSatisfies bytes fun tx => Kernel.check tx == expected
 
-/-! ### Coinbase scriptSig length boundaries
+/-! ### Coinbase classification is not well-formedness
 
-  A single null-prevout input selects the coinbase branch of the checker.
-  That branch requires inclusive 2–100-byte scriptSig bounds. Vary only that
-  length, with otherwise passing local fields.
+  The single null-prevout input establishes `Tx.Coinbase`, irrespective of its
+  script. `Tx.CoinbaseWellFormed` additionally requires inclusive 2–100-byte
+  scriptSig bounds. Vary only that length, with otherwise passing local fields.
 -/
 
 private def coinbaseLengthHasResult (scriptLength : Nat) (expected : Bool) : Bool :=
-  hasCheckResult (smallTransaction [coinbaseInput scriptLength] [outputBytes]) expected
+  decodedSatisfies (smallTransaction [coinbaseInput scriptLength] [outputBytes]) fun tx =>
+    decide tx.Coinbase && decide tx.CoinbaseWellFormed == expected
+      && Kernel.check tx == expected
 
 #guard coinbaseLengthHasResult 0 false    -- Empty script: below the minimum.
 #guard coinbaseLengthHasResult 1 false    -- Immediately below the minimum.
@@ -230,10 +233,26 @@ private def coinbaseLengthHasResult (scriptLength : Nat) (expected : Bool) : Boo
 -- Two inputs are not coinbase-shaped; the null prevout is therefore prohibited.
 #guard hasCheckResult (smallTransaction [inputBytes, coinbaseInput 2] [outputBytes]) false
 
+-- Call the extracted checker directly, bypassing the dispatcher. Only exactly
+-- one null input qualifies: the checker must enforce its own shape requirement.
+private def coinbaseShapeHasResult (inputs : List (List UInt8)) (expected : Bool) : Bool :=
+  decodedSatisfies (smallTransaction inputs [outputBytes]) fun tx =>
+    decide tx.Coinbase == expected && decide tx.CoinbaseWellFormed == expected
+      && Kernel.coinbaseCheck tx == expected
+
+#guard coinbaseShapeHasResult [coinbaseInput 2] true
+#guard coinbaseShapeHasResult [inputBytes] false
+#guard coinbaseShapeHasResult [coinbaseInput 2, coinbaseInput 2] false
+
 /-- Evaluate one named specification predicate after successful decoding. -/
 private def predicateResult (predicate : Tx → Prop) [DecidablePred predicate]
     (bytes : ByteArray) (expected : Bool) : Bool :=
   decodedSatisfies bytes fun tx => decide (predicate tx) == expected
+
+-- Empty inputs fail coinbase shape even though an "all inputs" script-length
+-- property alone would be vacuously true.
+#guard predicateResult Tx.Coinbase (smallTransaction [] []) false
+#guard predicateResult Tx.CoinbaseWellFormed (smallTransaction [] []) false
 
 /-! ### Input outpoints, not entire input records, must be distinct -/
 
@@ -246,7 +265,7 @@ private def predicateResult (predicate : Tx → Prop) [DecidablePred predicate]
 #guard predicateResult Tx.AllInputOutpointsNeNull
   (smallTransaction [coinbaseInput 2] [outputBytes]) false
 
-/-! ### Money bounds -/
+/-! ### Money bounds and output-independent coinbase classification -/
 
 -- 2,100,000,000,000,000 satoshis (maxMoney), eight little-endian bytes.
 private def maxMoneyBytes : List UInt8 := [0, 0x40, 7, 0x5a, 0xf0, 0x75, 7, 0]
@@ -260,6 +279,15 @@ private def oneSatoshiOutput : List UInt8 := [1, 0, 0, 0, 0, 0, 0, 0, 0]
   (smallTransaction [inputBytes] [maxMoneyOutput]) true
 #guard predicateResult Tx.TotalOutputValueLeMaxMoney
   (smallTransaction [inputBytes] [maxMoneyOutput, oneSatoshiOutput]) false
+
+-- Bad outputs do not change the one-null-input classification. Both the
+-- specification and the direct coinbase checker must nevertheless reject them.
+private def coinbaseRejectsOutputs (outputs : List (List UInt8)) : Bool :=
+  decodedSatisfies (smallTransaction [coinbaseInput 2] outputs) fun tx =>
+    decide tx.Coinbase && !decide tx.CoinbaseWellFormed && !Kernel.coinbaseCheck tx
+
+#guard coinbaseRejectsOutputs []                                 -- No outputs.
+#guard coinbaseRejectsOutputs [maxMoneyOutput, oneSatoshiOutput]  -- Excess total value.
 
 -- All-one amount bits represent -1 as signed 64-bit data. Our UInt64 field must
 -- preserve those bits, while its natural value exceeds maxMoney. Thus parsing

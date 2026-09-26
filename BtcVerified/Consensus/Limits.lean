@@ -25,6 +25,14 @@ spent ([Bitcoin Core v28.0, `COINBASE_MATURITY`, `consensus.h` lines
 18–19](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/consensus.h#L18-L19)). -/
 def coinbaseMaturity : Nat := 100
 
+/-- The minimum coinbase scriptSig length in bytes, inclusive
+([pinned Core, `CheckTransaction`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/consensus/tx_check.cpp#L55-L59)). -/
+def minCoinbaseScriptSigSize : Nat := 2
+
+/-- The maximum coinbase scriptSig length in bytes, inclusive
+([pinned Core, `CheckTransaction`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/consensus/tx_check.cpp#L55-L59)). -/
+def maxCoinbaseScriptSigSize : Nat := 100
+
 /-- The transaction-local ceiling on witness-stripped serialization: one million
 bytes, for both legacy and SegWit transactions. This bound alone does not ensure
 the transaction fits in a valid block; block overhead and total weight still matter.

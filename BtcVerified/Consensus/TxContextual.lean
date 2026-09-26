@@ -6,7 +6,7 @@ import BtcVerified.Consensus.ScriptCheck
 /-!
   # Contextual transaction premises
 
-  The chain-contextual premises a regular transaction must establish while a
+  The chain-contextual premises a non-coinbase transaction must establish while a
   candidate block is being checked against the UTXO set — Core's
   [`Consensus::CheckTxInputs`, Bitcoin Core v28.0, `tx_verify.cpp` lines
   164–204](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L204)
@@ -193,7 +193,7 @@ theorem Tx.spentCoins_length {tx : Tx} {utxos : UtxoSet}
     (tx.spentCoins utxos).length = tx.body.inputs.val.length :=
   (Tx.spentCoins_aligned h).length_eq.symm
 
-/-- Decide the contextual admissibility premises for one regular-transaction
+/-- Decide the contextual admissibility premises for one non-coinbase transaction
 step over the UTXO set, script validity supplied as a parameter: inputs exist,
 coinbase spends are mature, input value and fee stay within `maxMoney`, inputs
 cover outputs, the absolute lock-time condition is satisfied, no created
@@ -216,7 +216,7 @@ def Tx.isAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
         (fun i => scriptOk (tx.spentCoins utxos) i tx)
 
 /-- The specification `Tx.isAdmissible` enforces — an abstract factoring of
-Core's contextual checks for a regular transaction, one field per rule; the
+Core's contextual checks for a non-coinbase transaction, one field per rule; the
 fields are the facts the action theorems consume ([Bitcoin Core v28.0,
 `tx_verify.cpp` lines
 164–204](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L164-L204)). -/
@@ -261,7 +261,7 @@ structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
   creates_do_not_overwrite :
     ∀ o ∈ tx.body.creates.map Prod.fst, o ∉ utxos
   /-- Every input satisfies the script judgment against the coins the
-  transaction spends; Core invokes `CheckInputScripts` for every regular
+  transaction spends; Core invokes `CheckInputScripts` for every non-coinbase
   transaction while connecting a block ([Bitcoin Core v28.0, `validation.cpp`
   lines 2659–2671](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L2659-L2671)). -/
   scripts_ok : ∀ i < tx.body.inputs.val.length,
