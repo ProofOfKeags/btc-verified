@@ -14,7 +14,8 @@ open BtcVerified Tests.GoldenVectors
 
 set_option linter.hashCommand false
 
-#assert_axioms Kernel.regularCheck_eq_isWellFormed
+#assert_axioms Kernel.nonCoinbaseCheck_eq_isWellFormed
+#assert_axioms Kernel.coinbaseCheck_iff
 #assert_axioms Kernel.witnesses_size_eq_inputs_size
 #assert_axioms Kernel.encodeStripped_toList
 #assert_axioms Kernel.txid_eq_txid
@@ -104,11 +105,24 @@ private def hasCheckResult (bytes : ByteArray) (expected : Bool) : Bool :=
   | none => false
 
 #guard [0, 1, 2, 100, 101].all fun n =>
-  hasCheckResult (smallTransaction [coinbaseInput n] [outputBytes]) (2 ≤ n && n ≤ 100)
+  match Kernel.decode (smallTransaction [coinbaseInput n] [outputBytes]) with
+  | some tx =>
+      let expected := 2 ≤ n && n ≤ 100
+      decide tx.Coinbase && decide tx.CoinbaseWellFormed == expected
+        && Kernel.check tx == expected
+  | none => false
 #guard hasCheckResult (smallTransaction [coinbaseInput 2] []) false
 #guard hasCheckResult (smallTransaction [inputBytes] []) false
 #guard hasCheckResult (smallTransaction [inputBytes, inputBytes] [outputBytes]) false
 #guard hasCheckResult (smallTransaction [inputBytes, coinbaseInput 2] [outputBytes]) false
+
+-- The extracted checker rejects non-coinbase shapes when called directly.
+#guard [([coinbaseInput 2], true), ([inputBytes], false),
+    ([coinbaseInput 2, coinbaseInput 2], false)].all fun (inputs, expected) =>
+  match Kernel.decode (smallTransaction inputs [outputBytes]) with
+  | some tx => decide tx.Coinbase == expected
+      && decide tx.CoinbaseWellFormed == expected && Kernel.coinbaseCheck tx == expected
+  | none => false
 
 -- Exercise named predicates independently of the combined checker.
 private def predicateResult (predicate : Tx → Prop) [DecidablePred predicate]
@@ -122,6 +136,15 @@ private def predicateResult (predicate : Tx → Prop) [DecidablePred predicate]
 #guard predicateResult Tx.AllInputOutpointsNeNull
   (smallTransaction [coinbaseInput 2] [outputBytes]) false
 private def maxMoneyBytes : List UInt8 := [0, 0x40, 7, 0x5a, 0xf0, 0x75, 7, 0]
+
+-- Bad outputs do not change coinbase classification, but fail well-formedness.
+#guard [[], [maxMoneyBytes ++ [0], [1, 0, 0, 0, 0, 0, 0, 0, 0]]].all fun outputs =>
+  match Kernel.decode (smallTransaction [coinbaseInput 2] outputs) with
+  | some tx => decide tx.Coinbase && !decide tx.CoinbaseWellFormed && !Kernel.coinbaseCheck tx
+  | none => false
+#guard predicateResult Tx.Coinbase (smallTransaction [] []) false
+#guard predicateResult Tx.CoinbaseWellFormed (smallTransaction [] []) false
+
 #guard predicateResult Tx.TotalOutputValueLeMaxMoney
   (smallTransaction [inputBytes] [maxMoneyBytes ++ [0]]) true
 #guard predicateResult Tx.TotalOutputValueLeMaxMoney

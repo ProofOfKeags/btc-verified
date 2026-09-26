@@ -4,13 +4,15 @@ import BtcVerified.Consensus.Limits
 /-!
   # Transaction-local premises
 
-  The transaction-local premises used while checking a regular transaction
+  The transaction-local premises used while checking a non-coinbase transaction
   inside a candidate block, before looking at any chain state — Core's
   [`CheckTransaction`, Bitcoin Core v28.0, `tx_check.cpp` lines
   11–59](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L11-L59),
-  specialized to a transaction in regular position. A transaction in coinbase
-  position is judged by block rules (#37), because coinbase-ness is positional;
-  here its null prevout simply fails `Tx.AllInputOutpointsNeNull`. Passing these premises is
+  specialized to non-coinbase transactions. Core identifies a coinbase by
+  [its single null-prevout input](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/primitives/transaction.h#L341-L344).
+  [Block rules](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/validation.cpp#L3958-L3963)
+  require it to be first and prohibit additional coinbases; those checks remain #37.
+  Here its null prevout simply fails `Tx.AllInputOutpointsNeNull`. Passing these premises is
   not a standalone consensus verdict; block-extension validity composes them
   with contextual and block-wide premises.
 
@@ -34,8 +36,9 @@ import BtcVerified.Consensus.Limits
     bound `Tx.TotalOutputValueLeMaxMoney` subsumes every per-output bound; no overflow
     exists to re-check ([Bitcoin Core v28.0, `tx_check.cpp` lines
     23–33](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L23-L33)).
-  * coinbase scriptSig length — a block rule (#37), with the rest of the
-    coinbase's structural checks ([Bitcoin Core v28.0, `tx_check.cpp` lines
+  * coinbase scriptSig length — belongs to `CoinbaseStateless.lean`, alongside
+    the coinbase classification and its other transaction-local premises
+    ([Bitcoin Core v28.0, `tx_check.cpp` lines
     47–50](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L47-L50)).
 
   Checked claims:
@@ -136,7 +139,7 @@ instance instDecidableStrippedSizeLeMaxStrippedTransactionSize :
     DecidablePred Tx.StrippedSizeLeMaxStrippedTransactionSize :=
   fun _ => by unfold Tx.StrippedSizeLeMaxStrippedTransactionSize; infer_instance
 
-/-- Decide the transaction-local admissibility premises for a regular
+/-- Decide the transaction-local admissibility premises for a non-coinbase
 transaction: some input and output exist, no outpoint is spent twice, no input claims
 the null outpoint, the outputs create at most `maxMoney` satoshis in total,
 and the stripped serialization fits within the historical one-million-byte
@@ -151,7 +154,7 @@ def Tx.isWellFormed (tx : Tx) : Bool :=
     && decide tx.TotalOutputValueLeMaxMoney
     && decide tx.StrippedSizeLeMaxStrippedTransactionSize
 
-/-- The specification `Tx.isWellFormed` enforces — the regular-transaction
+/-- The specification `Tx.isWellFormed` enforces — the non-coinbase transaction
 projection of Core's `CheckTransaction`, one field per rule ([Bitcoin Core
 v28.0, `tx_check.cpp` lines
 11–59](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L11-L59)).
@@ -167,7 +170,7 @@ structure Tx.WellFormed (tx : Tx) : Prop where
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   36–44](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L36-L44)). -/
   allInputOutpointsDistinct : tx.AllInputOutpointsDistinct
-  /-- No regular input claims the null outpoint (`bad-txns-prevout-null`;
+  /-- No non-coinbase input claims the null outpoint (`bad-txns-prevout-null`;
   [Bitcoin Core v28.0, `tx_check.cpp` lines
   47–56](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L47-L56)). -/
   allInputOutpointsNeNull : tx.AllInputOutpointsNeNull

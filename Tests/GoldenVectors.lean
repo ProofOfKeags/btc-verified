@@ -548,8 +548,8 @@ def block170Context : TxContext :=
     == hashOfDisplay "0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"
   -- One 50 BTC output.
   && (coinbase.body.outputs.val.map (·.value)) == [5_000_000_000]
-  -- A coinbase fails the regular-transaction rules by design: its input
-  -- claims the null outpoint. Coinbase structure is a block rule (#37).
+  -- A coinbase fails the non-coinbase transaction rules by design: its input
+  -- claims the null outpoint. Its local premises are in `Tx.CoinbaseWellFormed`.
   && !coinbase.isWellFormed
 
 #guard match hexBytes? block9CoinbaseHex >>= Codec.decode (α := Tx),
@@ -581,9 +581,9 @@ def block170Context : TxContext :=
     -- transaction over the deliberately impossible abstract state.
     && !payment.isAdmissible (fun _ _ _ => true) outOfRangeUtxos .blockTime
       block170Context
-    -- The guarded regular-transaction step applies it: the spent outpoint is
+    -- The guarded non-coinbase transaction step applies it: the spent outpoint is
     -- gone, the two created outpoints carry 10 and 40 BTC stamped
-    -- ⟨170, regular⟩, and the zero-fee total is conserved.
+    -- ⟨170, false⟩ (non-coinbase), and the zero-fee total is conserved.
     && (match UtxoSet.applyChecked (fun _ _ _ => true) utxos .blockTime
           block170Context payment with
         | some next =>

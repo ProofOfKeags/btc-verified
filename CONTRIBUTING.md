@@ -18,7 +18,7 @@ they prove.
   types, propositions, and predicates use `UpperCamelCase`; ordinary functions
   and constants use `lowerCamelCase`. Proofs and theorems use `snake_case`
   between naming units, preserving referenced identifiers in `lowerCamelCase`
-  (`regularCheck_eq_isWellFormed`, not `regular_check_eq_is_well_formed`).
+  (`nonCoinbaseCheck_eq_isWellFormed`, not `non_coinbase_check_eq_is_well_formed`).
   The same rules apply to structure fields: `allInputOutpointsDistinct` names
   a proof of the single named predicate `AllInputOutpointsDistinct`.
   Bitcoin's own nomenclature (`scriptSig`, `nBits`, `vout`) is kept verbatim.
