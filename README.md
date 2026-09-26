@@ -61,7 +61,8 @@ statement of what stands.
   between parsing and execution drawn where the protocol draws it.
 - [`Chainstate/`](BtcVerified/Chainstate/README.md) — The set of spendable
   coins and the single action every transaction performs on it, with the
-  accounting identity the supply-limit theorem will be built on.
+  accounting identity the supply-limit theorem will be built on and an
+  exact undo theorem for transactions whose created keys are fresh.
 - [`Consensus/`](BtcVerified/Consensus/README.md) — The reusable transaction
   premises and guarded transition step that block-extension validity composes,
   stated as runnable checks proved to guarantee exactly the facts the ledger

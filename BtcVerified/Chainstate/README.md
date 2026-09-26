@@ -46,3 +46,33 @@ honest: every transaction, coinbase included, *acts* identically; only the
 consensus layer. The accounting identity is the engine of the coming monetary
 theorems: under the block-level delta invariant (`totalValue` grows by at
 most the subsidy) it folds directly into the supply limit.
+
+## Transaction undo
+
+`TxUndo.lean` captures the coins named by a transaction's inputs, preserving
+their outputs and provenance. `Undo.lean` removes the transaction's created
+keys and restores those captured coins. The record contains only spent
+coins, not a snapshot of the original UTXO set.
+
+Checked claims:
+
+- `TxUndo.mem_capture`: an entry is captured exactly when its outpoint is
+  spent and its coin is the original lookup result.
+- `TxUndo.capture_keys`: if every spent outpoint exists, the captured keys
+  equal the spend list, including order and multiplicities.
+- `UtxoSet.undo_apply`: for distinct, present spends and created keys absent
+  from the original set, applying a transaction and undoing it with its
+  captured record restores the entire original set. Output-index
+  injectivity is unnecessary: undo removes every created key even if the
+  guard-free action wrote it repeatedly.
+
+Why it matters: this supplies an inverse for the existing transaction action,
+including the original creation heights and coinbase flags that later
+validation needs. `Consensus/UndoChecked.lean` discharges its premises for a
+successful guarded regular-transaction step.
+
+The theorem uses the record captured from the original state; `undo` does
+not validate arbitrary undo records. Its freshness premise excludes the
+historical duplicate-coinbase exceptions tracked in [#39](https://github.com/ProofOfKeags/btc-verified/issues/39).
+It proves an inverse in the Lean model, not correctness of Core's undo
+format, C++ implementation, block disconnection, or reorganization procedure.
