@@ -1,0 +1,11 @@
+# The supported transaction slice of the pinned upstream C interface.
+# All other public functions and all private Lean symbols remain unexported.
+btck_transaction_check
+btck_transaction_copy
+btck_transaction_create
+btck_transaction_destroy
+btck_transaction_to_bytes
+btck_tx_validation_state_create
+btck_tx_validation_state_destroy
+btck_tx_validation_state_get_tx_validation_result
+btck_tx_validation_state_get_validation_mode

@@ -1,0 +1,5 @@
+# Exact upstream C contract. No Core build or fuzz configuration is needed.
+repository = "https://github.com/bitcoin/bitcoin"
+revision = "fc6923cec5b440b611700f6629d8c6a61c6f11bd"
+header_path = "src/kernel/bitcoinkernel.h"
+header_sha256 = "d682bfdacdf972914922385047f64f32369b7dcc01c3dc4d993dc24b833cb438"
