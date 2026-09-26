@@ -1,6 +1,6 @@
 /* Private C declarations for exports generated from Kernel/Transaction.lean.
- * bitcoinkernel.c includes this header; external clients include only the
- * upstream bitcoinkernel.h and never manipulate Lean objects.
+ * bitcoinkernel.c includes this header; external clients and the native tests
+ * include only the upstream bitcoinkernel.h and never manipulate Lean objects.
  *
  * Generated @[export] wrappers consume object arguments; object results are
  * owned. Passing an object transfers a reference, so reusing a borrowed

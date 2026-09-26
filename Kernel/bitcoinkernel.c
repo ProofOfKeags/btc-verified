@@ -13,7 +13,8 @@
  * There is no C transaction representation, encoded-byte cache, verdict cache,
  * or separate reference counter. C adapts ownership, buffers, and ABI results.
  *
- * This handwritten boundary is outside the Lean proofs. See README.md for
+ * This handwritten boundary is outside the Lean proofs. tests/abi.c smoke-tests
+ * public symbol callability, not these lifetime contracts. See README.md for
  * build and ownership details.
  *
  * Each public function starts with the full upstream documentation, adapting
