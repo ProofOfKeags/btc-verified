@@ -1,7 +1,7 @@
 /* Callability smoke test for the Lean-backed kernel's supported C symbols.
  *
  * This is an ordinary C client: it uses only the pinned upstream header and
- * never initializes Lean itself.
+ * never initializes Lean itself. Run it with `lake run kernel-check`.
  *
  * One fixture supplies the handles needed to call every export in abi.toml.
  * Only handle creation and serialization success are required to complete

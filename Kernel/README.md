@@ -102,6 +102,33 @@ executable-oriented static runtime. Its runtime search paths point into the
 local toolchain; clients require its shared libraries at those paths.
 Unresolved symbols still fail the library link.
 
+## Native checks
+
+```sh
+lake run kernel-check
+```
+
+This builds current sources, then compiles and runs `tests/abi.c` as an ordinary
+C caller. The smoke test calls every supported symbol in `abi.toml`, using one
+transaction fixture to obtain handles and a discard callback for serialization.
+It checks only that handle creation and serialization succeed so the calls can
+complete. No client includes Lean headers or performs runtime initialization.
+When adding an export, add its call to this smoke test.
+
+The test does not compare bytes, verdicts, or validation-state values, or exercise
+rejection, lifetime, callback-error, reentry, or threading scenarios. Behavioral
+tests belong in `KernelTests.lean`; comparison with Core belongs in the forthcoming
+differential suite. Neither covers the handwritten C boundary automatically:
+this smoke test claims only basic callability, not behavioral equivalence or C
+memory/thread safety. The build still restricts public exports using `abi.toml`;
+there is no separate export audit or unsupported-symbol test.
+
+The same command runs in the existing PR CI workflow, reusing the `.lake` and
+toolchain cache. Library build diagnostics (including compiler/linker failures)
+and client compiler/execution output are saved in `.lake/build/kernel/abi-test.log`
+and uploaded as CI diagnostics, never committed. Build diagnostics also remain
+visible in the terminal. Native artifacts are generated locally, not stored in Git.
+
 ## Lean specification and proofs
 
 `nonCoinbaseCheck` evaluates the [six named specification predicates](../BtcVerified/Consensus/README.md#transaction-local-premises).

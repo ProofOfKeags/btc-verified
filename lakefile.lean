@@ -220,3 +220,49 @@ target kernel pkg : FilePath := do
   -- can require relinking even when the compiled shim is byte-for-byte equal.
   (inputs.zipWith (fun input _ => input) configs).mapM fun (objects, shim, generated) =>
     KernelBuild.linkKernel root lean cc objects shim generated
+
+/-- Build the C library and smoke-test calls to its supported public symbols. -/
+script «kernel-check» args do
+  unless args.isEmpty do throw <| IO.userError "Usage: lake run kernel-check"
+  let root ← IO.FS.realPath (← getRootPackage).dir
+  let dir := root / ".lake/build/kernel"
+  IO.FS.createDirAll dir
+  -- Create the log before running commands; a failing compiler/test still
+  -- leaves diagnostics available for CI artifact upload.
+  let log := dir / "abi-test.log"
+  IO.FS.writeFile log "Native kernel ABI callability smoke test\n"
+  let execute := fun (command : String) (arguments : Array String) => do
+    let output ← IO.Process.output {
+      cmd := command
+      args := arguments
+      env := KernelBuild.toolEnvironment}
+    let entry := s!"$ {command} {arguments.toList}\n{output.stdout}{output.stderr}exit={output.exitCode}\n"
+    IO.FS.withFile log .append fun handle => handle.putStr entry
+    unless output.exitCode == 0 do throw <| IO.userError entry
+    return output.stdout
+  -- Tee Lake's build diagnostics as well as the client commands below. A
+  -- compiler/linker failure must leave its actual error in the CI artifact.
+  let workspace ← getWorkspace
+  IO.FS.withFile log .append fun handle => do
+    let stderr ← IO.getStderr
+    let output : IO.FS.Stream := {
+      stderr with
+      putStr := fun text => do
+        handle.putStr text
+        stderr.putStr text
+      flush := do
+        handle.flush
+        stderr.flush }
+    discard <| workspace.runBuild kernel.fetch {
+      out := .stream output
+      ansiMode := .noAnsi }
+  let cc := (← IO.getEnv "CC").getD "cc"
+  let compileArgs := #["-std=c11", "-Wall", "-Wextra", "-Werror",
+    "-I", (dir / "include").toString]
+  let linkArgs := #["-L", (root / ".lake/build/lib").toString,
+    "-lbtc_verified_kernel", s!"-Wl,-rpath,{root / ".lake/build/lib"}"]
+  let client := dir / "abi-test"
+  discard <| execute cc (compileArgs ++ #[(root / "Kernel/tests/abi.c").toString] ++
+    linkArgs ++ #["-o", client.toString])
+  IO.print (← execute client.toString #[])
+  return 0
