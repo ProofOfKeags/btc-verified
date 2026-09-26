@@ -11,7 +11,7 @@ import BtcVerified.Transaction.Txid
 
   Decoding retains the protocol codec's prefix-consuming semantics, then rejects
   decoded values whose CompactSize-prefixed containers exceed Core's generic
-  `0x02000000` allocation ceiling. The compatibility guard covers input and
+  `0x02000000` container-length limit. The compatibility guard covers input and
   output vectors, scripts, witness-stack vectors, and witness items; it does not
   impose a raw total-input-size cap or change the protocol codec. This is a
   post-decode domain restriction, not an allocation or work limit on decoding.
@@ -42,37 +42,46 @@ namespace BtcVerified.Kernel
 
 open BtcVerified.Packed BtcVerified.Serialize
 
-private def coreCompactSizeLimit : Nat := 0x02000000
+/-- Core's inclusive bound on a CompactSize-encoded container length:
+`0x02000000` (33,554,432), counted in bytes for byte strings or elements for
+other vectors. This is
+[`MAX_SIZE`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/serialize.h#L31-L35);
+[`ReadCompactSize`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/serialize.h#L326-L363)
+rejects larger values when `range_check` is enabled (the default). It is neither
+the CompactSize integer format's maximum nor a transaction-size limit. Here it
+restricts already-decoded containers, not decoding allocations or work. -/
+private def coreContainerSizeLimit : Nat := 0x02000000
 
-private def lengthWithinCoreLimit {α : Type} (values : List α) : Bool :=
-  decide (values.length ≤ coreCompactSizeLimit)
+private def lengthUnderContainerSizeLimit {α : Type} (values : List α) : Bool :=
+  decide (values.length ≤ coreContainerSizeLimit)
 
-private def inputWithinCoreLimit (input : TxIn) : Bool :=
-  lengthWithinCoreLimit input.scriptSig.code.val
+private def scriptSigUnderContainerSizeLimit (input : TxIn) : Bool :=
+  lengthUnderContainerSizeLimit input.scriptSig.code.val
 
-private def outputWithinCoreLimit (output : TxOut) : Bool :=
-  lengthWithinCoreLimit output.scriptPubKey.code.val
+private def scriptPubKeyUnderContainerSizeLimit (output : TxOut) : Bool :=
+  lengthUnderContainerSizeLimit output.scriptPubKey.code.val
 
-private def witnessWithinCoreLimit (witness : WitnessStack) : Bool :=
-  lengthWithinCoreLimit witness.val
-    && witness.val.all fun item => lengthWithinCoreLimit item.val
+private def witnessUnderContainerSizeLimit (witness : WitnessStack) : Bool :=
+  lengthUnderContainerSizeLimit witness.val
+    && witness.val.all fun item => lengthUnderContainerSizeLimit item.val
 
 /-- Whether every CompactSize-prefixed container in a decoded transaction fits
-Core's generic `0x02000000` deserialization allocation ceiling. This is a native
-compatibility-domain guard, not a protocol-validity predicate or total-size cap. -/
+Core's generic `0x02000000` deserialization length limit. This checks per-container
+constraints enforced by Core's parser, not a total-size cap. Passing this guard
+does not establish transaction or block validity. -/
 def compactSizeCompatible (tx : Tx) : Bool :=
   let body := tx.body
-  lengthWithinCoreLimit body.inputs.val
-    && lengthWithinCoreLimit body.outputs.val
-    && body.inputs.val.all inputWithinCoreLimit
-    && body.outputs.val.all outputWithinCoreLimit
+  lengthUnderContainerSizeLimit body.inputs.val
+    && lengthUnderContainerSizeLimit body.outputs.val
+    && body.inputs.val.all scriptSigUnderContainerSizeLimit
+    && body.outputs.val.all scriptPubKeyUnderContainerSizeLimit
     && (match tx with
       | .segwit _ txInputs _ _ _ =>
-          txInputs.val.all fun input => witnessWithinCoreLimit input.witness
+          txInputs.val.all fun input => witnessUnderContainerSizeLimit input.witness
       | .legacy .. | .empty .. => true)
 
 /-- Prefix-decode a transaction with the proved packed codec, then restrict the
-result to Core's generic CompactSize allocation domain. The input object is
+result to Core's generic CompactSize length domain. The input object is
 owned by the generated C wrapper. -/
 @[export btcv_kernel_decode]
 def decode (input : ByteArray) : Option Tx :=
