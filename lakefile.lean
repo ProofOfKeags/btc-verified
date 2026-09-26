@@ -150,12 +150,17 @@ private def linkKernel (root : FilePath) (lean : LeanInstall) (cc : String)
   let output := root / ".lake/build/lib" / library
   let platformFlags := if Platform.isOSX then
     #["-dynamiclib", s!"-Wl,-install_name,@rpath/{library}",
-      s!"-Wl,-exported_symbols_list,{control}", "-Wl,-undefined,error"]
-    else #["-shared", s!"-Wl,-soname,{library}", s!"-Wl,--version-script={control}", "-Wl,-z,defs"]
+      s!"-Wl,-exported_symbols_list,{control}"]
+    else #["-shared", s!"-Wl,-soname,{library}", s!"-Wl,--version-script={control}"]
+  -- Lean's static runtime uses executable-only TLS on Linux. Use its shared
+  -- runtime explicitly: this library must work in a plain C host, not just as
+  -- a plugin loaded into Lean. Put strict checks last because Lean's macOS
+  -- shared flags otherwise allow unresolved symbols via dynamic_lookup.
+  let strictFlags := if Platform.isOSX then #["-Wl,-undefined,error"] else #["-Wl,-z,defs"]
   let args := platformFlags ++ #["-pthread", shim.toString, s!"@{response}",
     "-L", lean.leanLibDir.toString, "-L", lean.systemLibDir.toString,
     s!"-Wl,-rpath,{lean.leanLibDir}", s!"-Wl,-rpath,{lean.systemLibDir}"] ++
-    lean.linkStaticFlags ++ #["-o", output.toString]
+    lean.linkSharedFlags ++ #["-lleanshared"] ++ strictFlags ++ #["-o", output.toString]
   addLeanTrace
   addPlatformTrace
   addPureTrace (cc, ← run cc #["--version"], args) "C linker"

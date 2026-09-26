@@ -72,16 +72,22 @@ the local-checkout option. Use an absolute path for a `CC` override: Lake may
 prepend Lean's restricted-sysroot compiler to `PATH`. Lean supplies its runtime
 link flags. Windows is not supported by this build target.
 
+The library links against the pinned Lean shared runtime, not its
+executable-oriented static runtime. Its runtime search paths point into the
+local toolchain; clients require its shared libraries at those paths.
+Unresolved symbols still fail the library link.
+
 ## Native checks
 
 ```sh
 lake run kernel-check
 ```
 
-This builds current sources, checks the exact dynamic export set with `nm`,
+This builds current sources, checks the library's own defined dynamic exports with `nm`,
 compiles and runs `tests/abi.c` as an ordinary C caller, and verifies that
 `tests/unsupported.c` compiles but fails to link on the unimplemented locktime
 accessor. No test client includes Lean headers or performs runtime initialization.
+The nine-symbol audit does not restrict symbols exported by runtime dependencies.
 
 Fixed fixtures cover legacy, SegWit, and coinbase transactions; parse rejection
 and prefix consumption; canonical bytes; parse success with local-check failure;
