@@ -112,8 +112,10 @@ tracks the work items; in outline:
 ## Build
 
 The separate [Lean kernel boundary](Kernel/README.md) adapts this specification
-for a future `bitcoinkernel.h` implementation. Its pure operations and transport
-proofs are built and tested today; it does not yet provide the public C ABI.
+to a small, pinned slice of the public `bitcoinkernel.h` C interface.
+`lake build kernel` builds the optional native library; its Lean operations
+and transport proofs are part of the default build. This is not yet a complete
+kernel replacement or a differential comparison with Core.
 
 With Nix, enter the development shell first:
 
