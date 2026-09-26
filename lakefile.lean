@@ -202,3 +202,58 @@ target kernel pkg : FilePath := do
   let inputs := objects.zipWith (fun objects shim => (objects, shim)) shim
     |>.zipWith (fun pair generated => (pair.1, pair.2, generated)) generated
   inputs.mapM fun (objects, shim, generated) => KernelBuild.linkKernel root lean cc objects shim generated
+
+/-- Build and test the C ABI, including exact exports and unsupported-symbol failure. -/
+script «kernel-check» args do
+  unless args.isEmpty do throw <| IO.userError "Usage: lake run kernel-check"
+  let root ← IO.FS.realPath (← getRootPackage).dir
+  let dir := root / ".lake/build/kernel"
+  IO.FS.createDirAll dir
+  -- Create the logs before running commands; a failing compiler/test still
+  -- leaves diagnostics available for CI artifact upload.
+  let log := dir / "abi-test.log"
+  IO.FS.writeFile log "Native kernel ABI checks\n"
+  IO.FS.writeFile (dir / "exports.actual") ""
+  IO.FS.writeFile (dir / "unsupported-link.log") "Not run yet.\n"
+  let execute := fun (command : String) (arguments : Array String) => do
+    let output ← IO.Process.output {
+      cmd := command
+      args := arguments
+      env := KernelBuild.toolEnvironment}
+    let entry := s!"$ {command} {arguments.toList}\n{output.stdout}{output.stderr}exit={output.exitCode}\n"
+    IO.FS.withFile log .append fun handle => handle.putStr entry
+    unless output.exitCode == 0 do throw <| IO.userError entry
+    return output.stdout
+  let library ← runBuild kernel.fetch
+  let cc := (← IO.getEnv "CC").getD "cc"
+  let compileArgs := #["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
+    "-I", (dir / "include").toString]
+  let linkArgs := #["-L", (root / ".lake/build/lib").toString,
+    "-lbtc_verified_kernel", s!"-Wl,-rpath,{root / ".lake/build/lib"}"]
+  let client := dir / "abi-test"
+  discard <| execute cc (compileArgs ++ #[(root / "Kernel/tests/abi.c").toString] ++
+    linkArgs ++ #["-o", client.toString])
+  IO.print (← execute client.toString #[])
+  let nmArgs := if Platform.isOSX then #["-gjU", library.toString]
+    else #["-D", "--defined-only", "--format=posix", library.toString]
+  let symbols ← execute "nm" nmArgs
+  IO.FS.writeFile (dir / "exports.actual") symbols
+  let actual := (symbols.splitOn "\n").filterMap fun line =>
+    let name := ((line.trimAscii.toString.splitOn " ").headD "")
+    if name.isEmpty then none
+    else some (if Platform.isOSX then (name.drop 1).toString else name)
+  let expected := (← KernelBuild.readExports root).toList
+  KernelBuild.ensure (actual.mergeSort == expected.mergeSort)
+    s!"Dynamic exports differ from Kernel/exports.txt: {actual}"
+  let unsupported := dir / "unsupported.o"
+  discard <| execute cc (compileArgs ++ #["-c", (root / "Kernel/tests/unsupported.c").toString,
+    "-o", unsupported.toString])
+  let arguments := #[unsupported.toString] ++ linkArgs ++ #["-o", (dir / "unsupported").toString]
+  let result ← IO.Process.output {cmd := cc, args := arguments, env := KernelBuild.toolEnvironment}
+  let diagnostics := result.stdout ++ result.stderr
+  IO.FS.writeFile (dir / "unsupported-link.log")
+    s!"$ {cc} {arguments.toList}\n{diagnostics}exit={result.exitCode}\n"
+  KernelBuild.ensure (result.exitCode != 0 && diagnostics.contains "btck_transaction_get_locktime")
+    s!"Expected an unsupported-symbol link failure, got exit {result.exitCode}:\n{diagnostics}"
+  IO.println "Exact exports and unsupported-symbol link rejection passed."
+  return 0

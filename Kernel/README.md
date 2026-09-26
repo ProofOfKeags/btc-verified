@@ -72,6 +72,28 @@ the local-checkout option. Use an absolute path for a `CC` override: Lake may
 prepend Lean's restricted-sysroot compiler to `PATH`. Lean supplies its runtime
 link flags. Windows is not supported by this build target.
 
+## Native checks
+
+```sh
+lake run kernel-check
+```
+
+This builds current sources, checks the exact dynamic export set with `nm`,
+compiles and runs `tests/abi.c` as an ordinary C caller, and verifies that
+`tests/unsupported.c` compiles but fails to link on the unimplemented locktime
+accessor. No test client includes Lean headers or performs runtime initialization.
+
+Fixed fixtures cover legacy, SegWit, and coinbase transactions; parse rejection
+and prefix consumption; canonical bytes; parse success with local-check failure;
+validation-state overwrite; copy and input-buffer lifetimes; failing/reentrant
+callbacks; and foreign-thread initialization and concurrent copies. These are
+ABI regression tests, not a differential campaign or a proof of C memory safety.
+
+The same command runs in the existing PR CI workflow, reusing the `.lake` and
+toolchain cache. Test, compiler, and negative-link logs plus the observed symbol
+list are saved under `.lake/build/kernel/` and uploaded as CI diagnostics, never
+committed. Native artifacts are also generated locally, not stored in Git.
+
 ## Lean specification and proofs
 
 `nonCoinbaseCheck` evaluates the [six named specification predicates](../BtcVerified/Consensus/README.md#transaction-local-premises).

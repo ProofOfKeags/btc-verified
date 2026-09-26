@@ -43,6 +43,21 @@ jobs:
       # stale first, so it audits exactly what was just built.
       - name: Module-discipline audit
         run: lake exe module-audit
+      # Build our nine-function library from Lean and C, authenticating only
+      # Core's public header. This does not build or execute Bitcoin Core.
+      - name: Native transaction C ABI
+        id: kernel_abi
+        run: lake run kernel-check
+      - name: Upload native ABI diagnostics
+        if: ${{ always() && steps.kernel_abi.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-abi-diagnostics
+          path: |
+            .lake/build/kernel/*.log
+            .lake/build/kernel/exports.actual
+          if-no-files-found: ignore
+          retention-days: 7
 
   nix-develop:
     name: nix develop
