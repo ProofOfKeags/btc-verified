@@ -18,12 +18,12 @@ import Tests.GoldenVectors
 
 namespace KernelTests
 
-open BtcVerified Tests.GoldenVectors
+open BtcVerified
 
 set_option linter.hashCommand false
 
 private def decodeHex (hex : String) : Option Tx :=
-  (hexBytes? hex).bind fun bytes => Kernel.decode bytes.toByteArray
+  (Tests.GoldenVectors.hexBytes? hex).bind fun bytes => Kernel.decode bytes.toByteArray
 
 /-! ## A real legacy payment retains its amounts and identity
 
@@ -33,16 +33,18 @@ private def decodeHex (hex : String) : Option Tx :=
   170 supplies the positive transaction-local checker expectation.
 
   Source: [the transaction on Blockstream](https://blockstream.info/tx/f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16).
-  Raw bytes are shared with `Tests.GoldenVectors`; `hashOfDisplay` only converts
-  the published hex digest to raw byte order, without computing a hash.
+  Raw bytes are shared with `Tests.GoldenVectors`; its `hashOfDisplay` only
+  converts the published hex digest to raw byte order, without computing a hash.
 -/
 
-private def firstPayment : Option Tx := decodeHex firstBitcoinPaymentHex
+private def firstPayment : Option Tx :=
+  decodeHex Tests.GoldenVectors.firstBitcoinPaymentHex
 
 #guard firstPayment.map (fun tx => (Kernel.outputs tx).map Kernel.outputAmount) ==
   some #[1_000_000_000, 4_000_000_000]
 #guard firstPayment.map Kernel.txid == some
-  (hashOfDisplay "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16").val.toByteArray
+  (Tests.GoldenVectors.hashOfDisplay
+    "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16").val.toByteArray
 #guard firstPayment.map Kernel.check == some true
 
 /-! ## A real SegWit coinbase retains its witness and stripped identity
@@ -56,12 +58,14 @@ private def firstPayment : Option Tx := decodeHex firstBitcoinPaymentHex
   Source: [the transaction on Blockstream](https://blockstream.info/tx/da917699942e4a96272401b534381a75512eeebe8403084500bd637bd47168b3).
 -/
 
-private def activationCoinbase : Option Tx := decodeHex segwitCoinbaseHex
+private def activationCoinbase : Option Tx :=
+  decodeHex Tests.GoldenVectors.segwitCoinbaseHex
 
 #guard activationCoinbase.map Kernel.witnesses ==
   some #[#[(List.replicate 32 (0 : UInt8)).toByteArray]]
 #guard activationCoinbase.map Kernel.txid == some
-  (hashOfDisplay "da917699942e4a96272401b534381a75512eeebe8403084500bd637bd47168b3").val.toByteArray
+  (Tests.GoldenVectors.hashOfDisplay
+    "da917699942e4a96272401b534381a75512eeebe8403084500bd637bd47168b3").val.toByteArray
 #guard activationCoinbase.map Kernel.check == some true
 
 /-! ## An unknown flag rejects an otherwise accepted encoding
@@ -74,7 +78,7 @@ private def activationCoinbase : Option Tx := decodeHex segwitCoinbaseHex
   the decoder must not silently ignore this one.
 -/
 
-#guard match hexBytes? segwitCoinbaseHex with
+#guard match Tests.GoldenVectors.hexBytes? Tests.GoldenVectors.segwitCoinbaseHex with
   | some bytes => (Kernel.decode (bytes.set 5 0x03).toByteArray).isNone
   | none => false
 
@@ -87,7 +91,8 @@ private def activationCoinbase : Option Tx := decodeHex segwitCoinbaseHex
   documents the encoding and cites Core's parser and `CheckTransaction`.
 -/
 
-private def emptyTransaction : Option Tx := decodeHex coreEmptyTxHex
+private def emptyTransaction : Option Tx :=
+  decodeHex Tests.GoldenVectors.coreEmptyTxHex
 
 #guard emptyTransaction == some (Tx.empty 1 0)
 #guard emptyTransaction.map Kernel.check == some false
