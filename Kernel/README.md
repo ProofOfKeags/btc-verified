@@ -20,10 +20,19 @@ the first transaction is a separate block constraint.
 
 Checked claims:
 
+- `decode_eq_spec`: kernel decoding is specification parsing followed by the
+  container-size guard, discarding the unconsumed suffix.
+- `decode_encode_append`: encoding then decoding, with any appended suffix,
+  returns the original transaction if its containers fit the guard and rejects
+  it otherwise.
 - `nonCoinbaseCheck_eq_isWellFormed`: packed size measurement preserves the existing
   non-coinbase checker.
 - `coinbaseCheck_iff`: the packed coinbase checker accepts exactly when
   `Tx.CoinbaseWellFormed` holds.
+- `check_iff`: the main checker accepts exactly the specification selected by
+  coinbase classification: `Tx.CoinbaseWellFormed` or `Tx.WellFormed`.
+- `witnesses_toList`: witness snapshots preserve the full nested byte lists in
+  order, including empty stacks and empty items.
 - `witnesses_size_eq_inputs_size`: witness snapshots align with input counts.
 - `encodeStripped_toList`: stripped bytes equal the specification encoding.
 - `txid_eq_txid`: hashing those bytes returns the specification's txid.
@@ -42,14 +51,21 @@ The tests separate three kinds of evidence:
 
 - `Tests/TransactionRules.lean` checks named specification predicates on explicit
   Lean transaction values, without invoking a parser or importing the kernel.
-- `KernelTests.lean` checks literal wire fixtures, prefix handling, field and
-  witness snapshots, and the kernel checker entry points. Parsing, serialization,
-  and checker verdicts have separate expectations.
-- `KernelTests/AxiomAudit.lean` audits the five universal refinement claims above.
+- `KernelTests.lean` contains nine assertions across four independently justified
+  cases: the first Bitcoin payment's amounts, txid and checker verdict; the SegWit
+  activation coinbase's witness, txid and verdict; an unknown flag added to that
+  passing coinbase; and the empty object that parses but fails checking. Published
+  txids are literal expected answers, not hashes computed through the specification.
+- `KernelTests/AxiomAudit.lean` audits the nine universal claims above. General
+  decoder, dispatch, witness and refinement contracts are proved once rather
+  than sampled repeatedly in the examples.
 
-`Tests/TransactionFixtures.lean` supplies the small shared transaction values;
-it does not derive them from our encoder or decoder. Raw-wire fixtures remain
-independent of that fixture vocabulary.
+`Tests/TransactionFixtures.lean` supplies the small specification-rule values;
+it does not derive them from our encoder or decoder. The kernel examples reuse
+the externally sourced bytes in `Tests/GoldenVectors.lean`, not these values.
+The reduced kernel suite is intentionally not an exhaustive malformed-input or
+accessor regression catalogue: each retained case explains what independent
+expectation it contributes. It does not exercise large container/size boundaries.
 
 `lake build` builds all three groups; `lake lint` checks their default libraries.
 No Core checkout, native build, or differential campaign is required. The native

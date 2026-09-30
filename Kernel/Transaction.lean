@@ -28,10 +28,18 @@ import BtcVerified.Transaction.Txid
 
   Checked claims:
 
+  * `decode_eq_spec`: kernel decoding is spec decoding followed by the
+    CompactSize container guard, discarding the unconsumed suffix.
+  * `decode_encode_append`: encoding then decoding, with any suffix, returns
+    the original transaction exactly when the container guard passes.
   * `nonCoinbaseCheck_eq_isWellFormed`: the packed-size non-coinbase checker
     computes the existing non-coinbase consensus checker.
   * `coinbaseCheck_iff`: the packed-size coinbase checker accepts exactly the
     transactions satisfying `Tx.CoinbaseWellFormed`.
+  * `check_iff`: the main checker selects the specification corresponding to
+    the transaction's coinbase classification.
+  * `witnesses_toList`: witness snapshots preserve every stack and item byte,
+    including empty stacks and empty items.
   * `witnesses_size_eq_inputs_size`: every exported witness snapshot is aligned
     one-for-one with the exported inputs.
   * `encodeStripped_toList`: the native stripped encoding is exactly the
@@ -91,10 +99,34 @@ def decode (input : ByteArray) : Option Tx :=
   | none => none
   | some (tx, _) => if compactSizeCompatible tx then some tx else none
 
+/-- Kernel decoding is exactly specification decoding followed by the
+container-compatibility guard, with the unconsumed suffix discarded. -/
+theorem decode_eq_spec (input : ByteArray) :
+    decode input = (Codec.decode (α := Tx) input.toList).bind
+      (fun (tx, _) => if compactSizeCompatible tx then some tx else none) := by
+  rw [← PackedCodec.abstractParse_decode]
+  unfold decode
+  cases PackedCodec.decode (α := Tx) input with
+  | none => rfl
+  | some result => rfl
+
 /-- Encode a transaction in its canonical legacy, empty, or SegWit wire form. -/
 @[export btcv_kernel_encode]
 def encode (tx : Tx) : ByteArray :=
   PackedCodec.encode tx
+
+/-- Encoding then decoding returns the original transaction when its containers
+fit the compatibility limit, and rejects it otherwise, regardless of any suffix. -/
+theorem decode_encode_append (tx : Tx) (suffix : ByteArray) :
+    decode (encode tx ++ suffix) =
+      if compactSizeCompatible tx then some tx else none := by
+  rw [decode_eq_spec]
+  have hbytes : (encode tx ++ suffix).toList = Codec.encode tx ++ suffix.toList := by
+    simp only [ByteArray.toList_eq_data_toList, ByteArray.data_append,
+      Array.toList_append]
+    rw [← ByteArray.toList_eq_data_toList, encode, PackedCodec.toList_encode]
+  rw [hbytes, Codec.decode_encode]
+  rfl
 
 /-- Encode the transaction's witness-stripped body, which is the txid preimage. -/
 @[export btcv_kernel_encode_stripped]
@@ -178,6 +210,27 @@ def check (tx : Tx) : Bool :=
     else nonCoinbaseCheck tx
   | _ => nonCoinbaseCheck tx
 
+/-- The main checker accepts exactly the transaction-local specification selected
+by coinbase classification: coinbase premises for a coinbase, and non-coinbase
+premises otherwise. This does not establish contextual or full block validity. -/
+theorem check_iff (tx : Tx) :
+    check tx = true ↔
+      if tx.Coinbase then tx.CoinbaseWellFormed else tx.WellFormed := by
+  cases hinputs : tx.body.inputs.val with
+  | nil =>
+      simp [check, Tx.Coinbase, hinputs, nonCoinbaseCheck_eq_isWellFormed,
+        Tx.isWellFormed_iff]
+  | cons input rest =>
+    cases rest with
+    | nil =>
+      by_cases hprevout : input.prevout = OutPoint.null
+      · simp [check, Tx.Coinbase, hinputs, hprevout, coinbaseCheck_iff]
+      · simp [check, Tx.Coinbase, hinputs, hprevout, nonCoinbaseCheck_eq_isWellFormed,
+          Tx.isWellFormed_iff]
+    | cons next rest =>
+      simp [check, Tx.Coinbase, hinputs, nonCoinbaseCheck_eq_isWellFormed,
+        Tx.isWellFormed_iff]
+
 /-- Return the transaction locktime. -/
 @[export btcv_kernel_locktime]
 def locktime (tx : Tx) : UInt32 :=
@@ -204,6 +257,18 @@ def witnesses (tx : Tx) : Array (Array ByteArray) :=
   | .segwit _ txInputs _ _ _ =>
       (txInputs.val.map fun input =>
         (input.witness.val.map fun item => item.val.toByteArray).toArray).toArray
+
+/-- Reading the witness snapshot back as byte lists preserves the specification's
+stacks and items in order. Each legacy input receives an empty stack; an empty
+transaction has no stacks. Empty SegWit stacks and items remain distinct. -/
+theorem witnesses_toList (tx : Tx) :
+    (witnesses tx).toList.map (fun stack => stack.toList.map ByteArray.toList) =
+      match tx with
+      | .legacy body _ => body.inputs.val.map fun _ => []
+      | .empty .. => []
+      | .segwit _ txInputs _ _ _ =>
+          (segwitWitnesses txInputs).map fun stack => stack.val.map Subtype.val := by
+  cases tx <;> simp [witnesses, segwitWitnesses, List.map_map, Function.comp_def]
 
 /-- The witness snapshot contains exactly one stack for each input. -/
 theorem witnesses_size_eq_inputs_size (tx : Tx) :

@@ -5,8 +5,8 @@ import BtcVerified.Transaction.Tx
   These small fixtures describe fields directly as Lean values, without an
   encoder or decoder. Specification examples can therefore express amounts,
   outpoints, and script lengths without depending on a wire-format test first.
-  Kernel checker tests reuse these values; raw-wire tests keep their byte
-  fixtures independent. Scripts are opaque data, not claims about spendability.
+  Kernel boundary examples instead use independently sourced wire bytes.
+  Scripts are opaque data, not claims about spendability.
 
   Construction requires the model's shape and length proofs. A bad fixture
   cannot silently become a default transaction.
@@ -63,7 +63,7 @@ def coinbaseTx (scriptLength : Nat) (bound : scriptLength < 2 ^ 64 := by decide)
     (inputsNonempty := by simp) (inputsBound := by simp)
 
 /-- The ordinary input and output, with recognizable lockTime `0x090a0b0c`.
-This is the value described by the kernel tests' hand-written legacy bytes. -/
+This supplies a small transaction for the specification-rule examples. -/
 def legacyExample : Tx :=
   legacyTx [ordinaryInput] [ordinaryOutput] 0x090a0b0c
 
