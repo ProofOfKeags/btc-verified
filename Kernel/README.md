@@ -38,7 +38,20 @@ the module. The container-size guard runs **after** decoding: it restricts
 accepted values, not decoding resource usage. Neither these proofs nor the
 fixed fixtures establish equivalence to Core or full consensus validity.
 
-`lake build` builds the boundary and `KernelTests.lean` (fixed wire fixtures and
-axiom audits); `lake lint` checks both default libraries. No Core checkout,
-native build, or differential campaign is required. The native ABI and its
-future differential consumer remain in the reference work tracked by PR #56.
+The tests separate three kinds of evidence:
+
+- `Tests/TransactionRules.lean` checks named specification predicates on explicit
+  Lean transaction values, without invoking a parser or importing the kernel.
+- `KernelTests.lean` checks literal wire fixtures, prefix handling, field and
+  witness snapshots, and the kernel checker entry points. Parsing, serialization,
+  and checker verdicts have separate expectations.
+- `KernelTests/AxiomAudit.lean` audits the five universal refinement claims above.
+
+`Tests/TransactionFixtures.lean` supplies the small shared transaction values;
+it does not derive them from our encoder or decoder. Raw-wire fixtures remain
+independent of that fixture vocabulary.
+
+`lake build` builds all three groups; `lake lint` checks their default libraries.
+No Core checkout, native build, or differential campaign is required. The native
+ABI and its future differential consumer remain in the reference work tracked
+by PR #56.
