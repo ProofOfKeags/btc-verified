@@ -14,12 +14,12 @@ import BtcVerified.Consensus.TxContextual
   accounting identity itself, and "the total drops by exactly the fee" is
   its English reading, not a definition in the model.
 
-  `applyChecked` is the internal regular-transaction step that the block fold
+  `applyChecked` is the internal non-coinbase transaction step that the block fold
   in #37 will iterate: check its local and contextual premises, then act on
   success. It is not a root consensus interface; only the complete block fold,
   coinbase epilogue, and block-wide premises establish a valid extension. A
   convenience in `Consensus/`, never structure in `Chainstate/`, it stamps the
-  provenance a regular transaction earns — created at the admitting height,
+  provenance a non-coinbase transaction earns — created at the admitting height,
   not in coinbase position.
 
   Checked claims:
@@ -62,7 +62,7 @@ theorem UtxoSet.totalValue_apply_of_admissible {scriptOk : ScriptCheck}
       = utxos.totalValue
         + (tx.body.outputs.val.map fun output => output.value.toNat).sum :=
   totalValue_apply (Tx.WellFormed.outputs_length_le hwf)
-    hwf.spends_nodup hadm.spends_mem
+    hwf.allInputOutpointsDistinct hadm.spends_mem
     (Tx.creates_do_not_overwrite_after_spend hadm)
 
 /-- A premise-passing transaction never increases the total value the set
@@ -78,10 +78,10 @@ theorem UtxoSet.totalValue_apply_le_of_admissible {scriptOk : ScriptCheck}
   have hcover := hadm.values_cover
   omega
 
-/-- Run the premises for one regular-transaction step, then act: `some` of the
+/-- Run the premises for one non-coinbase transaction step, then act: `some` of the
 guard-free application on success, `none` on any premise failure. This is the
 internal step of #37's block fold, not a standalone consensus verdict. It
-stamps the provenance a regular transaction earns — created at the admitting
+stamps the provenance a non-coinbase transaction earns — created at the admitting
 height, not in coinbase position. -/
 def UtxoSet.applyChecked (scriptOk : ScriptCheck) (utxos : UtxoSet)
     (clock : LockTimeClock) (ctx : TxContext) (tx : Tx) : Option UtxoSet :=
@@ -89,9 +89,9 @@ def UtxoSet.applyChecked (scriptOk : ScriptCheck) (utxos : UtxoSet)
   then some (utxos.apply ⟨ctx.height, false⟩ tx.body)
   else none
 
-/-- The internal regular-transaction step succeeds exactly when its local and
+/-- The internal non-coinbase transaction step succeeds exactly when its local and
 contextual premises hold, then agrees with the guard-free action under the
-regular-transaction provenance stamp. -/
+non-coinbase transaction provenance stamp. -/
 theorem UtxoSet.applyChecked_eq_some_iff {scriptOk : ScriptCheck}
     {utxos next : UtxoSet} {clock : LockTimeClock} {ctx : TxContext} {tx : Tx} :
     utxos.applyChecked scriptOk clock ctx tx = some next

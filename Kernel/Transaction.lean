@@ -1,0 +1,341 @@
+import BtcVerified.Consensus.CoinbaseStateless
+import BtcVerified.Transaction.Txid
+/-!
+  # Lean transaction kernel boundary
+
+  This module supplies the pure Lean operations for a future
+  `libbitcoinkernel` compatibility shim. It decodes and encodes with the proved
+  packed transaction codec, exposes immutable field snapshots, and computes the
+  transaction-local `CheckTransaction` projection without importing the fuzz
+  harness.
+
+  Decoding retains the protocol codec's prefix-consuming semantics, then rejects
+  decoded values whose CompactSize-prefixed containers exceed Core's generic
+  `0x02000000` container-length limit. The compatibility guard covers input and
+  output vectors, scripts, witness-stack vectors, and witness items; it does not
+  impose a raw total-input-size cap or change the protocol codec. This is a
+  post-decode domain restriction, not an allocation or work limit on decoding.
+  References: pinned Core's
+  [`MAX_SIZE`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/serialize.h#L35)
+  and [`ReadCompactSize` range check](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/serialize.h#L333-L363).
+
+  The `btcv_kernel_*` exports are private Lean FFI entry points, not the public
+  `btck_*` interface. Their generated wrappers consume object arguments and
+  return owned object results. A borrowing caller must increment an object
+  before passing it to an export. No C shim or shared library is provided here.
+  The proofs below relate these operations to our Lean specification; they do
+  not establish equivalence to Core or full consensus validity.
+
+  Checked claims:
+
+  * `decode_eq_spec`: kernel decoding is spec decoding followed by the
+    CompactSize container guard, discarding the unconsumed suffix.
+  * `decode_encode_append`: encoding then decoding, with any suffix, returns
+    the original transaction exactly when the container guard passes.
+  * `nonCoinbaseCheck_eq_isWellFormed`: the packed-size non-coinbase checker
+    computes the existing non-coinbase consensus checker.
+  * `coinbaseCheck_iff`: the packed-size coinbase checker accepts exactly the
+    transactions satisfying `Tx.CoinbaseWellFormed`.
+  * `check_iff`: the main checker selects the specification corresponding to
+    the transaction's coinbase classification.
+  * `witnesses_toList`: witness snapshots preserve every stack and item byte,
+    including empty stacks and empty items.
+  * `witnesses_size_eq_inputs_size`: every exported witness snapshot is aligned
+    one-for-one with the exported inputs.
+  * `encodeStripped_toList`: the native stripped encoding is exactly the
+    specification encoding of the transaction body.
+  * `txid_eq_txid`: hashing that native stripped encoding returns `Tx.txid`'s
+    raw bytes.
+-/
+
+namespace BtcVerified.Kernel
+
+open BtcVerified.Packed BtcVerified.Serialize
+
+/-- Core's inclusive bound on a CompactSize-encoded container length:
+`0x02000000` (33,554,432), counted in bytes for byte strings or elements for
+other vectors. This is
+[`MAX_SIZE`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/serialize.h#L31-L35);
+[`ReadCompactSize`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/serialize.h#L326-L363)
+rejects larger values when `range_check` is enabled (the default). It is neither
+the CompactSize integer format's maximum nor a transaction-size limit. Here it
+restricts already-decoded containers, not decoding allocations or work. -/
+private def coreContainerSizeLimit : Nat := 0x02000000
+
+private def lengthUnderContainerSizeLimit {α : Type} (values : List α) : Bool :=
+  decide (values.length ≤ coreContainerSizeLimit)
+
+private def scriptSigUnderContainerSizeLimit (input : TxIn) : Bool :=
+  lengthUnderContainerSizeLimit input.scriptSig.code.val
+
+private def scriptPubKeyUnderContainerSizeLimit (output : TxOut) : Bool :=
+  lengthUnderContainerSizeLimit output.scriptPubKey.code.val
+
+private def witnessUnderContainerSizeLimit (witness : WitnessStack) : Bool :=
+  lengthUnderContainerSizeLimit witness.val
+    && witness.val.all fun item => lengthUnderContainerSizeLimit item.val
+
+/-- Whether every CompactSize-prefixed container in a decoded transaction fits
+Core's generic `0x02000000` deserialization length limit. This checks per-container
+constraints enforced by Core's parser, not a total-size cap. Passing this guard
+does not establish transaction or block validity. -/
+def compactSizeCompatible (tx : Tx) : Bool :=
+  let body := tx.body
+  lengthUnderContainerSizeLimit body.inputs.val
+    && lengthUnderContainerSizeLimit body.outputs.val
+    && body.inputs.val.all scriptSigUnderContainerSizeLimit
+    && body.outputs.val.all scriptPubKeyUnderContainerSizeLimit
+    && (match tx with
+      | .segwit _ txInputs _ _ _ =>
+          txInputs.val.all fun input => witnessUnderContainerSizeLimit input.witness
+      | .legacy .. | .empty .. => true)
+
+/-- Prefix-decode a transaction with the proved packed codec, then restrict the
+result to Core's generic CompactSize length domain. The input object is
+owned by the generated C wrapper. -/
+@[export btcv_kernel_decode]
+def decode (input : ByteArray) : Option Tx :=
+  match PackedCodec.decode (α := Tx) input with
+  | none => none
+  | some (tx, _) => if compactSizeCompatible tx then some tx else none
+
+/-- Kernel decoding is exactly specification decoding followed by the
+container-compatibility guard, with the unconsumed suffix discarded. -/
+theorem decode_eq_spec (input : ByteArray) :
+    decode input = (Codec.decode (α := Tx) input.toList).bind
+      (fun (tx, _) => if compactSizeCompatible tx then some tx else none) := by
+  rw [← PackedCodec.abstractParse_decode]
+  unfold decode
+  cases PackedCodec.decode (α := Tx) input with
+  | none => rfl
+  | some result => rfl
+
+/-- Encode a transaction in its canonical legacy, empty, or SegWit wire form. -/
+@[export btcv_kernel_encode]
+def encode (tx : Tx) : ByteArray :=
+  PackedCodec.encode tx
+
+/-- Encoding then decoding returns the original transaction when its containers
+fit the compatibility limit, and rejects it otherwise, regardless of any suffix. -/
+theorem decode_encode_append (tx : Tx) (suffix : ByteArray) :
+    decode (encode tx ++ suffix) =
+      if compactSizeCompatible tx then some tx else none := by
+  rw [decode_eq_spec]
+  have hbytes : (encode tx ++ suffix).toList = Codec.encode tx ++ suffix.toList := by
+    simp only [ByteArray.toList_eq_data_toList, ByteArray.data_append,
+      Array.toList_append]
+    rw [← ByteArray.toList_eq_data_toList, encode, PackedCodec.toList_encode]
+  rw [hbytes, Codec.decode_encode]
+  rfl
+
+/-- Encode the transaction's witness-stripped body, which is the txid preimage. -/
+@[export btcv_kernel_encode_stripped]
+def encodeStripped (tx : Tx) : ByteArray :=
+  PackedCodec.encode tx.body
+
+-- The packed implementation of `Tx.StrippedSizeLeMaxStrippedTransactionSize`;
+-- both transaction-local checker proofs transport this measurement to the spec.
+private def checkStrippedSizeLeMaxStrippedTransactionSize (tx : Tx) : Bool :=
+  decide ((PackedCodec.encode tx.body).size ≤ Consensus.maxStrippedTransactionSize)
+
+private theorem checkStrippedSizeLeMaxStrippedTransactionSize_iff (tx : Tx) :
+    checkStrippedSizeLeMaxStrippedTransactionSize tx = true ↔
+      tx.StrippedSizeLeMaxStrippedTransactionSize := by
+  have hsize : (PackedCodec.encode tx.body).size = tx.strippedSize := by
+    have h := congrArg List.length (PackedCodec.toList_encode tx.body)
+    simpa only [ByteArray.toList_eq_data_toList, ByteArray.size,
+      Array.length_toList, Tx.strippedSize] using h
+  simp only [checkStrippedSizeLeMaxStrippedTransactionSize, decide_eq_true_eq,
+    Tx.StrippedSizeLeMaxStrippedTransactionSize, hsize]
+
+/-- Decide the non-coinbase transaction-local premises while measuring
+stripped size through the packed encoder. -/
+def nonCoinbaseCheck (tx : Tx) : Bool :=
+  decide tx.InputsNonempty
+    && decide tx.OutputsNonempty
+    && decide tx.AllInputOutpointsDistinct
+    && decide tx.AllInputOutpointsNeNull
+    && decide tx.TotalOutputValueLeMaxMoney
+    && checkStrippedSizeLeMaxStrippedTransactionSize tx
+
+/-- Measuring stripped size with the packed encoder leaves the existing
+non-coinbase transaction checker unchanged on every transaction. -/
+theorem nonCoinbaseCheck_eq_isWellFormed (tx : Tx) :
+    nonCoinbaseCheck tx = tx.isWellFormed := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [nonCoinbaseCheck, Tx.isWellFormed, Bool.and_eq_true, decide_eq_true_eq,
+    checkStrippedSizeLeMaxStrippedTransactionSize_iff]
+
+/-- Decide the transaction-local coinbase premises: exactly one null-prevout
+input, nonempty outputs, bounded total output value and stripped size, and a
+scriptSig of 2–100 bytes. The input shape follows Core's
+[`IsCoinBase`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/primitives/transaction.h#L341-L344);
+block position is a separate constraint. -/
+def coinbaseCheck (tx : Tx) : Bool :=
+  match tx.body.inputs.val with
+  | [input] =>
+      input.prevout == OutPoint.null
+        && decide tx.OutputsNonempty
+        && decide tx.TotalOutputValueLeMaxMoney
+        && checkStrippedSizeLeMaxStrippedTransactionSize tx
+        && decide (Consensus.minCoinbaseScriptSigSize ≤ input.scriptSig.code.val.length)
+        && decide (input.scriptSig.code.val.length ≤ Consensus.maxCoinbaseScriptSigSize)
+  | _ => false
+
+/-- The packed coinbase checker accepts exactly the transactions satisfying
+the specification's transaction-local coinbase premises. -/
+theorem coinbaseCheck_iff (tx : Tx) :
+    coinbaseCheck tx = true ↔ tx.CoinbaseWellFormed := by
+  rw [Tx.coinbaseWellFormed_iff]
+  cases hinputs : tx.body.inputs.val with
+  | nil => simp [coinbaseCheck, Tx.Coinbase, hinputs]
+  | cons input rest =>
+    cases rest with
+    | nil =>
+      simp [coinbaseCheck, Tx.Coinbase, Tx.AllScriptSigSizesGeMinCoinbaseScriptSigSize,
+        Tx.AllScriptSigSizesLeMaxCoinbaseScriptSigSize, hinputs,
+        checkStrippedSizeLeMaxStrippedTransactionSize_iff, and_assoc]
+    | cons next rest => simp [coinbaseCheck, Tx.Coinbase, hinputs]
+
+/-- The standalone transaction-local adapter: select the coinbase or non-coinbase
+checker using Core's single-null-input coinbase classification. This follows
+pinned Core's [`CheckTransaction`](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/consensus/tx_check.cpp#L19-L67);
+no theorem of Core equivalence or full consensus validity is claimed. -/
+@[export btcv_kernel_check]
+def check (tx : Tx) : Bool :=
+  match tx.body.inputs.val with
+  | [input] =>
+    if input.prevout == OutPoint.null then
+      coinbaseCheck tx
+    else nonCoinbaseCheck tx
+  | _ => nonCoinbaseCheck tx
+
+/-- The main checker accepts exactly the transaction-local specification selected
+by coinbase classification: coinbase premises for a coinbase, and non-coinbase
+premises otherwise. This does not establish contextual or full block validity. -/
+theorem check_iff (tx : Tx) :
+    check tx = true ↔
+      if tx.Coinbase then tx.CoinbaseWellFormed else tx.WellFormed := by
+  cases hinputs : tx.body.inputs.val with
+  | nil =>
+      simp [check, Tx.Coinbase, hinputs, nonCoinbaseCheck_eq_isWellFormed,
+        Tx.isWellFormed_iff]
+  | cons input rest =>
+    cases rest with
+    | nil =>
+      by_cases hprevout : input.prevout = OutPoint.null
+      · simp [check, Tx.Coinbase, hinputs, hprevout, coinbaseCheck_iff]
+      · simp [check, Tx.Coinbase, hinputs, hprevout, nonCoinbaseCheck_eq_isWellFormed,
+          Tx.isWellFormed_iff]
+    | cons next rest =>
+      simp [check, Tx.Coinbase, hinputs, nonCoinbaseCheck_eq_isWellFormed,
+        Tx.isWellFormed_iff]
+
+/-- Return the transaction locktime. -/
+@[export btcv_kernel_locktime]
+def locktime (tx : Tx) : UInt32 :=
+  tx.body.lockTime
+
+/-- Materialize the transaction inputs in wire order. -/
+@[export btcv_kernel_inputs]
+def inputs (tx : Tx) : Array TxIn :=
+  tx.body.inputs.val.toArray
+
+/-- Materialize the transaction outputs in wire order. -/
+@[export btcv_kernel_outputs]
+def outputs (tx : Tx) : Array TxOut :=
+  tx.body.outputs.val.toArray
+
+/-- Materialize witness items as byte arrays aligned one-for-one with the
+transaction inputs. Legacy inputs receive empty witness arrays. -/
+@[export btcv_kernel_witnesses]
+def witnesses (tx : Tx) : Array (Array ByteArray) :=
+  match tx with
+  | .legacy body _ =>
+      (body.inputs.val.map fun _ => (#[] : Array ByteArray)).toArray
+  | .empty .. => #[]
+  | .segwit _ txInputs _ _ _ =>
+      (txInputs.val.map fun input =>
+        (input.witness.val.map fun item => item.val.toByteArray).toArray).toArray
+
+/-- Reading the witness snapshot back as byte lists preserves the specification's
+stacks and items in order. Each legacy input receives an empty stack; an empty
+transaction has no stacks. Empty SegWit stacks and items remain distinct. -/
+theorem witnesses_toList (tx : Tx) :
+    (witnesses tx).toList.map (fun stack => stack.toList.map ByteArray.toList) =
+      match tx with
+      | .legacy body _ => body.inputs.val.map fun _ => []
+      | .empty .. => []
+      | .segwit _ txInputs _ _ _ =>
+          (segwitWitnesses txInputs).map fun stack => stack.val.map Subtype.val := by
+  cases tx <;> simp [witnesses, segwitWitnesses, List.map_map, Function.comp_def]
+
+/-- The witness snapshot contains exactly one stack for each input. -/
+theorem witnesses_size_eq_inputs_size (tx : Tx) :
+    (witnesses tx).size = (inputs tx).size := by
+  cases tx with
+  | legacy body inputsNonempty =>
+      simp [witnesses, inputs]
+      rfl
+  | empty version lockTime =>
+      simp [witnesses, inputs]
+      rfl
+  | segwit version txInputs txOutputs lockTime hWitness =>
+      simp only [witnesses, Nat.reducePow, List.map_subtype, List.size_toArray,
+        List.length_map, inputs]
+      change txInputs.val.length = (txInputs.val.map SegwitInput.input).length
+      simp only [List.length_map]
+
+/-- Return an input's previous transaction id as its 32 raw wire bytes. -/
+@[export btcv_kernel_input_txid]
+def inputTxid (input : TxIn) : ByteArray :=
+  input.prevout.txid.val.toByteArray
+
+/-- Return an input's previous-output index. -/
+@[export btcv_kernel_input_index]
+def inputIndex (input : TxIn) : UInt32 :=
+  input.prevout.vout
+
+/-- Return an input's sequence number. -/
+@[export btcv_kernel_input_sequence]
+def inputSequence (input : TxIn) : UInt32 :=
+  input.sequence
+
+/-- Return an input's raw scriptSig bytes. -/
+@[export btcv_kernel_input_script]
+def inputScript (input : TxIn) : ByteArray :=
+  input.scriptSig.code.val.toByteArray
+
+/-- Return all 64 output-amount wire bits. -/
+@[export btcv_kernel_output_amount]
+def outputAmount (output : TxOut) : UInt64 :=
+  output.value
+
+/-- Return an output's raw scriptPubKey bytes. -/
+@[export btcv_kernel_output_script]
+def outputScript (output : TxOut) : ByteArray :=
+  output.scriptPubKey.code.val.toByteArray
+
+/-- Double-SHA-256 arbitrary owned bytes and return the 32 raw digest bytes. -/
+@[export btcv_kernel_hash]
+def hash (bytes : ByteArray) : ByteArray :=
+  (Sha256.sha256d bytes.toList).toByteArray
+
+/-- The native stripped encoding is byte-for-byte the specification encoding
+of the transaction body. -/
+theorem encodeStripped_toList (tx : Tx) :
+    (encodeStripped tx).toList = Codec.encode tx.body :=
+  PackedCodec.toList_encode tx.body
+
+/-- Compute a transaction id by hashing the native stripped encoding. -/
+def txid (tx : Tx) : ByteArray :=
+  hash (encodeStripped tx)
+
+/-- Hashing the native stripped encoding returns exactly `Tx.txid`'s 32 raw
+bytes. -/
+theorem txid_eq_txid (tx : Tx) :
+    txid tx = tx.txid.val.toByteArray := by
+  simp only [txid, hash, encodeStripped, Tx.txid, TxBody.txid,
+    PackedCodec.toList_encode]
+
+end BtcVerified.Kernel
