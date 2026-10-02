@@ -3,8 +3,8 @@ import BtcVerified.Transaction.Txid
 /-!
   # Lean transaction kernel boundary
 
-  This module supplies the pure Lean operations for a future
-  `libbitcoinkernel` compatibility shim. It decodes and encodes with the proved
+  This module supplies the pure Lean operations behind the transaction slice
+  of the `libbitcoinkernel` compatibility shim. It decodes and encodes with the proved
   packed transaction codec, exposes immutable field snapshots, and computes the
   transaction-local `CheckTransaction` projection without importing the fuzz
   harness.
@@ -22,7 +22,10 @@ import BtcVerified.Transaction.Txid
   The `btcv_kernel_*` exports are private Lean FFI entry points, not the public
   `btck_*` interface. Their generated wrappers consume object arguments and
   return owned object results. A borrowing caller must increment an object
-  before passing it to an export. No C shim or shared library is provided here.
+  before passing it to an export. The companion `Kernel/bitcoinkernel.c` adapts
+  these operations to the supported public C interface; `lake build kernel`
+  builds that optional shared library. This module itself contains only the
+  Lean operations and their specification connections.
   The proofs below relate these operations to our Lean specification; they do
   not establish equivalence to Core or full consensus validity.
 
