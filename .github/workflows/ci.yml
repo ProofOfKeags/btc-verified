@@ -73,3 +73,60 @@ jobs:
         run: nix develop -c lake exe cache get
       - name: Build through dev shell
         run: nix develop -c lake build
+
+  transaction-conformance:
+    name: transaction conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: conformance-elan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}
+      # Core build identities also check tool versions, flags and absolute paths.
+      # Neither run evidence nor the mutation corpus is a dependency cache.
+      - uses: actions/cache/restore@v4
+        id: core_cache
+        with:
+          path: |
+            .lake/conformance/sources
+            .lake/conformance/builds
+          key: conformance-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Kernel/abi.toml', 'Fuzz/Build.lean', 'flake.nix', 'flake.lock') }}
+      - name: Compare the transaction implementations
+        run: |
+          set -o pipefail
+          mkdir -p .lake/conformance
+          nix develop -c lake run transaction-conformance 2>&1 | tee .lake/conformance/bootstrap.log
+      # A failed comparison may still leave a validated, reusable Core build.
+      # Interrupted fetches/configures never receive the completion marker and
+      # therefore cannot poison this immutable-key cache.
+      - name: Check reusable Core cache
+        id: core_ready
+        if: always()
+        run: |
+          if [[ -f .lake/conformance/core-cache-ready ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache/save@v4
+        if: >-
+          always() && steps.core_cache.outcome == 'success' &&
+          steps.core_cache.outputs.cache-hit != 'true' &&
+          steps.core_ready.outputs.ready == 'true'
+        with:
+          path: |
+            .lake/conformance/sources
+            .lake/conformance/builds
+          key: ${{ steps.core_cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transaction-conformance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .lake/conformance/bootstrap.log
+            .lake/conformance/runs
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7

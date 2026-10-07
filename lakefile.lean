@@ -16,14 +16,33 @@ package «btc-verified» where
   testDriver := "tests"
   lintDriver := "batteries/runLinter"
   leanOptions := #[⟨`weak.linter.mathlibStandardSet, true⟩]
+  -- Sanitizer-dependent objects must never replace ordinary Lake artifacts.
+  buildDir := if (get_config? transactionCoverage) == some "true" then
+    ".lake/conformance/verified-build"
+  else
+    defaultBuildDir
 
 require "leanprover-community" / "mathlib"
 
-@[default_target] lean_lib BtcVerified
+private def transactionCoverage : Bool :=
+  (get_config? transactionCoverage) == some "true"
+
+private def transactionCoverageArgs : Array String :=
+  if transactionCoverage then
+    -- This inert define makes the selected compiler binary part of Lake's trace.
+    #["-O1", "-g", "-fno-omit-frame-pointer", "-fsanitize=fuzzer-no-link",
+      s!"-DBTC_VERIFIED_COVERAGE_COMPILER={
+        (get_config? transactionCoverageCompiler).getD "unrecorded"}"]
+  else
+    #[]
+
+@[default_target] lean_lib BtcVerified where
+  moreLeancArgs := transactionCoverageArgs
 @[default_target] lean_lib ModuleAudit
 @[default_target] lean_lib Tests
 @[default_target] lean_lib Kernel where
   roots := #[`Kernel.Transaction]
+  moreLeancArgs := transactionCoverageArgs
 @[default_target] lean_lib KernelTests
 
 lean_exe tests where
@@ -33,6 +52,21 @@ lean_exe «module-audit» where
   supportInterpreter := true
 lean_exe bench where
   root := `BenchMain
+
+@[default_target] lean_lib Fuzz where
+  roots := #[`Fuzz.Build, `Fuzz.Seeds]
+lean_exe «core-build» where
+  root := `Fuzz.CoreMain
+lean_exe «transaction-conformance-runner» where
+  root := `Fuzz.Check
+
+/-- Bootstrap Lean dependencies before building and running the native comparison. -/
+script «transaction-conformance» args do
+  let cache ← IO.Process.spawn {cmd := "lake", args := #["exe", "cache", "get"]}
+  let status ← cache.wait
+  if status != 0 then return status
+  let check ← IO.Process.spawn {cmd := "lake", args := #["exe", "transaction-conformance-runner"] ++ args.toArray}
+  return ← check.wait
 
 namespace KernelBuild
 
@@ -129,13 +163,15 @@ private def readExports (root : FilePath) : IO (Array String) := do
   ensure (names.toList.eraseDups.length == names.size) "Duplicate kernel export"
   return names
 
-private def compileShim (root : FilePath) (lean : LeanInstall) (cc : String) : JobM FilePath := do
-  let output := root / ".lake/build/kernel/bitcoinkernel.o"
+private def compileShim (root buildDir : FilePath) (lean : LeanInstall) (cc : String)
+    (coverage : Bool) : JobM FilePath := do
+  let output := buildDir / "kernel/bitcoinkernel.o"
+  let coverageArgs := if coverage then #["-fsanitize=fuzzer-no-link"] else #[]
   let args := #["-std=c11", "-O2", "-g", "-fPIC", "-pthread", "-fvisibility=hidden",
     "-Wall", "-Wextra", "-Werror",
     "-DBITCOINKERNEL_BUILD", "-I", (root / ".lake/build/kernel/include").toString,
     "-I", lean.includeDir.toString, "-c", (root / "Kernel/bitcoinkernel.c").toString,
-    "-o", output.toString]
+    "-o", output.toString] ++ coverageArgs
   addLeanTrace
   addPlatformTrace
   addPureTrace (cc, ← run cc #["--version"], args) "C compiler"
@@ -143,10 +179,10 @@ private def compileShim (root : FilePath) (lean : LeanInstall) (cc : String) : J
     proc {cmd := cc, args, env := toolEnvironment}
   return artifact.path
 
-private def linkKernel (root : FilePath) (lean : LeanInstall) (cc : String)
-    (objects : Array FilePath) (shim generated : FilePath) : JobM FilePath := do
+private def linkKernel (root buildDir libDir : FilePath) (lean : LeanInstall) (cc : String)
+    (objects : Array FilePath) (shim generated : FilePath) (coverage : Bool) : JobM FilePath := do
   let names ← readExports root
-  let dir := root / ".lake/build/kernel"
+  let dir := buildDir / "kernel"
   let control := dir / if Platform.isOSX then "exports.list" else "exports.map"
   let text := if Platform.isOSX then String.join (names.toList.map fun name => s!"_{name}\n")
     else "{\n  global:\n" ++ String.join (names.toList.map fun name => s!"    {name};\n") ++
@@ -156,7 +192,7 @@ private def linkKernel (root : FilePath) (lean : LeanInstall) (cc : String)
   writeChanged response (String.intercalate "\n"
     (objects.toList.map fun path => (toJson path.toString).compress) ++ "\n").toUTF8
   let library := s!"libbtc_verified_kernel.{sharedLibExt}"
-  let output := root / ".lake/build/lib" / library
+  let output := libDir / library
   let platformFlags := if Platform.isOSX then
     #["-dynamiclib", s!"-Wl,-install_name,@rpath/{library}",
       s!"-Wl,-exported_symbols_list,{control}"]
@@ -165,11 +201,15 @@ private def linkKernel (root : FilePath) (lean : LeanInstall) (cc : String)
   -- runtime explicitly: this library must work in a plain C host, not just as
   -- a plugin loaded into Lean. Put strict checks last because Lean's macOS
   -- shared flags otherwise allow unresolved symbols via dynamic_lookup.
-  let strictFlags := if Platform.isOSX then #["-Wl,-undefined,error"] else #["-Wl,-z,defs"]
+  -- The coverage build intentionally leaves SanitizerCoverage callbacks for
+  -- the libFuzzer executable to provide when it loads this library.
+  let undefinedFlags := if coverage then
+      if Platform.isOSX then #["-Wl,-undefined,dynamic_lookup"] else #[]
+    else if Platform.isOSX then #["-Wl,-undefined,error"] else #["-Wl,-z,defs"]
   let args := platformFlags ++ #["-pthread", shim.toString, s!"@{response}",
     "-L", lean.leanLibDir.toString, "-L", lean.systemLibDir.toString,
     s!"-Wl,-rpath,{lean.leanLibDir}", s!"-Wl,-rpath,{lean.systemLibDir}"] ++
-    lean.linkSharedFlags ++ #["-lleanshared"] ++ strictFlags ++ #["-o", output.toString]
+    lean.linkSharedFlags ++ #["-lleanshared"] ++ undefinedFlags ++ #["-o", output.toString]
   addLeanTrace
   addPlatformTrace
   addPureTrace (cc, ← run cc #["--version"], args) "C linker"
@@ -189,9 +229,11 @@ end KernelBuild
 /-- Build the pinned-header-compatible transaction library, without building Core. -/
 target kernel pkg : FilePath := do
   let root ← IO.FS.realPath pkg.dir
+  let buildDir := pkg.buildDir
+  let libDir := pkg.sharedLibDir
   unless !Platform.isWindows do error "The kernel target supports macOS and Linux"
-  IO.FS.createDirAll (root / ".lake/build/kernel")
-  IO.FS.createDirAll (root / ".lake/build/lib")
+  IO.FS.createDirAll (buildDir / "kernel")
+  IO.FS.createDirAll libDir
   let lean ← getLeanInstall
   -- Lean's bundled compiler has a restricted sysroot intended for generated C.
   -- The C11 boundary needs the host headers (notably pthreads). The link flags
@@ -204,7 +246,8 @@ target kernel pkg : FilePath := do
   let configs := Job.mixArray (← #["lakefile.lean", "Kernel/abi.toml",
     "Kernel/lean_bridge.h", "lean-toolchain"].mapM fun path => inputTextFile (root / FilePath.mk path))
   let source ← inputTextFile (root / "Kernel/bitcoinkernel.c")
-  let shim ← (source.mix (header.mix configs)).mapM fun _ => KernelBuild.compileShim root lean cc
+  let shim ← (source.mix (header.mix configs)).mapM fun _ =>
+    KernelBuild.compileShim root buildDir lean cc transactionCoverage
   let some mod ← findModule? `Kernel.Transaction
     | error "Kernel.Transaction is not registered with Lake"
   let generated ← mod.c.fetch
@@ -219,7 +262,7 @@ target kernel pkg : FilePath := do
   -- Keep configuration inputs in the link trace too: an export-list change
   -- can require relinking even when the compiled shim is byte-for-byte equal.
   (inputs.zipWith (fun input _ => input) configs).mapM fun (objects, shim, generated) =>
-    KernelBuild.linkKernel root lean cc objects shim generated
+    KernelBuild.linkKernel root buildDir libDir lean cc objects shim generated transactionCoverage
 
 /-- Build the C library and smoke-test calls to its supported public symbols. -/
 script «kernel-check» args do
