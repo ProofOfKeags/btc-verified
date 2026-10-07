@@ -34,6 +34,11 @@ lean_exe «module-audit» where
 lean_exe bench where
   root := `BenchMain
 
+@[default_target] lean_lib Fuzz where
+  roots := #[`Fuzz.Build]
+lean_exe «core-build» where
+  root := `Fuzz.CoreMain
+
 namespace KernelBuild
 
 -- Lake adds Lean's shared-library directories to the loader environment.
