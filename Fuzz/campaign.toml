@@ -1,0 +1,6 @@
+# Mutation limits, not transaction-validity limits. Large cases replay separately.
+seed = 1
+runs = 100000
+max_len = 4096
+timeout = 10
+rss_limit_mb = 2048
