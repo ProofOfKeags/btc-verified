@@ -28,12 +28,13 @@
               curl
               git
               stdenv.cc
+              # Configure and build Core's kernel-only CMake target.
               cmake
               ninja
-              pkg-config
+              # The kernel target directly links Boost's header interface.
               boost
+              # Instrument both providers and supply the libFuzzer runtime.
               llvmPackages_19.clang
-              llvmPackages_19.compiler-rt
 
               # elan is used instead of nixpkgs#lean4 because nixpkgs currently
               # has Lean 4.29.1, while we need leanprover/lean4:v4.30.0-rc2.

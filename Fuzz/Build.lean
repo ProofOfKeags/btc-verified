@@ -95,7 +95,6 @@ def buildCore (logs : FilePath) : IO FilePath := do
   let cxxVersion ← checked logs "cxx-version" cxx #["--version"]
   let cmakeVersion ← checked logs "cmake-version" "cmake" #["--version"]
   let ninjaVersion ← checked logs "ninja-version" "ninja" #["--version"]
-  let pkgConfigVersion ← checked logs "pkg-config-version" "pkg-config" #["--version"]
   let platform ← checked logs "platform" "uname" #["-sm"]
   let mut options := #["-G", "Ninja", s!"-DCMAKE_C_COMPILER={cc}", s!"-DCMAKE_CXX_COMPILER={cxx}",
     "-DCMAKE_BUILD_TYPE=RelWithDebInfo", "-DBUILD_SHARED_LIBS=ON", "-DBUILD_KERNEL_LIB=ON",
@@ -120,7 +119,7 @@ def buildCore (logs : FilePath) : IO FilePath := do
     ("revision", toJson revision), ("source", toJson source.toString), ("root", toJson root.toString),
     ("platform", toJson platform), ("cc", toJson ccVersion), ("cxx", toJson cxxVersion),
     ("cmake", toJson cmakeVersion), ("ninja", toJson ninjaVersion),
-    ("pkgConfig", toJson pkgConfigVersion), ("environment", Json.mkObj environment.toList),
+    ("environment", Json.mkObj environment.toList),
     ("options", toJson options), ("recipe", toJson recipe),
     ("flake", toJson flake), ("nixLock", toJson lock)]).pretty
   let key ← digest logs "core-build-key" identity

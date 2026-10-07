@@ -92,5 +92,5 @@ are in `.lake/conformance/build-logs/`.
 
 An existing clean pinned checkout may be supplied with
 `BTC_VERIFIED_CORE_SOURCE=/absolute/path`. It is never modified. Outside Nix,
-provide CMake, Ninja, pkg-config, Boost, and a Clang toolchain with libFuzzer;
+provide CMake, Ninja, Boost, and a Clang toolchain with libFuzzer;
 `FUZZ_CC` and `FUZZ_CXX` select its compilers. macOS additionally needs its SDK.
