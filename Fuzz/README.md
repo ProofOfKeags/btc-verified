@@ -11,6 +11,12 @@ nix develop -c lake run transaction-conformance
 
 The first run needs network access for Nix, Lean caches, and pinned Core. Later
 runs reuse those dependencies, but build current btc-verified and driver sources.
+
+The Nix development shell targets macOS 15.0 for local native builds, matching
+the minimum of Lean's bundled native libraries. Native objects previously built
+for a newer macOS target need rebuilding; the Lean proof cache remains reusable.
+Core's kernel build continues to target the host macOS version.
+
 The command replays eight small inputs and three large boundaries, runs a fresh
 libFuzzer corpus with `campaign.toml`'s seed and limits, then checks the detector
 with a deliberately injected disagreement. An ordinary run must succeed; the
