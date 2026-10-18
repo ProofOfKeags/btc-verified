@@ -5,12 +5,15 @@ import Fuzz.Seeds
 /-!
   # Bounded public-ABI kernel conformance
 
-  Rebuild current sources, replay inputs, mutate a fresh corpus, and check the
-  disagreement detector is live. Reports survive failed phases. This is bounded
-  experimental evidence, not a theorem or a replacement for Lean-side proofs.
+  Prepare reusable binaries separately from replaying inputs and mutating a fresh
+  corpus. Check the disagreement detector is live. Reports survive failed phases.
+  This is bounded experimental evidence, not a theorem or a replacement for Lean-side proofs.
 -/
 
 open System Lean Lake Conformance
+
+/-- Command to prepare a complete harness before starting a campaign. -/
+private def buildCommand := "nix develop -c lake build kernel-conformance"
 
 /-- Flush progress immediately, including when output is redirected to a file. -/
 private def announce (message : String) : IO Unit := do
@@ -59,6 +62,8 @@ private def requireMismatch (output : IO.Process.Output) (directory : FilePath)
 private structure RunContext where
   /-- Canonical repository root used to resolve build artifacts. -/
   root : FilePath
+  /-- Prepared binary snapshot used or produced by this invocation. -/
+  buildId : String
   /-- Run directory relative to the root, used in portable replay commands. -/
   relativeDirectory : FilePath
   /-- Absolute directory containing this invocation's durable evidence. -/
@@ -74,18 +79,21 @@ private structure RunContext where
 
 namespace RunContext
 
-/-- Allocate durable report, log, and failure locations for one invocation. -/
-private def create : IO RunContext := do
+/-- Allocate a new build snapshot, or a run using the given prepared build. -/
+private def create (prepared : Option String := none) : IO RunContext := do
   let root ← IO.FS.realPath "."
-  let relativeDirectory := FilePath.mk ".lake/conformance/runs" / s!"{← IO.monoNanosNow}"
+  let id := s!"{← IO.monoNanosNow}"
+  let buildId := prepared.getD id
+  let parent := if prepared.isSome then "runs" else "prepared"
+  let relativeDirectory := FilePath.mk ".lake/conformance" / parent / id
   let directory := root / relativeDirectory
   let logs := directory / "logs"
   let failures := directory / "failures"
   IO.FS.createDirAll logs
   IO.FS.createDirAll failures
-  let report ← IO.mkRef ([] : List (String × Json))
+  let report ← IO.mkRef [("buildId", toJson buildId)]
   let stage ← IO.mkRef "Preparing run details"
-  return { root, relativeDirectory, directory, logs, failures, report, stage }
+  return { root, buildId, relativeDirectory, directory, logs, failures, report, stage }
 
 /-- Announce a meaningful stage and retain its name for failure diagnostics. -/
 private def beginStage (context : RunContext) (description : String) : IO Unit := do
@@ -104,7 +112,8 @@ private def save (context : RunContext) (status : String) : IO Unit := do
 /-- Record the archived input and exact command needed to replay it. -/
 private def recordReplay (context : RunContext) (relative : FilePath) : IO Unit := do
   let input := context.relativeDirectory / relative
-  let command := "nix develop -c lake run kernel-conformance --replay " ++
+  let command := s!"nix develop -c lake run kernel-conformance \
+    --build-id {context.buildId} --replay " ++
     (toJson input.toString).compress
   context.record "replayInput" (toJson relative.toString)
   context.record "replayCommand" (toJson command)
@@ -135,26 +144,67 @@ private structure Harness where
   /-- libFuzzer driver that compares both libraries. -/
   binary : FilePath
 
-/-- Parse an optional single-input replay request. -/
-private def replayArgument (args : List String) : IO (Option FilePath) := do
-  match args with
-  | [] => pure none
-  | ["--replay", path] => pure (some (← IO.FS.realPath path))
-  | _ => throw <| IO.userError "Usage: lake run kernel-conformance [--replay INPUT]"
+/-- Stable filenames within an independently reusable prepared build. -/
+private def preparedHarness (directory : FilePath) : Harness :=
+  let extension := if Platform.isOSX then "dylib" else "so"
+  { core := directory / s!"libbitcoinkernel.{extension}"
+    verified := directory / s!"libbtc_verified_kernel.{extension}"
+    binary := directory / "transaction" }
 
-/-- Record the provenance and campaign bounds available for interpreting a run. -/
-private def recordRunMetadata (context : RunContext) : IO (Array (String × Nat)) := do
-  context.record "revision"
+/-- All executables and providers whose identities define a prepared build. -/
+private def artifacts (directory : FilePath) : Array (String × FilePath) :=
+  let harness := preparedHarness directory
+  #[("core", harness.core), ("verified", harness.verified), ("driver", harness.binary),
+    ("harness", directory / "kernel-conformance-harness")]
+
+/-- Decode structured build evidence with an actionable error on invalid data. -/
+private def readJson (path : FilePath) : IO Json := do
+  unless ← path.pathExists do
+    throw <| IO.userError s!"Missing {path}. Run: {buildCommand}"
+  let .ok value := Json.parse (← IO.FS.readFile path)
+    | throw <| IO.userError s!"Invalid JSON in {path}. Run: {buildCommand}"
+  return value
+
+/-- Read a required typed manifest field without silently inventing a default. -/
+private def manifestField [FromJson α] (manifest : Json) (key : String) : IO α := do
+  let decoded : Except String α := do fromJson? (← manifest.getObjVal? key)
+  let .ok value := decoded
+    | throw <| IO.userError s!"Invalid prepared-build field: {key}. Run: {buildCommand}"
+  return value
+
+/-- Resolve an existing build selection and an optional single-input replay. -/
+private def runArguments (args : List String) : IO (String × Option FilePath) := do
+  let (buildId, rest) ← match args with
+    | "--build-id" :: id :: rest => pure (id, rest)
+    | _ => do
+      let current := FilePath.mk ".lake/conformance/prepared/current"
+      unless ← current.pathExists do
+        throw <| IO.userError s!"No prepared conformance build. Run: {buildCommand}"
+      pure ((← IO.FS.readFile current).trimAscii.toString, args)
+  unless buildId.toNat?.isSome do throw <| IO.userError "Invalid conformance build ID"
+  let replay ← match rest with
+    | [] => pure none
+    | ["--replay", path] => pure (some (← IO.FS.realPath path))
+    | _ => throw <| IO.userError "Usage: lake run kernel-conformance \
+        [--build-id ID] [--replay INPUT]"
+  return (buildId, replay)
+
+/-- Record source state with distinct names for build inputs and the run workspace. -/
+private def recordWorkspace (context : RunContext) (fieldPrefix : String) : IO Unit := do
+  context.record s!"{fieldPrefix}revision"
     (toJson (← checked context.logs "revision" "git" #["rev-parse", "HEAD"]))
   let dirty ← checked context.logs "status" "git" #["status", "--porcelain"]
-  context.record "localChanges" (toJson dirty)
-  context.record "cleanWorktree" (toJson dirty.isEmpty)
+  context.record s!"{fieldPrefix}localChanges" (toJson dirty)
+  context.record s!"{fieldPrefix}cleanWorktree" (toJson dirty.isEmpty)
   -- A patch aids review, but untracked files and dirty dependency trees are
   -- not reconstructed. Reproduction also requires the pinned clean dependencies.
   discard <| checked context.logs "local-diff" "git" #["diff", "HEAD", "--binary"]
+
+/-- Record source and tool identities while preparing the binaries they describe. -/
+private def recordBuildMetadata (context : RunContext) : IO Unit := do
+  recordWorkspace context ""
+  context.record "sourceRoot" (toJson context.root.toString)
   context.record "coreRevision" (toJson (← coreRevision))
-  let limits ← campaign
-  context.record "campaign" (Json.mkObj (limits.toList.map fun (key, value) => (key, toJson value)))
   context.record "leanVersion"
     (toJson (← checked context.logs "lean-version" "lean" #["--version"]))
   context.record "lakeVersion"
@@ -162,6 +212,12 @@ private def recordRunMetadata (context : RunContext) : IO (Array (String × Nat)
   context.record "instrumentation" (toJson "libFuzzer coverage: Core, btc-verified generated \
     Lean C, C boundary, and driver; dependencies and Lean runtime are uninstrumented; \
     no address/leak analysis")
+
+/-- Read runtime campaign bounds independently of the saved binary build provenance. -/
+private def recordRunMetadata (context : RunContext) : IO (Array (String × Nat)) := do
+  recordWorkspace context "runWorkspace."
+  let limits ← campaign
+  context.record "campaign" (Json.mkObj (limits.toList.map fun (key, value) => (key, toJson value)))
   return limits
 
 /-- Require one object or library to reference SanitizerCoverage callbacks. -/
@@ -209,20 +265,93 @@ private def buildDriver (context : RunContext) (cc : String) : IO FilePath := do
 
 /-- Build both providers and the one coverage-guided driver that compares them. -/
 private def buildHarness (context : RunContext) : IO Harness := do
+  let snapshot := preparedHarness context.directory
   context.beginStage "Building pinned Bitcoin Core \
     (reuses a matching build; first build can take minutes)"
   let core ← buildCore context.logs
+  copyFile core snapshot.core
   announce "  Bitcoin Core ready."
   context.beginStage "Building btc-verified and checking coverage instrumentation"
   let cc ← compiler context.logs "FUZZ_CC" "clang"
   let verified ← buildVerified context cc
+  copyFile verified snapshot.verified
   announce "  btc-verified ready; coverage instrumentation checked."
   context.beginStage "Building the comparison driver"
-  let binary ← buildDriver context cc
+  discard <| buildDriver context cc
   announce "  Comparison driver ready."
-  for (name, path) in #[("core", core), ("verified", verified), ("driver", binary)] do
-    context.record s!"{name}Sha256" (toJson (← digest context.logs s!"{name}-hash" path))
-  return { core, verified, binary }
+  return snapshot
+
+/-- Save complete build provenance and atomically select the successful snapshot. -/
+private def prepare (context : RunContext) : IO Unit := do
+  context.beginStage "Recording build source and toolchain details"
+  recordBuildMetadata context
+  context.save "building"
+  discard <| buildHarness context
+  context.beginStage "Saving reusable conformance binaries"
+  let harness := context.directory / "kernel-conformance-harness"
+  copyFile (← IO.appPath) harness
+  IO.setAccessRights harness {
+    user := {read := true, write := true, execution := true}
+    group := {read := true, execution := true}
+    other := {read := true, execution := true} }
+  let hashes ← (artifacts context.directory).mapM fun (name, path) => do
+    let hash ← digest context.logs s!"{name}-hash" path
+    context.record s!"{name}Sha256" (toJson hash)
+    return (name, toJson hash)
+  context.record "coreBuildIdentity" (← readJson (context.logs / "core-build-identity.json"))
+  let manifest := Json.mkObj [
+    ("schemaVersion", toJson (1 : Nat)), ("buildId", toJson context.buildId),
+    ("artifacts", Json.mkObj hashes.toList),
+    ("provenance", Json.mkObj (← context.report.get))]
+  context.save "built"
+  IO.FS.writeFile (context.directory / "manifest.json") manifest.pretty
+  let parent := context.root / ".lake/conformance/prepared"
+  let pending := parent / s!"current-{context.buildId}.tmp"
+  IO.FS.writeFile pending (context.buildId ++ "\n")
+  IO.FS.rename pending (parent / "current")
+  announce s!"\nBUILD READY: {context.buildId}"
+  announce "Run a campaign: nix develop -c lake run kernel-conformance"
+
+/-- Validate and record a saved binary snapshot without rebuilding any component. -/
+private def loadPrepared (context : RunContext) : IO Harness := do
+  context.beginStage s!"Loading prepared build {context.buildId} (no compilation)"
+  let relative := FilePath.mk ".lake/conformance/prepared" / context.buildId
+  let directory := context.root / relative
+  let manifest ← readJson (directory / "manifest.json")
+  let version : Nat ← manifestField manifest "schemaVersion"
+  let id : String ← manifestField manifest "buildId"
+  unless version == 1 && id == context.buildId do
+    throw <| IO.userError s!"Prepared-build identity or format mismatch. Run: {buildCommand}"
+  let provenance : Json ← manifestField manifest "provenance"
+  for field in #["revision", "coreRevision", "leanVersion", "lakeVersion",
+      "coverageCompilerVersion", "sourceRoot", "instrumentation", "localChanges"] do
+    discard <| (manifestField provenance field : IO String)
+  discard <| (manifestField provenance "cleanWorktree" : IO Bool)
+  let recordedId : String ← manifestField provenance "buildId"
+  let coreIdentity : Json ← manifestField provenance "coreBuildIdentity"
+  unless recordedId == id && coreIdentity.getObj?.isOk do
+    throw <| IO.userError s!"Invalid prepared-build provenance. Run: {buildCommand}"
+  let hashes : Json ← manifestField manifest "artifacts"
+  for (name, path) in artifacts directory do
+    unless ← path.pathExists do
+      throw <| IO.userError s!"Missing prepared {name}: {path}. Run: {buildCommand}"
+    let expected : String ← manifestField hashes name
+    let recorded : String ← manifestField provenance s!"{name}Sha256"
+    unless expected == recorded do
+      throw <| IO.userError s!"Conflicting prepared {name} identities. Run: {buildCommand}"
+    unless (← digest context.logs s!"{name}-hash" path) == expected do
+      throw <| IO.userError s!"Prepared {name} changed since it was built. Run: {buildCommand}"
+  let currentHarness ← IO.FS.realPath (← IO.appPath)
+  unless currentHarness == (← IO.FS.realPath (directory / "kernel-conformance-harness")) do
+    let expected : String ← manifestField hashes "harness"
+    unless (← digest context.logs "active-harness-hash" currentHarness) == expected do
+      throw <| IO.userError "This harness does not match the selected build. \
+        Use: nix develop -c lake run kernel-conformance"
+  context.record "buildDirectory" (toJson relative.toString)
+  context.record "build" manifest
+  IO.FS.writeFile (context.directory / "build-manifest.json") manifest.pretty
+  announce "  Prepared binaries verified."
+  return preparedHarness directory
 
 /-- Translate campaign limits into libFuzzer mutation flags. -/
 private def mutationFlags (limits : Array (String × Nat)) : Array String :=
@@ -348,10 +477,10 @@ private def runCampaign (context : RunContext) (harness : Harness)
 
 /-- Execute the requested campaign or replay with durable status updates. -/
 private def execute (context : RunContext) (replay : Option FilePath) : IO Unit := do
+  context.save "loading"
+  let harness ← loadPrepared context
   context.beginStage "Preparing run details"
   let limits ← recordRunMetadata context
-  context.save "building"
-  let harness ← buildHarness context
   context.save "running"
   let summary ← match replay with
     | some input => do
@@ -361,14 +490,18 @@ private def execute (context : RunContext) (replay : Option FilePath) : IO Unit 
   context.save "passed"
   announce s!"\nPASS: {summary}"
 
-/-- Run the same comparison locally and in CI, or replay one saved input. -/
+/-- Prepare reusable binaries, or run a campaign or replay against a saved build. -/
 def main (args : List String) : IO UInt32 := do
-  let replay ← replayArgument args
-  let context ← RunContext.create
-  announce "Kernel conformance: btc-verified vs Bitcoin Core"
+  let (context, replay) ← if args == ["--build-only"] then
+    pure (← RunContext.create, none)
+  else
+    let (buildId, replay) ← runArguments args
+    pure (← RunContext.create (some buildId), replay)
+  announce (if args == ["--build-only"] then "Preparing kernel conformance"
+    else "Kernel conformance: btc-verified vs Bitcoin Core")
   announce s!"Logs: {context.logs}"
   let result ← try
-    execute context replay
+    if args == ["--build-only"] then prepare context else execute context replay
     pure 0
   catch error => context.fail error
   announce s!"Report: {context.directory / "report.json"}"
