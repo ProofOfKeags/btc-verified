@@ -50,6 +50,32 @@ for each run; prior discoveries cannot silently change a seeded campaign.
 
 ## Reading or reproducing a result
 
+The command names each build and check stage, then shows live fuzzing counters
+at most once per second and at completion.
+The execution percentage measures progress toward the configured run budget. The
+other counters mean:
+
+| Counter | Meaning |
+| --- | --- |
+| Coverage blocks/edges | Instrumented blocks or edges reached so far, not a percentage of all code. |
+| Features | Distinct coverage feedback signals used to select interesting executions, such as hit counts. |
+| Corpus | Inputs currently retained for further mutation, with their total size. |
+| Speed | Executions per second; early updates may show zero before a full second has elapsed. |
+| Peak memory | Highest resident memory use observed by libFuzzer. |
+
+Final statistics also count new corpus additions over the whole campaign; this
+can exceed the final corpus size as inputs are replaced. Executions can repeat
+inputs and include malformed transactions. Neither count measures bugs found.
+The complete, unfiltered libFuzzer output is saved in `logs/campaign.log`.
+
+`PASS` means both implementations agreed on the exercised observations and, for
+a full campaign, the intentional-mismatch checks passed. A saved-input replay
+has its own summary and does not run mutation or the detector checks. `FAIL`
+names the stage that stopped, points to the report, and prints a replay command
+when an archived input is available. The detector stage deliberately causes
+failures to verify that disagreements are caught, saved, and reproducible;
+their crash output stays in its separate logs.
+
 Each `.lake/conformance/runs/<id>/` contains `report.json`, per-command logs,
 generated inputs, the final corpus, and any failure artifacts. Reports record
 revisions, dirty status/patch, compiler/Lean/Lake versions, build identity,
