@@ -60,13 +60,52 @@ lean_exe «core-build» where
 lean_exe «kernel-conformance-harness» where
   root := `Fuzz.Check
 
-/-- Bootstrap Lean dependencies before building and running the native comparison. -/
+namespace ConformanceBuild
+
+/-- Prepare an immutable native comparison build after fetching Lean dependencies. -/
+target «kernel-conformance» pkg : Unit := do
+  let root ← IO.FS.realPath pkg.dir
+  let some harness := pkg.findLeanExe? `«kernel-conformance-harness»
+    | error "kernel-conformance-harness is not registered"
+  let cache ← Job.async do
+    let child ← IO.Process.spawn {cmd := "lake", args := #["exe", "cache", "get"], cwd := root}
+    let status ← child.wait
+    unless status == 0 do error s!"Lean cache preparation failed with exit code {status}"
+  -- Fetching the harness only after the cache completes avoids compiling Mathlib
+  -- from source on the first build.
+  let compiled ← cache.bindM fun _ => harness.fetch
+  compiled.mapM fun executable => do
+    let child ← IO.Process.spawn {cmd := executable.toString, args := #["--build-only"], cwd := root}
+    let status ← child.wait
+    unless status == 0 do error s!"Kernel conformance preparation failed with exit code {status}"
+
+end ConformanceBuild
+
+/-- Run an already prepared native comparison without fetching or building artifacts. -/
 script «kernel-conformance» args do
-  let cache ← IO.Process.spawn {cmd := "lake", args := #["exe", "cache", "get"]}
-  let status ← cache.wait
-  if status != 0 then return status
-  let check ← IO.Process.spawn {cmd := "lake", args := #["exe", "kernel-conformance-harness"] ++ args.toArray}
-  return ← check.wait
+  let root ← IO.FS.realPath (← getRootPackage).dir
+  let prepared := root / ".lake/conformance/prepared"
+  let prepareInstruction := "Run: nix develop -c lake build kernel-conformance"
+  let (buildId, remainingArgs) ← match args with
+    | "--build-id" :: buildId :: rest => pure (buildId, rest)
+    | ["--build-id"] =>
+      throw <| IO.userError "--build-id requires a decimal build ID"
+    | _ => do
+      let current := prepared / "current"
+      unless ← current.pathExists do
+        throw <| IO.userError s!"No prepared kernel conformance build.\n{prepareInstruction}"
+      pure ((← IO.FS.readFile current).trimAscii.toString, args)
+  unless buildId.toNat?.isSome do
+    throw <| IO.userError s!"Invalid kernel conformance build ID: {buildId}\n{prepareInstruction}"
+  let executable := prepared / buildId / "kernel-conformance-harness"
+  unless ← executable.pathExists do
+    throw <| IO.userError s!"Prepared kernel conformance harness is missing: {executable}\n{prepareInstruction}"
+  let child ← IO.Process.spawn {
+    cmd := executable.toString
+    args := #["--build-id", buildId] ++ remainingArgs.toArray
+    cwd := root
+  }
+  return ← child.wait
 
 namespace KernelBuild
 
