@@ -74,8 +74,8 @@ jobs:
       - name: Build through dev shell
         run: nix develop -c lake build
 
-  transaction-conformance:
-    name: transaction conformance
+  kernel-conformance:
+    name: kernel conformance
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -95,11 +95,11 @@ jobs:
             .lake/conformance/sources
             .lake/conformance/builds
           key: conformance-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Kernel/abi.toml', 'Fuzz/Build.lean', 'flake.nix', 'flake.lock') }}
-      - name: Compare the transaction implementations
+      - name: Compare the kernel implementations
         run: |
           set -o pipefail
           mkdir -p .lake/conformance
-          nix develop -c lake run transaction-conformance 2>&1 | tee .lake/conformance/bootstrap.log
+          nix develop -c lake run kernel-conformance 2>&1 | tee .lake/conformance/bootstrap.log
       # A failed comparison may still leave a validated, reusable Core build.
       # Interrupted fetches/configures never receive the completion marker and
       # therefore cannot poison this immutable-key cache.
@@ -123,7 +123,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: transaction-conformance-${{ github.run_id }}-${{ github.run_attempt }}
+          name: kernel-conformance-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             .lake/conformance/bootstrap.log
             .lake/conformance/runs

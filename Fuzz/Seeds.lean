@@ -2,9 +2,9 @@ import Tests.GoldenVectors
 /-!
   # Transaction conformance inputs
 
-  The conformance runner calls `Conformance.generateSeeds` to write small
+  The conformance harness calls `Conformance.generateSeeds` to write small
   mutation seeds to `seeds/` and deterministic stripped-size boundary cases to
-  `large/`. These are inputs, not an oracle: the runner compares both kernel
+  `large/`. These are inputs, not an oracle: the harness compares both kernel
   implementations on their observations.
 
   Historical bytes and their provenance remain in `Tests.GoldenVectors`; the

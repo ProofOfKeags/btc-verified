@@ -57,15 +57,15 @@ lean_exe bench where
   roots := #[`Fuzz.Build, `Fuzz.Seeds]
 lean_exe «core-build» where
   root := `Fuzz.CoreMain
-lean_exe «transaction-conformance-runner» where
+lean_exe «kernel-conformance-harness» where
   root := `Fuzz.Check
 
 /-- Bootstrap Lean dependencies before building and running the native comparison. -/
-script «transaction-conformance» args do
+script «kernel-conformance» args do
   let cache ← IO.Process.spawn {cmd := "lake", args := #["exe", "cache", "get"]}
   let status ← cache.wait
   if status != 0 then return status
-  let check ← IO.Process.spawn {cmd := "lake", args := #["exe", "transaction-conformance-runner"] ++ args.toArray}
+  let check ← IO.Process.spawn {cmd := "lake", args := #["exe", "kernel-conformance-harness"] ++ args.toArray}
   return ← check.wait
 
 namespace KernelBuild
