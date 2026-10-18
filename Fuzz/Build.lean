@@ -16,18 +16,49 @@ namespace Conformance
 def toolEnvironment : Array (String × Option String) :=
   #[("LD_LIBRARY_PATH", none), ("DYLD_LIBRARY_PATH", none)]
 
+/-- Capture both pipes without blocking, logging stderr as its lines arrive. -/
+private def outputWithProgress (args : IO.Process.SpawnArgs) (log : IO.FS.Handle)
+    (onStderrLine : String → IO Unit) : IO IO.Process.Output := do
+  let child ← IO.Process.spawn { args with stdin := .null, stdout := .piped, stderr := .piped }
+  let stdout ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
+  try
+    let mut lines : Array String := #[]
+    repeat
+      let line ← child.stderr.getLine
+      if line.isEmpty then break
+      log.putStr line
+      log.flush
+      lines := lines.push line
+      onStderrLine line
+    let exitCode ← child.wait
+    let stdout ← IO.ofExcept stdout.get
+    log.putStr stdout
+    return { stdout, stderr := String.join lines.toList, exitCode }
+  catch error =>
+    -- A failed output sink must not leave the fuzzing child running.
+    try child.kill catch _ => pure ()
+    try discard <| child.wait catch _ => pure ()
+    try discard <| IO.ofExcept stdout.get catch _ => pure ()
+    throw error
+
 /-- Run a command and preserve its invocation, output, and exit status. -/
 def run (logs : FilePath) (label command : String) (args : Array String)
-    (env : Array (String × Option String) := #[]) : IO IO.Process.Output := do
+    (env : Array (String × Option String) := #[])
+    (onStderrLine : Option (String → IO Unit) := none) : IO IO.Process.Output := do
   IO.FS.createDirAll logs
   let invocation := Json.mkObj [("command", toJson command), ("args", toJson args)]
-  IO.println s!"conformance: {label}"
   let path := logs / s!"{label}.log"
   IO.FS.writeFile path (invocation.pretty ++ "\n")
-  let output ← IO.Process.output { cmd := command, args, env := toolEnvironment ++ env }
-  IO.FS.withFile path .append fun h =>
-    h.putStr s!"{output.stdout}{output.stderr}\nexit={output.exitCode}\n"
-  return output
+  IO.FS.withFile path .append fun log => do
+    let spawnArgs : IO.Process.SpawnArgs := { cmd := command, args, env := toolEnvironment ++ env }
+    let output ← match onStderrLine with
+      | some progress => outputWithProgress spawnArgs log progress
+      | none => do
+        let output ← IO.Process.output spawnArgs
+        log.putStr (output.stdout ++ output.stderr)
+        pure output
+    log.putStr s!"\nexit={output.exitCode}\n"
+    return output
 
 /-- Fail a phase on nonzero exit, pointing at its complete log. -/
 def checked (logs : FilePath) (label command : String) (args : Array String)
