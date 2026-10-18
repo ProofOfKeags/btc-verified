@@ -1,4 +1,5 @@
 import Fuzz.Build
+import Fuzz.Progress
 import Fuzz.Seeds
 
 /-!
@@ -10,6 +11,12 @@ import Fuzz.Seeds
 -/
 
 open System Lean Lake Conformance
+
+/-- Flush progress immediately, including when output is redirected to a file. -/
+private def announce (message : String) : IO Unit := do
+  let stdout ← IO.getStdout
+  stdout.putStrLn message
+  stdout.flush
 
 /-- Load and range-check the bounded libFuzzer campaign parameters. -/
 private def campaign : IO (Array (String × Nat)) := do
@@ -62,6 +69,8 @@ private structure RunContext where
   failures : FilePath
   /-- Evidence fields accumulated before each report snapshot. -/
   report : IO.Ref (List (String × Json))
+  /-- Human-readable stage to identify where an unsuccessful run stopped. -/
+  stage : IO.Ref String
 
 namespace RunContext
 
@@ -75,7 +84,13 @@ private def create : IO RunContext := do
   IO.FS.createDirAll logs
   IO.FS.createDirAll failures
   let report ← IO.mkRef ([] : List (String × Json))
-  return { root, relativeDirectory, directory, logs, failures, report }
+  let stage ← IO.mkRef "Preparing run details"
+  return { root, relativeDirectory, directory, logs, failures, report, stage }
+
+/-- Announce a meaningful stage and retain its name for failure diagnostics. -/
+private def beginStage (context : RunContext) (description : String) : IO Unit := do
+  context.stage.set description
+  announce s!"\n{description}..."
 
 /-- Add one evidence field to the eventual run report. -/
 private def record (context : RunContext) (key : String) (value : Json) : IO Unit :=
@@ -99,8 +114,14 @@ private def fail (context : RunContext) (error : IO.Error) : IO UInt32 := do
   if ← (context.failures / "mismatch.input").pathExists then
     context.recordReplay (FilePath.mk "failures" / "mismatch.input")
   context.record "error" (toJson error.toString)
+  let stage ← context.stage.get
+  context.record "failedStage" (toJson stage)
   context.save "failed"
-  IO.eprintln error.toString
+  let stderr ← IO.getStderr
+  stderr.putStrLn s!"\nFAIL during: {stage}\n{error}"
+  if let some (_, command) := (← context.report.get).find? (·.1 == "replayCommand") then
+    if let .ok command := command.getStr? then stderr.putStrLn s!"Replay: {command}"
+  stderr.flush
   return 1
 
 end RunContext
@@ -188,10 +209,17 @@ private def buildDriver (context : RunContext) (cc : String) : IO FilePath := do
 
 /-- Build both providers and the one coverage-guided driver that compares them. -/
 private def buildHarness (context : RunContext) : IO Harness := do
+  context.beginStage "Building pinned Bitcoin Core \
+    (reuses a matching build; first build can take minutes)"
   let core ← buildCore context.logs
+  announce "  Bitcoin Core ready."
+  context.beginStage "Building btc-verified and checking coverage instrumentation"
   let cc ← compiler context.logs "FUZZ_CC" "clang"
   let verified ← buildVerified context cc
+  announce "  btc-verified ready; coverage instrumentation checked."
+  context.beginStage "Building the comparison driver"
   let binary ← buildDriver context cc
+  announce "  Comparison driver ready."
   for (name, path) in #[("core", core), ("verified", verified), ("driver", binary)] do
     context.record s!"{name}Sha256" (toJson (← digest context.logs s!"{name}-hash" path))
   return { core, verified, binary }
@@ -219,6 +247,7 @@ private def normalArguments (context : RunContext) (harness : Harness) : Array S
 /-- Re-run one archived input without mutation or the campaign's size cap. -/
 private def replaySavedInput (context : RunContext) (harness : Harness)
     (limits : Array (String × Nat)) (input : FilePath) : IO Unit := do
+  context.beginStage s!"Replaying saved input: {input}"
   let archived := context.directory / "replay.input"
   IO.FS.writeBinFile archived (← IO.FS.readBinFile input)
   context.recordReplay "replay.input"
@@ -227,18 +256,45 @@ private def replaySavedInput (context : RunContext) (harness : Harness)
 
 /-- Replay small transaction fixtures and large size boundaries before mutation. -/
 private def replayRegressions (context : RunContext) (harness : Harness)
-    (limits : Array (String × Nat)) (seeds : FilePath) : IO Unit := do
+    (limits : Array (String × Nat)) (seeds : FilePath) : IO Nat := do
+  let small ← files seeds
+  let large ← files (context.directory / "large")
+  context.beginStage s!"Replaying {small.size} transaction fixtures \
+    and {large.size} size-boundary inputs"
   let arguments := normalArguments context harness ++ replayFlags limits
   discard <| checked context.logs "small-replay" harness.binary.toString
-    (arguments ++ (← files seeds))
+    (arguments ++ small)
   discard <| checked context.logs "large-replay" harness.binary.toString
-    (arguments ++ (← files (context.directory / "large")))
+    (arguments ++ large)
+  let count := small.size + large.size
+  context.record "regressionInputs" (toJson count)
+  announce s!"  Passed: both implementations agreed on all {count} regression inputs."
+  return count
+
+/-- Show the first and final counters, and at most one intermediate update per second. -/
+private def liveProgress (target : Nat) : IO (String → IO Unit) := do
+  let lastUpdate ← IO.mkRef (none : Option Nat)
+  return fun line => do
+    let some message := formatProgress target line | pure ()
+    let now ← IO.monoMsNow
+    let previous ← lastUpdate.get
+    if previous.isNone || now - previous.getD 0 >= 1000 || line.contains "DONE" then
+      announce s!"  {message}"
+      lastUpdate.set (some now)
 
 /-- Mutate a fresh corpus and require feedback from the driver and both providers. -/
 private def runMutationCampaign (context : RunContext) (harness : Harness)
-    (limits : Array (String × Nat)) (seeds corpus : FilePath) : IO Unit := do
+    (limits : Array (String × Nat)) (seeds corpus : FilePath) : IO Nat := do
+  let target := (limits.find? (·.1 == "runs")).map (·.2) |>.getD 0
+  let seed := (limits.find? (·.1 == "seed")).map (·.2) |>.getD 0
+  let maxLength := (limits.find? (·.1 == "max_len")).map (·.2) |>.getD 0
+  context.beginStage s!"Fuzzing {target} executions (seed {seed}, input limit {maxLength} bytes)"
+  announce "  Coverage counts reached blocks/edges and features, not a percentage."
+  announce "  Corpus is the retained set of useful inputs; executions can repeat inputs."
+  let progress ← liveProgress target
   let fuzz ← run context.logs "campaign" harness.binary.toString
     (normalArguments context harness ++ mutationFlags limits ++ #[corpus.toString, seeds.toString])
+    (onStderrLine := some progress)
   let count := executedCount fuzz.stderr
   context.record "executedUnits" (toJson count)
   unless fuzz.exitCode == 0 && count == (limits.find? (·.1 == "runs")).map (·.2) &&
@@ -246,10 +302,13 @@ private def runMutationCampaign (context : RunContext) (harness : Harness)
       fuzz.stderr.contains "INFO: Loaded 3 PC tables" do
     throw <| IO.userError s!"Campaign failed or execution count missing; \
       coverage modules may also be unregistered; see {context.logs / "campaign.log"}"
+  for statistic in formatFinalStats fuzz.stderr do announce s!"  {statistic}"
+  return count.getD 0
 
 /-- Verify the harness notices, preserves, and reproduces an injected disagreement. -/
 private def verifyMismatchDetector (context : RunContext) (harness : Harness)
     (limits : Array (String × Nat)) (seeds : FilePath) : IO Unit := do
+  context.beginStage "Testing the mismatch detector (intentional failures are expected)"
   let fixture ← IO.FS.readBinFile (seeds / "legacy-payment")
   let negative := context.directory / "negative"
   let reproduced := context.directory / "negative-replay"
@@ -269,36 +328,48 @@ private def verifyMismatchDetector (context : RunContext) (harness : Harness)
       s!"-artifact_prefix={reproduced}/", saved.toString])) reproduced fixture
   context.record "negativeControl" (toJson "baseline agreed; injected mismatch saved; \
     clean and injected replay verified")
+  announce "  Passed: an intentional disagreement was caught, saved, and reproduced; \
+    clean replay agreed."
 
 /-- Run deterministic regressions, bounded mutation, and the detector control. -/
 private def runCampaign (context : RunContext) (harness : Harness)
-    (limits : Array (String × Nat)) : IO Unit := do
+    (limits : Array (String × Nat)) : IO String := do
+  context.beginStage "Preparing transaction fixtures and a fresh corpus"
   generateSeeds context.directory
   let seeds := context.directory / "seeds"
   let corpus := context.directory / "corpus"
   IO.FS.createDirAll corpus
-  replayRegressions context harness limits seeds
-  runMutationCampaign context harness limits seeds corpus
+  let regressions ← replayRegressions context harness limits seeds
+  let executions ← runMutationCampaign context harness limits seeds corpus
   verifyMismatchDetector context harness limits seeds
+  return s!"No differences found in {executions} fuzz executions \
+    and {regressions} regression inputs.\n\
+    Mismatch detector checks passed."
 
 /-- Execute the requested campaign or replay with durable status updates. -/
 private def execute (context : RunContext) (replay : Option FilePath) : IO Unit := do
+  context.beginStage "Preparing run details"
   let limits ← recordRunMetadata context
   context.save "building"
   let harness ← buildHarness context
   context.save "running"
-  match replay with
-  | some input => replaySavedInput context harness limits input
-  | none => runCampaign context harness limits
+  let summary ← match replay with
+    | some input => do
+      replaySavedInput context harness limits input
+      pure "Both implementations agreed on the saved input."
+    | none => runCampaign context harness limits
   context.save "passed"
+  announce s!"\nPASS: {summary}"
 
 /-- Run the same comparison locally and in CI, or replay one saved input. -/
 def main (args : List String) : IO UInt32 := do
   let replay ← replayArgument args
   let context ← RunContext.create
+  announce "Kernel conformance: btc-verified vs Bitcoin Core"
+  announce s!"Logs: {context.logs}"
   let result ← try
     execute context replay
     pure 0
   catch error => context.fail error
-  IO.println s!"Conformance report: {context.directory / "report.json"}"
+  announce s!"Report: {context.directory / "report.json"}"
   return result

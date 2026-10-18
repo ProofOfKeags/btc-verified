@@ -54,7 +54,7 @@ lean_exe bench where
   root := `BenchMain
 
 @[default_target] lean_lib Fuzz where
-  roots := #[`Fuzz.Build, `Fuzz.Seeds]
+  roots := #[`Fuzz.Build, `Fuzz.Progress, `Fuzz.Seeds]
 lean_exe «core-build» where
   root := `Fuzz.CoreMain
 lean_exe «kernel-conformance-harness» where
