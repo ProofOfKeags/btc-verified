@@ -1,12 +1,13 @@
-# Transaction conformance
+# Kernel conformance
 
 This tooling compares the two implementations through the public kernel C API,
 not through private Lean exports. `Kernel/abi.toml` is the sole Core pin.
+The current campaign exercises transaction operations.
 
 ## One local / CI check
 
 ```sh
-nix develop -c lake run transaction-conformance
+nix develop -c lake run kernel-conformance
 ```
 
 The first run needs network access for Nix, Lean caches, and pinned Core. Later
@@ -64,7 +65,7 @@ On disagreement, `failures/` holds `mismatch.input`, `core.txt`, `verified.txt`,
 and each provider's serialized `.bytes` file. Replay a saved input with:
 
 ```sh
-nix develop -c lake run transaction-conformance --replay /path/to/mismatch.input
+nix develop -c lake run kernel-conformance --replay /path/to/mismatch.input
 ```
 
 During mutation, libFuzzer separately saves crashing/timeout inputs; replay them
@@ -76,7 +77,7 @@ the ordinary failure directory.
 
 Coverage feedback comes from Core, the C driver and boundary, and btc-verified's
 generated C. Lake compiles the latter into a separate instrumented build, leaving
-ordinary objects and dependency/runtime code untouched; the runner rejects a
+ordinary objects and dependency/runtime code untouched; the harness rejects a
 verified model object, boundary object, or library without SanitizerCoverage
 callbacks, and requires libFuzzer to register the driver plus both providers as
 three coverage modules. This increment adds no address/leak sanitizer claims or

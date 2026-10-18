@@ -2,7 +2,7 @@ import Fuzz.Build
 import Fuzz.Seeds
 
 /-!
-  # Bounded public-ABI transaction conformance
+  # Bounded public-ABI kernel conformance
 
   Rebuild current sources, replay inputs, mutate a fresh corpus, and check the
   disagreement detector is live. Reports survive failed phases. This is bounded
@@ -89,7 +89,7 @@ private def save (context : RunContext) (status : String) : IO Unit := do
 /-- Record the archived input and exact command needed to replay it. -/
 private def recordReplay (context : RunContext) (relative : FilePath) : IO Unit := do
   let input := context.relativeDirectory / relative
-  let command := "nix develop -c lake run transaction-conformance --replay " ++
+  let command := "nix develop -c lake run kernel-conformance --replay " ++
     (toJson input.toString).compress
   context.record "replayInput" (toJson relative.toString)
   context.record "replayCommand" (toJson command)
@@ -119,7 +119,7 @@ private def replayArgument (args : List String) : IO (Option FilePath) := do
   match args with
   | [] => pure none
   | ["--replay", path] => pure (some (← IO.FS.realPath path))
-  | _ => throw <| IO.userError "Usage: lake run transaction-conformance [--replay INPUT]"
+  | _ => throw <| IO.userError "Usage: lake run kernel-conformance [--replay INPUT]"
 
 /-- Record the provenance and campaign bounds available for interpreting a run. -/
 private def recordRunMetadata (context : RunContext) : IO (Array (String × Nat)) := do
