@@ -23,6 +23,10 @@
         in
         {
           default = pkgs.mkShell {
+            # Match the minimum of the native libraries bundled with Lean.
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
+              (pkgs.darwinMinVersionHook "15.0")
+            ];
             packages = with pkgs; [
               cacert
               curl
