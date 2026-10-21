@@ -37,7 +37,7 @@ they prove.
   `deriving` keep their generated names; private and local instances may be
   anonymous.
 - **One type per module**: a module defines at most one `structure`/`inductive`,
-  with its instances alongside it (see `CLAUDE.md` for the exact rule and its
+  with its instances alongside it (see `AGENTS.md` for the exact rule and its
   two exceptions). For project-defined classes, instances for dependency types
   live with the class; the module audit checks ownership without an instance
   allowlist. A type's spec and packed codec instances both live beside that type.
@@ -74,6 +74,24 @@ A new proof leaf should:
 Commit messages are imperative-mood with a body explaining the why; see
 `git log` for the house style.
 
+## Working with Codex
+
+Use the Codex app or CLI for an explicitly selected issue or change. Codex
+reads `AGENTS.md` for repository conventions and discovers checked-in skills
+under `.agents/skills/`. Invoke `$proof-leaf` when adding or landing a proof
+leaf. Use a focused branch, run the applicable checks, and submit a reviewable
+pull request.
+
+The `CI` GitHub Actions workflow remains responsible for deterministic build,
+test, lint, and conformance checks. Opening or labeling an issue does not
+launch an agent workflow.
+
+For GitHub-based reviews, first connect the repository and enable code review
+in [Codex settings](https://chatgpt.com/settings/code-review). Then request
+an explicit review with `@codex review` in a pull request comment. This is an
+optional account-level integration, not enabled by these repository files;
+see the [official setup instructions](https://learn.chatgpt.com/docs/third-party/github).
+
 ## Finding lemmas by type
 
 Mathlib names are transcriptions of the statement (the head symbols of the
@@ -96,7 +114,7 @@ reconstruction fails, search by type:
 ## Deferring work
 
 If you set work aside, file a GitHub issue for it — a deferral is not done
-until it is tracked. See the policy in `CLAUDE.md`.
+until it is tracked. See the policy in `AGENTS.md`.
 
-See `CLAUDE.md` for the full design conventions (the codec discipline, the
+See `AGENTS.md` for the full design conventions (the codec discipline, the
 spec/transport split, doc-string formatting).
