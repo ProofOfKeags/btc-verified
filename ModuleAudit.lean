@@ -5,7 +5,7 @@ import Lean
   The whole-codebase counterpart of `Tests/AxiomAudit.lean`: where that audit
   guards what each theorem *depends on*, this one guards where declarations
   *live*. It walks `Lean.Environment` and enforces the module discipline
-  CLAUDE.md states in prose:
+  AGENTS.md states in prose:
 
   1. **One type per module** — a `BtcVerified` module declares at most one
      `structure`/`inductive`. Sum-type arm-record clusters may be

@@ -1,8 +1,20 @@
-# CLAUDE.md
+# AGENTS.md
 
 Verified Bitcoin protocol components in Lean 4 (mathlib-based). The repo grows
 as small "proof leaves": each module builds cleanly, states its checked claims
 in its header, and makes the next proof packet easier to state.
+
+## Codex workflow
+
+Codex is the repository's coding-agent workflow. Use the Codex app or CLI
+for explicitly requested work; repository skills live in `.agents/skills/`.
+See `CONTRIBUTING.md` for the contributor workflow and optional GitHub review
+integration. Agent work is not triggered by opening or labeling an issue.
+
+Work in a focused branch, preserve unrelated changes, and keep each proof
+leaf reviewable. Report the checks actually run and distinguish Lean proof
+status, finite Core comparisons, and human review. Normal GitHub Actions CI
+checks builds and tests; it does not dispatch a coding agent.
 
 ## Build and feedback loop
 
@@ -158,7 +170,8 @@ types live in `Packed/Codec.lean`.
    not a claims list; update it if the leaf changes what the directory can
    claim.
 
-The `/proof-leaf` skill walks through this checklist.
+The `$proof-leaf` skill in `.agents/skills/proof-leaf/SKILL.md` walks through
+this checklist.
 
 ## Deferring work
 

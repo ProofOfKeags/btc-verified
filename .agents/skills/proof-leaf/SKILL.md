@@ -49,7 +49,7 @@ every step is done.
   prove agreement with the spec. Put a type's packed definitions, proofs, and
   instance beside the type's spec codec, in a separate section under
   `BtcVerified.Packed`; keep the class and dependency-type instances in
-  `Packed/Codec.lean`. Follow `CLAUDE.md`'s explicit instance-naming convention.
+  `Packed/Codec.lean`. Follow `AGENTS.md`'s explicit instance-naming convention.
 
 ## 3. Wiring
 
