@@ -207,3 +207,20 @@ iterates. The delta invariant — a block grows the total by at most the
 subsidy — and from it the 21-million supply bound are inductions over
 exactly these theorems, and the ruleset mapping (#38) attaches exactly these
 rules to heights.
+
+## Undo after a guarded step
+
+`UndoChecked.lean` connects the machine's transaction inverse to the existing
+guarded regular-transaction step, without adding another validity interface.
+
+Checked claims:
+
+- `UtxoSet.undo_of_applyChecked_eq_some`: if `applyChecked` returns a new
+  state, undoing that state with the transaction's original captured coins
+  restores the entire starting UTXO set. The step's existing distinct-spend,
+  input-existence, and no-overwrite premises supply the inverse theorem's
+  hypotheses.
+
+Why it matters: accepted regular-transaction steps preserve enough information
+for exact reversal, including coin provenance. This is a transaction-level
+result; block application remains the separate work in #37.

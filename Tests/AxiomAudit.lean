@@ -158,6 +158,9 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.UtxoSet.lookup_apply_of_mem_spends
 #assert_axioms BtcVerified.UtxoSet.lookup_apply_of_notMem
 #assert_axioms BtcVerified.UtxoSet.totalValue_apply
+#assert_axioms BtcVerified.TxUndo.mem_capture
+#assert_axioms BtcVerified.TxUndo.capture_keys
+#assert_axioms BtcVerified.UtxoSet.undo_apply
 
 /-! ## Block hashes -/
 
@@ -188,6 +191,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.UtxoSet.totalValue_apply_of_admissible
 #assert_axioms BtcVerified.UtxoSet.totalValue_apply_le_of_admissible
 #assert_axioms BtcVerified.UtxoSet.applyChecked_eq_some_iff
+#assert_axioms BtcVerified.UtxoSet.undo_of_applyChecked_eq_some
 
 /-! ## The merkle tree -/
 

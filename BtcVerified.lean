@@ -24,6 +24,8 @@ import BtcVerified.Chainstate.Provenance
 import BtcVerified.Chainstate.Coin
 import BtcVerified.Chainstate.UtxoSet
 import BtcVerified.Chainstate.Apply
+import BtcVerified.Chainstate.TxUndo
+import BtcVerified.Chainstate.Undo
 import BtcVerified.Block.BlockHeader
 import BtcVerified.Block.Block
 import BtcVerified.Block.Commitment
@@ -39,6 +41,7 @@ import BtcVerified.Consensus.TxStateless
 import BtcVerified.Consensus.CoinbaseStateless
 import BtcVerified.Consensus.TxContextual
 import BtcVerified.Consensus.ApplyChecked
+import BtcVerified.Consensus.UndoChecked
 import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle
 import BtcVerified.Packed.Codec
