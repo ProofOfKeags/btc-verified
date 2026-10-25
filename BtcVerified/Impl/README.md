@@ -43,8 +43,9 @@ Checked claims:
   converse fails (`[a, a]` is canonical yet mutates), so Core's scan is strictly
   stronger and no transaction-distinctness hypothesis is needed or used.
 - `eq_of_computeMerkleRoot_eq_of_not_mutated`: two nonempty equal-width lists Core
-  accepts with equal roots are equal — or a concrete double-SHA-256 collision.
-  Core's single check recovers the binding `root_binding_of_canonical` provides.
+  accepts with equal roots are equal — or inputs at a common tree path collide
+  under double-SHA-256. Core's single check recovers the binding
+  `root_binding_of_canonical` provides.
 - `computeMerkleRoot_fst`: the root Core returns is exactly `computeRoot` (hence
   the spec `root`) on every input — anchored to real chain data through the
   `Block.merkleCommits` checks, and confirmed on block 481824 under `lake test`

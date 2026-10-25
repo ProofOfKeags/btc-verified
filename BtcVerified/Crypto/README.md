@@ -6,12 +6,23 @@ resistance soundly, and Bitcoin's merkle tree.
 
 ## `Hash256` and the collision vocabulary
 
-`Hash256 := BitVec 256` is the digest type everything downstream states
-commitments against. Hashing stays abstract wherever a proof only needs a
-function `List UInt8 → Hash256`; `BtcVerified.Collision` supplies the
-generalized vocabulary (`Collision`, `CollisionResistant.injective`) that
-turns a "…or here are two concrete colliding byte strings" disjunct into
-outright injectivity under a resistance hypothesis.
+`Hash256` is the digest type everything downstream states commitments against.
+`Collision h a b` states that the two specified inputs are distinct and have the
+same image. `CollisionAt h f g` locates such a collision at a common position in
+two indexed hashing runs. Binding theorems retain these inputs or positions, so
+an unrelated collision cannot discharge their conclusions. `CollisionResistant h`
+states that no pair of distinct inputs has the same image under `h`.
+
+Checked claims:
+
+- `Collision.comp`: a collision in a composite on specified inputs gives an
+  inner collision on those inputs or an outer collision on their images.
+- `Collision.comp_inner`: a collision in the inner function is a collision in
+  the composite on the same inputs.
+- `CollisionResistant.injective`: a collision-resistant function is injective.
+
+Why it matters: consumers can rule out collisions at the compared inputs or
+positions to derive equality from the binding theorems.
 
 ## `BtcVerified.Sha256`
 
@@ -52,11 +63,13 @@ that run it, live under `Impl/`.
 
 Checked claims:
 
+- `combine_binding`: equal parent digests imply equal child pairs, or the two
+  specified 64-byte node inputs collide under double-SHA-256.
 - `root_binding_of_length_eq`: between equal-length lists, the root identifies
-  the list — or two concrete byte strings collide under double-SHA-256.
-- `root_binding_of_canonical`: between canonical lists of equal enclosing
-  width, the root identifies the list — or a concrete collision. This is the
-  binding the canonicality rule exists to restore.
+  the list — or inputs at a common tree path collide under double-SHA-256.
+- `root_binding_of_canonical`: between nonempty canonical lists of equal enclosing
+  width, the root identifies the list — or inputs at a common tree path collide.
+  This is the binding the canonicality rule exists to restore.
 - `Block.merkleCommits` (in `Block/Commitment.lean`): the consensus condition —
   a canonical txid list whose root is the header's. Checked on the genesis
   block and block 170 at build time, and on all 1866 transactions of block
