@@ -51,10 +51,11 @@ Dependency order, bottom-up:
 - `BtcVerified/Crypto/` — `Hash256.lean`: a digest as its 32 raw bytes, the
   one type txids, block hashes, and merkle nodes share. `Sha256.lean`: a
   computable FIPS 180-4 SHA-256 and `sha256d` — the only place a hash is
-  computed; everything downstream calls it. `Collision.lean`: collisions as
-  concrete witnesses; collision resistance is a consumer hypothesis, never
-  an axiom. `Merkle.lean`: the abstract merkle root, its binding theorems,
-  and the CVE-2012-2459 canonicality predicate.
+  computed; everything downstream calls it. `Collision.lean`: collision
+  conclusions retain the compared inputs; global collision freedom is distinct
+  from computational resistance and is not assumed for the concrete hash.
+  `Merkle.lean`: the abstract merkle root, its binding theorems, and the
+  CVE-2012-2459 canonicality predicate.
 - `BtcVerified/Script/Script.lean` — `Script`: a program as raw,
   CompactSize-prefixed bytes. Tokenization is part of execution, not
   deserialization (consensus never requires script fields to tokenize), so

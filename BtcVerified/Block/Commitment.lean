@@ -8,7 +8,9 @@ import BtcVerified.Crypto.Merkle
   ids form a canonical list whose merkle root is the header's `merkleRoot`.
   Root equality alone is not enough — the padding ambiguity (CVE-2012-2459)
   lets a non-canonical list share a canonical list's root — so consensus
-  demands canonicality of the list itself.
+  demands canonicality of the list itself. The binding theorem also requires
+  both transaction lists to be nonempty and to have equal enclosing widths;
+  neither condition follows from `merkleCommits` alone.
 
   The SegWit witness commitment — the wtxid merkle root committed in the
   coinbase — is `WitnessCommitment.lean`, the sibling leaf built on the
@@ -22,10 +24,10 @@ import BtcVerified.Crypto.Merkle
 
 namespace BtcVerified
 
-/-- The merkle commitment a consensus-valid block satisfies: its transaction
-ids form a canonical list whose merkle root is the header's. With
-`Merkle.root_binding_of_canonical`, two such blocks sharing a header agree on
-their txid lists — or exhibit a concrete double-SHA-256 collision. -/
+/-- The transaction ids form a canonical list whose merkle root is the header's.
+For two such blocks sharing a header, `Merkle.root_binding_of_canonical` also
+requires nonempty txid lists of equal enclosing width: their lists are then equal,
+or node preimages from their two merkle trees collide under double-SHA-256. -/
 def Block.merkleCommits (b : Block) : Prop :=
   Merkle.Canonical (b.txs.val.map Tx.txid)
     ∧ Merkle.root (b.txs.val.map Tx.txid) = b.header.merkleRoot

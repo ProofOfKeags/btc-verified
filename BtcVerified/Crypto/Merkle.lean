@@ -19,31 +19,31 @@ import Mathlib.Data.Nat.Log
   explicit constructor (`pad`, semantically a node with two equal children)
   instead of an artifact of iteration order.
 
-  Canonicality constrains exactly what threatens the root's binding and nothing
-  more. Padding only ever duplicates trailing power-of-two-aligned blocks —
-  the right spine — so a cross-length collision requires a trailing block
-  duplicating its left sibling, and `Canonical` forbids precisely that
-  (`Tree.spineCanonical`, root node exempt: a shorter list with the same
-  enclosing width must still split at the root).
+  At one enclosing width, padding ambiguity arises from duplicated trailing
+  power-of-two-aligned blocks on the right spine. `Canonical` forbids those
+  duplications (`Tree.spineCanonical`, root node exempt: a shorter list with
+  the same enclosing width must still split at the root).
 
-  Collision resistance is never assumed: theorems conclude with
-  `Sha256.Collision` — two concrete colliding byte strings — as a
-  constructed disjunct, and intractability is the consumer's hypothesis.
+  Binding theorems locate a collision between node preimages in the two
+  compared trees. `Sha256.CollisionBetween` retains those memberships, so
+  unrelated collisions cannot discharge the conclusion. These are structural
+  claims about the compared trees, not computational security bounds.
 
   Known residual, documented not solved: equal *widths* are a hypothesis of
   `root_binding_of_canonical`. Across widths, a 64-byte transaction whose
   serialization equals the concatenation of two digests confuses a leaf with
   an internal node (the SPV-grade ambiguity the Great Consensus Cleanup
-  proposes to close by forbidding 64-byte transactions). For block validity
-  the transaction count is in hand, so the hypothesis is free.
+  proposes to close by forbidding 64-byte transactions). Knowing the two
+  transaction counts does not prove their enclosing widths equal; consumers
+  must establish the width hypothesis independently.
 
   Checked claims:
 
   * `root_binding_of_length_eq`: between equal-length lists, the root identifies
-    the list — or two concrete byte strings collide under double-SHA-256.
-  * `root_binding_of_canonical`: between canonical lists of equal enclosing
-    width, the root identifies the list — or a concrete collision. This is
-    the property the canonicality rule exists to restore.
+    the list — or node preimages in the two trees collide under double-SHA-256.
+  * `root_binding_of_canonical`: between nonempty canonical lists of equal
+    enclosing width, the root identifies the list — or node preimages in
+    the two trees collide. This is the binding canonicality restores.
 -/
 
 namespace BtcVerified.Merkle
@@ -58,13 +58,13 @@ def combine (l r : Hash256) : Hash256 :=
 /-- Equal merkle nodes have equal children — or their two 64-byte preimages
 collide under double-SHA-256. -/
 theorem combine_binding {l r l' r' : Hash256} (h : combine l r = combine l' r') :
-    (l = l' ∧ r = r') ∨ Sha256.Collision := by
+    (l = l' ∧ r = r') ∨ Sha256.Collides (l.val ++ r.val) (l'.val ++ r'.val) := by
   have hd : Sha256.sha256d (l.1 ++ r.1) = Sha256.sha256d (l'.1 ++ r'.1) :=
     congrArg Subtype.val h
   by_cases hm : l.1 ++ r.1 = l'.1 ++ r'.1
   · obtain ⟨h₁, h₂⟩ := List.append_inj hm (by rw [l.2, l'.2])
     exact Or.inl ⟨Subtype.ext h₁, Subtype.ext h₂⟩
-  · exact Or.inr ⟨_, _, hm, hd⟩
+  · exact Or.inr ⟨hm, hd⟩
 
 /-! ## The structural spec -/
 
@@ -90,6 +90,13 @@ def root : Tree → Hash256
   | node l r => combine l.root r.root
   | pad t => combine t.root t.root
 
+/-- The byte strings hashed at interior and padding nodes of the tree. Leaves
+are already digests and contribute no preimage. -/
+def hashPreimages : Tree → List (List UInt8)
+  | leaf _ => []
+  | node l r => (l.root.val ++ r.root.val) :: (l.hashPreimages ++ r.hashPreimages)
+  | pad t => (t.root.val ++ t.root.val) :: t.hashPreimages
+
 /-- The leaf sequence with all padding materialized: the `2 ^ k` leaves the
 hashing actually consumes at width `k`. -/
 def virtualLeaves : Tree → List Hash256
@@ -114,14 +121,17 @@ def tree (xs : List Hash256) : Tree := ofList xs (Nat.clog 2 xs.length)
 /-- The merkle root of a leaf list (the structural spec). -/
 def root (xs : List Hash256) : Hash256 := (tree xs).root
 
+/-- The node preimages hashed when constructing the merkle tree of a leaf list. -/
+def hashPreimages (xs : List Hash256) : List (List UInt8) := (tree xs).hashPreimages
+
 /-! ## Canonicality -/
 
 /-- The canonicality scan along the right spine: descending through the
 content side of every padding node and the right child of every interior
 node, no interior node may join two subtrees with identical materialized
 leaf sequences — that is exactly the shape a materialized padding suffix
-produces, and (`root_binding_of_canonical`) the only shape that threatens
-the root's binding. -/
+produces. For nonempty lists of equal enclosing width,
+`root_binding_of_canonical` excludes this padding ambiguity. -/
 def Tree.spineCanonical : Tree → Bool
   | .leaf _ => true
   | .pad t => t.spineCanonical
@@ -137,9 +147,9 @@ def canonicalCheck (xs : List Hash256) : Bool :=
   | .node _ r => r.spineCanonical
   | _ => true
 
-/-- A canonical leaf list: one whose merkle root is not also the root of a
-shorter list (its trailing blocks never materialize its own padding). The
-proposition the consensus layer demands of a block's txids. -/
+/-- A leaf list whose tree passes the right-spine scan, exempting the root.
+For nonempty lists of equal enclosing width, this excludes materialized-padding
+ambiguity; it does not exclude equal roots across different widths. -/
 abbrev Canonical (xs : List Hash256) : Prop := canonicalCheck xs = true
 
 /-! ## Injectivity -/
@@ -202,13 +212,13 @@ theorem virtualLeaves_ofList_append :
         rw [Tree.virtualLeaves, virtualLeaves_ofList_of_length_eq k _ htake, hps,
           ← List.append_assoc, List.take_append_drop]⟩
 
-/-- Equal roots at one width force equal materialized leaf sequences — or a
-concrete double-SHA-256 collision. The hashing direction of the root's
-binding. -/
+/-- Equal roots at one width force equal materialized leaf sequences, or node
+preimages from the two compared trees collide under double-SHA-256. -/
 theorem virtualLeaves_eq_of_root_eq :
     ∀ (k : Nat) (xs ys : List Hash256),
       (ofList xs k).root = (ofList ys k).root →
-      (ofList xs k).virtualLeaves = (ofList ys k).virtualLeaves ∨ Sha256.Collision := by
+      (ofList xs k).virtualLeaves = (ofList ys k).virtualLeaves ∨
+        Sha256.CollisionBetween (ofList xs k).hashPreimages (ofList ys k).hashPreimages := by
   intro k
   induction k with
   | zero =>
@@ -224,8 +234,11 @@ theorem virtualLeaves_eq_of_root_eq :
       rcases combine_binding h with ⟨ha, _⟩ | c
       · rcases ih xs ys ha with hvl | c
         · exact Or.inl (by rw [hvl])
-        · exact Or.inr c
-      · exact Or.inr c
+        · exact Or.inr (c.mono
+            (by intro a ha; simp [Tree.hashPreimages, ha])
+            (by intro b hb; simp [Tree.hashPreimages, hb]))
+      · exact Or.inr (CollisionBetween.of_collides
+          (by simp [Tree.hashPreimages]) (by simp [Tree.hashPreimages]) c)
     · rw [if_pos hx, if_neg hy] at h ⊢
       rw [Tree.root, Tree.root] at h
       rw [Tree.virtualLeaves, Tree.virtualLeaves]
@@ -233,9 +246,14 @@ theorem virtualLeaves_eq_of_root_eq :
       · rcases ih xs (ys.take (2 ^ k)) hl with hvl₁ | c
         · rcases ih xs (ys.drop (2 ^ k)) hr with hvl₂ | c
           · exact Or.inl (by rw [← hvl₁, ← hvl₂])
-          · exact Or.inr c
-        · exact Or.inr c
-      · exact Or.inr c
+          · exact Or.inr (c.mono
+              (by intro a ha; simp [Tree.hashPreimages, ha])
+              (by intro b hb; simp [Tree.hashPreimages, hb]))
+        · exact Or.inr (c.mono
+            (by intro a ha; simp [Tree.hashPreimages, ha])
+            (by intro b hb; simp [Tree.hashPreimages, hb]))
+      · exact Or.inr (CollisionBetween.of_collides
+          (by simp [Tree.hashPreimages]) (by simp [Tree.hashPreimages]) c)
     · rw [if_neg hx, if_pos hy] at h ⊢
       rw [Tree.root, Tree.root] at h
       rw [Tree.virtualLeaves, Tree.virtualLeaves]
@@ -243,9 +261,14 @@ theorem virtualLeaves_eq_of_root_eq :
       · rcases ih (xs.take (2 ^ k)) ys hl with hvl₁ | c
         · rcases ih (xs.drop (2 ^ k)) ys hr with hvl₂ | c
           · exact Or.inl (by rw [hvl₁, hvl₂])
-          · exact Or.inr c
-        · exact Or.inr c
-      · exact Or.inr c
+          · exact Or.inr (c.mono
+              (by intro a ha; simp [Tree.hashPreimages, ha])
+              (by intro b hb; simp [Tree.hashPreimages, hb]))
+        · exact Or.inr (c.mono
+            (by intro a ha; simp [Tree.hashPreimages, ha])
+            (by intro b hb; simp [Tree.hashPreimages, hb]))
+      · exact Or.inr (CollisionBetween.of_collides
+          (by simp [Tree.hashPreimages]) (by simp [Tree.hashPreimages]) c)
     · rw [if_neg hx, if_neg hy] at h ⊢
       rw [Tree.root, Tree.root] at h
       rw [Tree.virtualLeaves, Tree.virtualLeaves]
@@ -253,9 +276,14 @@ theorem virtualLeaves_eq_of_root_eq :
       · rcases ih (xs.take (2 ^ k)) (ys.take (2 ^ k)) hl with hvl₁ | c
         · rcases ih (xs.drop (2 ^ k)) (ys.drop (2 ^ k)) hr with hvl₂ | c
           · exact Or.inl (by rw [hvl₁, hvl₂])
-          · exact Or.inr c
-        · exact Or.inr c
-      · exact Or.inr c
+          · exact Or.inr (c.mono
+              (by intro a ha; simp [Tree.hashPreimages, ha])
+              (by intro b hb; simp [Tree.hashPreimages, hb]))
+        · exact Or.inr (c.mono
+            (by intro a ha; simp [Tree.hashPreimages, ha])
+            (by intro b hb; simp [Tree.hashPreimages, hb]))
+      · exact Or.inr (CollisionBetween.of_collides
+          (by simp [Tree.hashPreimages]) (by simp [Tree.hashPreimages]) c)
 
 /-- Equal materialized leaves of canonical-spine trees come from equal actual
 lists: the combinatorial direction of the root's binding, no hashing
@@ -329,12 +357,12 @@ theorem eq_of_virtualLeaves_eq :
 
 /-! ## The headline theorems -/
 
-/-- Between equal-length lists the merkle root identifies the list — or two
-concrete byte strings collide under double-SHA-256. No canonicality needed:
+/-- Between equal-length lists the merkle root identifies the list, or node
+preimages from the two trees collide under double-SHA-256. No canonicality needed:
 padding only appends, so equal lengths leave no room for ambiguity. -/
 theorem root_binding_of_length_eq {xs ys : List Hash256}
     (hlen : xs.length = ys.length) (hroot : root xs = root ys) :
-    xs = ys ∨ Sha256.Collision := by
+    xs = ys ∨ Sha256.CollisionBetween (hashPreimages xs) (hashPreimages ys) := by
   unfold root tree at hroot
   rw [← hlen] at hroot
   rcases virtualLeaves_eq_of_root_eq (Nat.clog 2 xs.length) xs ys hroot with hvl | c
@@ -344,10 +372,10 @@ theorem root_binding_of_length_eq {xs ys : List Hash256}
       (by rw [← hlen]; exact Nat.le_pow_clog (by decide) _)
     rw [hps, hqs] at hvl
     exact Or.inl (List.append_inj hvl hlen).1
-  · exact Or.inr c
+  · exact Or.inr (by simpa [hashPreimages, tree, ← hlen] using c)
 
-/-- Between canonical lists of equal enclosing width the merkle root
-identifies the list — or two concrete byte strings collide under
+/-- Between nonempty canonical lists of equal enclosing width the merkle root
+identifies the list, or node preimages from the two trees collide under
 double-SHA-256. This is the binding the canonicality rule exists to
 restore: without `Canonical`, a list extended by its own materialized padding
 shares its root (CVE-2012-2459). Equal widths exclude the cross-height
@@ -356,9 +384,16 @@ theorem root_binding_of_canonical {xs ys : List Hash256}
     (hcx : Canonical xs) (hcy : Canonical ys)
     (h0x : xs ≠ []) (h0y : ys ≠ [])
     (hk : Nat.clog 2 xs.length = Nat.clog 2 ys.length)
-    (hroot : root xs = root ys) : xs = ys ∨ Sha256.Collision := by
+    (hroot : root xs = root ys) :
+    xs = ys ∨ Sha256.CollisionBetween (hashPreimages xs) (hashPreimages ys) := by
   have h0x' : 0 < xs.length := List.length_pos_iff.mpr h0x
   have h0y' : 0 < ys.length := List.length_pos_iff.mpr h0y
+  have ht : (ofList xs (Nat.clog 2 xs.length)).root =
+      (ofList ys (Nat.clog 2 xs.length)).root := by
+    simpa [root, tree, ← hk] using hroot
+  rcases virtualLeaves_eq_of_root_eq (Nat.clog 2 xs.length) xs ys ht with hvl | c
+  swap
+  · exact Or.inr (by simpa [hashPreimages, tree, ← hk] using c)
   rcases Nat.eq_zero_or_pos (Nat.clog 2 xs.length) with hk0 | hkpos
   · -- Width 1: both lists are singletons and the root is the element.
     have hx1 : xs.length = 1 := by
@@ -393,29 +428,25 @@ theorem root_binding_of_canonical {xs ys : List Hash256}
       rwa [← hk, hj, Nat.pred_succ] at this
     have hxle : xs.length ≤ 2 ^ (j + 1) := hj ▸ Nat.le_pow_clog (by decide) _
     have hyle : ys.length ≤ 2 ^ (j + 1) := (hk ▸ hj) ▸ Nat.le_pow_clog (by decide) _
-    rw [root, root, tree, tree, hj, ← hk, hj] at hroot
+    rw [hj] at hvl
     rw [Canonical, canonicalCheck, tree, hj] at hcx
     rw [Canonical, canonicalCheck, tree, ← hk, hj] at hcy
     simp only [ofList, if_neg (by omega : ¬ xs.length ≤ 2 ^ j),
-      if_neg (by omega : ¬ ys.length ≤ 2 ^ j), Tree.root] at hroot hcx hcy
-    rcases combine_binding hroot with ⟨hl, hr⟩ | c
-    · rcases virtualLeaves_eq_of_root_eq j _ _ hl with hvl₁ | c
-      · have htake : xs.take (2 ^ j) = ys.take (2 ^ j) := by
-          rw [← virtualLeaves_ofList_of_length_eq j (xs.take (2 ^ j))
-              (by rw [List.length_take]; omega),
-            ← virtualLeaves_ofList_of_length_eq j (ys.take (2 ^ j))
-              (by rw [List.length_take]; omega), hvl₁]
-        rcases virtualLeaves_eq_of_root_eq j _ _ hr with hvl₂ | c
-        · have hdrop : xs.drop (2 ^ j) = ys.drop (2 ^ j) :=
-            eq_of_virtualLeaves_eq j _ _
-              (by rw [List.length_drop]; omega) (by rw [List.length_drop]; omega)
-              (by rw [List.length_drop]; omega) (by rw [List.length_drop]; omega)
-              hcx hcy hvl₂
-          exact Or.inl (by
-            rw [← List.take_append_drop (2 ^ j) xs, ← List.take_append_drop (2 ^ j) ys,
-              htake, hdrop])
-        · exact Or.inr c
-      · exact Or.inr c
-    · exact Or.inr c
+      if_neg (by omega : ¬ ys.length ≤ 2 ^ j), Tree.virtualLeaves] at hvl hcx hcy
+    obtain ⟨hvl₁, hvl₂⟩ := List.append_inj hvl (by
+      rw [length_virtualLeaves_ofList, length_virtualLeaves_ofList])
+    have htake : xs.take (2 ^ j) = ys.take (2 ^ j) := by
+      rw [← virtualLeaves_ofList_of_length_eq j (xs.take (2 ^ j))
+          (by rw [List.length_take]; omega),
+        ← virtualLeaves_ofList_of_length_eq j (ys.take (2 ^ j))
+          (by rw [List.length_take]; omega), hvl₁]
+    have hdrop : xs.drop (2 ^ j) = ys.drop (2 ^ j) :=
+      eq_of_virtualLeaves_eq j _ _
+        (by rw [List.length_drop]; omega) (by rw [List.length_drop]; omega)
+        (by rw [List.length_drop]; omega) (by rw [List.length_drop]; omega)
+        hcx hcy hvl₂
+    exact Or.inl (by
+      rw [← List.take_append_drop (2 ^ j) xs, ← List.take_append_drop (2 ^ j) ys,
+        htake, hdrop])
 
 end BtcVerified.Merkle
