@@ -6,3 +6,5 @@ import Tests.ModuleAudit
 import Tests.TransactionRules
 import Tests.SequenceLocks
 import Tests.HeightLocks
+import Tests.TimeLocks
+import Tests.TimeLockTransitions

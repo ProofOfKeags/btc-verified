@@ -14,10 +14,16 @@ import BtcVerified.Consensus.Limits
 
   * `SequenceLock.isHeightSatisfied_iff`: the height checker decides its
     semantic age condition.
+  * `SequenceLock.isTimeSatisfied_iff`: the time checker decides its
+    semantic age condition.
   * `SequenceLock.blocks_heightSatisfied_iff`: the inclusive age condition
     equals the signed last-invalid-height comparison, including at zero.
   * `SequenceLock.blocks_same_height_iff`: spending at the creation height
     satisfies a block lock exactly when its delay is zero.
+  * `SequenceLock.seconds_timeSatisfied_iff`: the inclusive time threshold
+    equals the signed last-invalid-time comparison, including at zero.
+  * `SequenceLock.seconds_same_time_iff`: equal origin and evaluation MTP
+    satisfy a time lock exactly when its delay is zero.
 -/
 
 namespace BtcVerified.Consensus
@@ -52,6 +58,19 @@ def SequenceLock.isHeightSatisfied : SequenceLock → Nat → Nat → Bool
   | .blocks delay, birthHeight, height => decide (birthHeight + delay ≤ height)
   | _, _, _ => true
 
+/-- The time component is satisfied once parent median-time-past reaches the
+coin's historical median-time-past plus delay. Other lock units impose no
+time requirement. -/
+def SequenceLock.TimeSatisfied : SequenceLock → Nat → Nat → Prop
+  | .seconds delay, birthTime, time => birthTime + delay ≤ time
+  | _, _, _ => True
+
+/-- Decide the relative time component using the first valid time, including
+zero. Block-based and disabled locks impose no time requirement. -/
+def SequenceLock.isTimeSatisfied : SequenceLock → Nat → Nat → Bool
+  | .seconds delay, birthTime, time => decide (birthTime + delay ≤ time)
+  | _, _, _ => true
+
 /-- The height checker accepts exactly when the relative height condition
 holds, including the unconstrained disabled and time-based cases. -/
 theorem SequenceLock.isHeightSatisfied_iff {lock : SequenceLock}
@@ -59,6 +78,14 @@ theorem SequenceLock.isHeightSatisfied_iff {lock : SequenceLock}
     lock.isHeightSatisfied birthHeight height = true ↔
       lock.HeightSatisfied birthHeight height := by
   cases lock <;> simp [isHeightSatisfied, HeightSatisfied]
+
+/-- The time checker accepts exactly when the relative time condition holds,
+including the unconstrained disabled and block-based cases. -/
+theorem SequenceLock.isTimeSatisfied_iff {lock : SequenceLock}
+    {birthTime time : Nat} :
+    lock.isTimeSatisfied birthTime time = true ↔
+      lock.TimeSatisfied birthTime time := by
+  cases lock <;> simp [isTimeSatisfied, TimeSatisfied]
 
 /-- The first-valid height condition equals a strict comparison against the
 signed last-invalid height used by Core, even when the first valid height is
@@ -74,6 +101,22 @@ the delay is zero. -/
 theorem SequenceLock.blocks_same_height_iff {delay height : Nat} :
     (SequenceLock.blocks delay).HeightSatisfied height height ↔ delay = 0 := by
   simp only [HeightSatisfied]
+  omega
+
+/-- The first-valid time condition equals Core's strict comparison against
+the signed last-invalid time, even when the first valid time is zero
+([calculation and evaluation](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/consensus/tx_verify.cpp#L79-L110)). -/
+theorem SequenceLock.seconds_timeSatisfied_iff {delay birthTime time : Nat} :
+    (SequenceLock.seconds delay).TimeSatisfied birthTime time ↔
+      (birthTime : Int) + (delay : Int) - 1 < (time : Int) := by
+  simp only [TimeSatisfied]
+  omega
+
+/-- Equal origin and evaluation MTP satisfy a time delay exactly when that
+delay is zero. -/
+theorem SequenceLock.seconds_same_time_iff {delay time : Nat} :
+    (SequenceLock.seconds delay).TimeSatisfied time time ↔ delay = 0 := by
+  simp only [TimeSatisfied]
   omega
 
 end BtcVerified.Consensus

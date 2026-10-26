@@ -2,8 +2,8 @@ import BtcVerified.Consensus.SequenceLock
 /-!
   # Relative sequence-lock interpretation examples
 
-  Literal wire fields exercise interpretation and the height-relative comparison
-  at its exact boundaries. Time-valued sequences impose no height constraint.
+  Literal wire fields exercise interpretation and both relative-lock comparisons
+  at their exact boundaries. Each axis ignores locks measured on the other axis.
   These finite examples do not establish Core correspondence.
 -/
 
@@ -33,5 +33,17 @@ open BtcVerified.Consensus
 #guard (SequenceLock.blocks 65535).isHeightSatisfied 100 65635
 #guard SequenceLock.disabled.isHeightSatisfied 100 0
 #guard (SequenceLock.ofUInt32 0x0040ffff).isHeightSatisfied 100 0
+
+/-! ## First-valid times include equality and use the full seconds delay -/
+
+#guard !(SequenceLock.seconds 512).isTimeSatisfied 1000 1511
+#guard (SequenceLock.seconds 512).isTimeSatisfied 1000 1512
+#guard !(SequenceLock.seconds 0).isTimeSatisfied 1000 999
+#guard (SequenceLock.seconds 0).isTimeSatisfied 1000 1000
+#guard (SequenceLock.seconds 0).isTimeSatisfied 0 0
+#guard !(SequenceLock.seconds 33553920).isTimeSatisfied 1000 33554919
+#guard (SequenceLock.seconds 33553920).isTimeSatisfied 1000 33554920
+#guard SequenceLock.disabled.isTimeSatisfied 1000 0
+#guard (SequenceLock.blocks 65535).isTimeSatisfied 1000 0
 
 end Tests.SequenceLocks

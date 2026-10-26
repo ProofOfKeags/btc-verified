@@ -3,8 +3,9 @@ import Tests.SequenceLockFixtures
   # Contextual height-lock examples
 
   Explicit activation and coin heights exercise the height-relative premise
-  and its enforcement in guarded application. Time-relative enforcement belongs
-  to the next leaf. These finite examples do not establish Core correspondence.
+  and its enforcement in guarded application. `TimeLocks` and
+  `TimeLockTransitions` cover the time component separately. These finite
+  examples do not establish Core correspondence.
 -/
 
 namespace Tests.HeightLocks

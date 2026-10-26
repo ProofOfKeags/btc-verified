@@ -531,7 +531,9 @@ def block170Context : TxContext :=
   { height := 170
     blockTime := 1231731025
     medianTimePast := 1231715347
-    sequenceLocksActive := false }
+    sequenceLocksActive := false
+    -- BIP68 is inactive for this fixture, so historical time is never read.
+    medianTimePastAt := fun _ => 0 }
 
 -- The semantic lock-time interpretation exposes the selected axis, and the
 -- two named clocks can produce different lock-time satisfaction results.
