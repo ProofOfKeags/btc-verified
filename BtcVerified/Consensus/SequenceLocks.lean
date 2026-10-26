@@ -19,6 +19,8 @@ import BtcVerified.Consensus.TxContext
 
   * `TxBody.isHeightLocksSatisfied_iff`: the executable height-lock check
     decides the per-input specification under its activation and version gates.
+  * `TxBody.isTimeLocksSatisfied_iff`: the executable time-lock check decides
+    the per-input specification using the supplied historical MTP values.
 -/
 
 namespace BtcVerified
@@ -84,5 +86,24 @@ theorem TxBody.isHeightLocksSatisfied_iff {body : TxBody} {utxos : UtxoSet}
         simp [Consensus.SequenceLock.isHeightSatisfied_iff]
     · simp [isHeightLocksSatisfied, HeightLocksSatisfied, hactive, hversion]
   · simp [isHeightLocksSatisfied, HeightLocksSatisfied, hactive]
+
+/-- The transaction time-lock checker accepts exactly when every present
+input coin meets its time condition under the activation and version gates. -/
+theorem TxBody.isTimeLocksSatisfied_iff {body : TxBody} {utxos : UtxoSet}
+    {ctx : TxContext} :
+    body.isTimeLocksSatisfied utxos ctx = true ↔
+      body.TimeLocksSatisfied utxos ctx := by
+  by_cases hactive : ctx.sequenceLocksActive = true
+  · by_cases hversion : 2 ≤ body.version.toNat
+    · simp only [isTimeLocksSatisfied, TimeLocksSatisfied, hactive, hversion,
+        decide_true, Bool.and_self, ↓reduceIte, true_implies, List.all_eq_true]
+      apply forall_congr'
+      intro input
+      apply forall_congr'
+      intro _
+      cases hcoin : utxos.lookup input.prevout <;>
+        simp [Consensus.SequenceLock.isTimeSatisfied_iff]
+    · simp [isTimeLocksSatisfied, TimeLocksSatisfied, hactive, hversion]
+  · simp [isTimeLocksSatisfied, TimeLocksSatisfied, hactive]
 
 end BtcVerified

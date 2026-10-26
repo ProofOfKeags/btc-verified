@@ -184,6 +184,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.SequenceLock.blocks_heightSatisfied_iff
 #assert_axioms BtcVerified.Consensus.SequenceLock.blocks_same_height_iff
 #assert_axioms BtcVerified.TxBody.isHeightLocksSatisfied_iff
+#assert_axioms BtcVerified.TxBody.isTimeLocksSatisfied_iff
 #assert_axioms BtcVerified.TxBody.isLockTimeSatisfied_iff
 #assert_axioms BtcVerified.TxBody.lockTimeSatisfied_iff_core
 #assert_axioms BtcVerified.Tx.spentCoins_aligned
