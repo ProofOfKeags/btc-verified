@@ -47,7 +47,7 @@ def SequenceLock.HeightSatisfied : SequenceLock → Nat → Nat → Prop
   | _, _, _ => True
 
 /-- Decide the height component using the first valid height, including zero.
-Time-based locks are checked separately by the time component. -/
+Time-based locks impose no height requirement. -/
 def SequenceLock.isHeightSatisfied : SequenceLock → Nat → Nat → Bool
   | .blocks delay, birthHeight, height => decide (birthHeight + delay ≤ height)
   | _, _, _ => true

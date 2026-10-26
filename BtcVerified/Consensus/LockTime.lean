@@ -14,10 +14,9 @@ import BtcVerified.Consensus.Limits
   `LockTime.ofUInt32` is the explicit boundary between syntax and semantics.
 
   This type describes the transaction's absolute `nLockTime`. BIP68 relative
-  lock times are a separate interpretation of each input's sequence field and
-  remain the sequence-locks leaf tracked by #46 ([Bitcoin Core v28.0,
-  `CalculateSequenceLocks`, `tx_verify.cpp` lines
-  39–109](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L39-L109)).
+  lock times interpret each input's sequence field in `SequenceLock.lean`;
+  `SequenceLocks.lean` checks their height component. Time enforcement is
+  the next increment tracked by #145.
 -/
 
 namespace BtcVerified.Consensus
@@ -33,8 +32,8 @@ inductive LockTime where
   deriving DecidableEq
 
 /-- Interpret the raw transaction lock-time field, making its selected axis
-explicit. Relative lock times do not come from this field; #46 will interpret
-input sequence fields separately. -/
+explicit. Relative lock times come from the input sequence fields, interpreted
+separately by `Consensus.SequenceLock.ofUInt32`. -/
 def LockTime.ofUInt32 (value : UInt32) : LockTime :=
   if value = 0 then
     .disabled

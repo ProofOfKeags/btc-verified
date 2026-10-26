@@ -16,8 +16,8 @@ import BtcVerified.Consensus.LockTimeClock
 
 namespace BtcVerified
 
-/-- The context a chain-contextual transaction rule evaluates in: the height
-of the admitting block and both clocks consensus rules can name. -/
+/-- The admitting height, both named clocks, and explicit sequence-lock
+activation supplied to contextual transaction rules. -/
 structure TxContext where
   /-- Height of the block admitting the transaction (Core's `nSpendHeight` in
   [`CheckTxInputs`, Bitcoin Core v28.0, `tx_verify.cpp` lines

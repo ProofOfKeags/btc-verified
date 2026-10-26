@@ -93,7 +93,7 @@ theorem Coin.isMature_iff {coin : Coin} {height : Nat} :
     | true => exact Or.inr (h hcb)
 
 /-- The semantic absolute lock time interpreted from the body's raw wire
-field. Relative lock times are per-input sequence semantics deferred to #46. -/
+field. Relative lock times are separate per-input sequence semantics. -/
 def TxBody.interpretedLockTime (body : TxBody) : Consensus.LockTime :=
   Consensus.LockTime.ofUInt32 body.lockTime
 
