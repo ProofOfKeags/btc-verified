@@ -52,6 +52,19 @@ def SequenceLock.isHeightSatisfied : SequenceLock → Nat → Nat → Bool
   | .blocks delay, birthHeight, height => decide (birthHeight + delay ≤ height)
   | _, _, _ => true
 
+/-- The time component is satisfied once parent median-time-past reaches the
+coin's historical median-time-past plus delay. Other lock units impose no
+time requirement. -/
+def SequenceLock.TimeSatisfied : SequenceLock → Nat → Nat → Prop
+  | .seconds delay, birthTime, time => birthTime + delay ≤ time
+  | _, _, _ => True
+
+/-- Decide the relative time component using the first valid time, including
+zero. Block-based and disabled locks impose no time requirement. -/
+def SequenceLock.isTimeSatisfied : SequenceLock → Nat → Nat → Bool
+  | .seconds delay, birthTime, time => decide (birthTime + delay ≤ time)
+  | _, _, _ => true
+
 /-- The height checker accepts exactly when the relative height condition
 holds, including the unconstrained disabled and time-based cases. -/
 theorem SequenceLock.isHeightSatisfied_iff {lock : SequenceLock}
