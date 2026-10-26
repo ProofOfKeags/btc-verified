@@ -43,8 +43,9 @@ Checked claims:
   converse fails (`[a, a]` is canonical yet mutates), so Core's scan is strictly
   stronger and no transaction-distinctness hypothesis is needed or used.
 - `eq_of_computeMerkleRoot_eq_of_not_mutated`: two nonempty equal-width lists Core
-  accepts with equal roots are equal — or a concrete double-SHA-256 collision.
-  Core's single check recovers the binding `root_binding_of_canonical` provides.
+  accepts with equal roots are equal, or node preimages from the two compared
+  trees collide under double-SHA-256. Passing the mutation scan supplies
+  canonicality; nonemptiness and equal enclosing widths remain separate premises.
 - `computeMerkleRoot_fst`: the root Core returns is exactly `computeRoot` (hence
   the spec `root`) on every input — anchored to real chain data through the
   `Block.merkleCommits` checks, and confirmed on block 481824 under `lake test`
@@ -53,6 +54,7 @@ Checked claims:
 Why it matters: this closes the gap between the algorithm Bitcoin Core actually
 runs and the repo's separated root/canonicality model. Core fuses the root and a
 duplicate scan into one pass; the spec factors them apart, and passing Core's
-scan is proved to imply the canonicality that recovers the binding — the one-way
-direction that matters, since Core is strictly stronger than canonicality
-requires.
+scan is proved to imply the canonicality used by the binding theorem. The
+collision conclusion retains a preimage from each compared tree; it does not
+assert computational security. Core's scan is stronger than canonicality, and
+the theorem keeps its nonempty and equal-width assumptions explicit.

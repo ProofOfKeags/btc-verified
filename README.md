@@ -18,7 +18,7 @@ The repo grows as small "proof leaves": each module builds cleanly, states
 exactly what it proves, and makes the next claim easier to state. The proofs
 stay anchored to the real network — the verified decoders and computable
 hashes run against actual mainnet blocks at build time, and an axiom audit
-fails CI if any headline theorem depends on an unproved assumption.
+fails CI if any headline theorem depends on an unapproved axiom.
 
 The consensus model is a separate, executable reasoning substrate: Core's
 design strongly influences its initial boundaries, but Core's C++ is not the
@@ -43,19 +43,12 @@ statement of what stands.
   pair carries machine-checked proofs that decoding inverts encoding and that
   each value has exactly one accepted encoding, including Bitcoin's
   CompactSize integers.
-- [`Crypto/`](BtcVerified/Crypto/README.md) — A computable SHA-256 checked
-  against published test vectors, and Bitcoin's merkle tree with proofs of
-  exactly what a merkle root does and does not commit to, including the
-  defense against the CVE-2012-2459 duplication attack.
-- [`Transaction/`](BtcVerified/Transaction/README.md) — Bitcoin transactions,
-  including the degenerate empty object Core decodes plus ordinary legacy and
-  SegWit forms, with verified serialization in both directions and proofs that
-  transaction ids are binding commitments to the transaction.
-- [`Block/`](BtcVerified/Block/README.md) — Every byte of a block parses
-  through a verified codec (checked against real mainnet blocks), block
-  hashes are proved binding, the coinbase's SegWit witness commitment
-  provably binds every witness in the block, and a chain's tip hash provably
-  commits to the entire history behind it.
+- [`Crypto/`](BtcVerified/Crypto/README.md) — A computable SHA-256 and proofs
+  explaining the guarantees and limits of Bitcoin's merkle tree.
+- [`Transaction/`](BtcVerified/Transaction/README.md) — Verified transaction
+  encodings and proofs explaining what transaction ids commit to.
+- [`Block/`](BtcVerified/Block/README.md) — Verified block encodings and proofs
+  explaining how hashes bind block contents and chain histories under stated conditions.
 - [`Script/`](BtcVerified/Script/README.md) — Bitcoin Script programs
   modeled as the raw bytes consensus actually validates, with the boundary
   between parsing and execution drawn where the protocol draws it.

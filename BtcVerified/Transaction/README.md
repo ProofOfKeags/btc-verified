@@ -87,23 +87,21 @@ two coincide by `rfl`, as they do for the empty no-witness case.
 
 Checked claims:
 
-- `Tx.txid_binding`: equal txids imply equal witness-free bodies — or two
-  concrete byte strings witnessing a double-SHA-256 collision. With
-  `CollisionResistant.injective` (the generalized collision vocabulary in
-  `BtcVerified.Collision`), a resistance hypothesis collapses this to outright
-  injectivity.
-- `Tx.wtxid_binding`: equal wtxids imply equal transactions, witnesses
-  included — or a concrete collision.
-- `Tx.map_wtxid_binding`: equal wtxid *lists* imply equal transaction lists,
-  witnesses included — or a concrete collision; the form the witness
-  commitment (`../Block/`) lifts through the merkle layer.
+- `Tx.txid_binding`: equal txids imply equal witness-free bodies, or the
+  encodings of those two bodies are distinct and collide under double-SHA-256.
+- `Tx.wtxid_binding`: equal wtxids imply equal transactions, witnesses included,
+  or their two full encodings are distinct and collide.
+- `Tx.map_wtxid_binding`: equal wtxid lists imply equal transaction lists,
+  witnesses included, or a collision between encodings drawn from the two
+  compared lists; the form the witness commitment lifts through the merkle layer.
 - Golden vectors: the first Bitcoin payment's txid, the genesis coinbase txid
   (which is the genesis merkle root), and the SegWit coinbase's txid with
   `wtxid ≠ txid`.
 
-Why it matters: a hash of an encoding only identifies anything because the
-encoding is injective — `encode_injective`, from the codec round-trip law. The
-serialization leaves are exactly what make txids meaningful, and the collision
-disjunct is constructed, never assumed away: intractability of producing a
-witness is the consumer's hypothesis, the only form in which collision
-resistance can soundly appear over a concrete hash.
+Why it matters: a hash of an encoding identifies an object only if the encoding
+is injective — `encode_injective` follows from the codec round-trip law. The
+binding theorems retain the exact encodings, or membership in the compared
+transaction lists, in their collision conclusions. They assume no global
+collision freedom and make no computational hardness claim. The global
+mathematical predicate is named `CollisionFree`, replacing `CollisionResistant`,
+to distinguish injectivity from computational collision resistance.

@@ -1,4 +1,5 @@
 import BtcVerified
+import Tests.CollisionScope
 import Lean
 /-!
   # Axiom audit
@@ -119,15 +120,25 @@ elab "#assert_axioms " id:ident : command => do
   load-bearing — so the audit guards it against a stray `sorry` or a sneaked-in
   `native_decide`. Auditing `sha256d` covers `sha256` transitively. -/
 
+#assert_axioms BtcVerified.Collides.collision
+#assert_axioms BtcVerified.CollisionBetween.of_collides
+#assert_axioms BtcVerified.CollisionBetween.mono
+#assert_axioms BtcVerified.CollisionBetween.collision
+#assert_axioms BtcVerified.collisionBetween_singletons
+#assert_axioms BtcVerified.not_collisionBetween_nil_left
+#assert_axioms BtcVerified.not_collisionBetween_nil_right
+#assert_axioms Tests.CollisionScope.global_collision_exists
+#assert_axioms Tests.CollisionScope.global_collision_does_not_supply_scoped_collision
+#assert_axioms Tests.CollisionScope.txid_body_eq_of_no_relevant_collision
 #assert_axioms BtcVerified.Collision.comp
-#assert_axioms BtcVerified.CollisionResistant.injective
-#assert_axioms BtcVerified.CollisionResistant.comp
+#assert_axioms BtcVerified.CollisionFree.injective
+#assert_axioms BtcVerified.CollisionFree.comp
 #assert_axioms BtcVerified.Collision.comp_inner
-#assert_axioms BtcVerified.CollisionResistant.of_comp
+#assert_axioms BtcVerified.CollisionFree.of_comp
 #assert_axioms BtcVerified.Sha256.sha256d
 #assert_axioms BtcVerified.Sha256.sha256d_length
-#assert_axioms BtcVerified.Sha256.collisionResistant_sha256d
-#assert_axioms BtcVerified.Sha256.collisionResistant_sha256_iff_sha256d
+#assert_axioms BtcVerified.Sha256.collisionFree_sha256d
+#assert_axioms BtcVerified.Sha256.collisionFree_sha256_iff_sha256d
 #assert_axioms BtcVerified.instCodecHash256
 #assert_axioms BtcVerified.Hash256.encode_length
 

@@ -9,19 +9,16 @@ import BtcVerified.Crypto.Sha256
   fixture tests computed inline into the library — the same move `Tx.txid`
   made for transactions.
 
-  As with `Tx.txid_binding`, the binding theorem here is the
-  collision-disjunct idiom (`Merkle.root_binding_of_length_eq` is the same
-  shape):
-  the hash is a binding commitment to the header — equal hashes force equal
-  headers, or the two encodings exhibit a concrete double-SHA-256 collision.
-  Collision resistance is never assumed for the concrete hash — only ever a
-  hypothesis a caller supplies over the abstract `Sha256.Collision`
-  vocabulary.
+  As with `Tx.txid_binding`, equal hashes imply equal headers or a
+  double-SHA-256 collision between the two specified 80-byte header encodings.
+  The collision must involve those two header encodings; an unrelated
+  collision cannot satisfy the conclusion. No global collision freedom or
+  computational security assumption is made.
 
   Checked claims:
 
-  * `BlockHeader.hash_binding`: equal block hashes mean equal headers — or a
-    concrete double-SHA-256 collision.
+  * `BlockHeader.hash_binding`: equal block hashes imply equal headers, or
+    the two specified header encodings collide under double-SHA-256.
 -/
 
 namespace BtcVerified
@@ -35,13 +32,12 @@ proof-of-work layer, not this module). -/
 def BlockHeader.hash (h : BlockHeader) : Hash256 :=
   ⟨Sha256.sha256d (Codec.encode h), Sha256.sha256d_length _⟩
 
-/-- Equal block hashes mean equal headers — or two concrete byte strings
-witnessing a double-SHA-256 collision. -/
+/-- Equal block hashes mean equal headers — or their two encodings
+collide under double-SHA-256. -/
 theorem BlockHeader.hash_binding {h₁ h₂ : BlockHeader} (h : h₁.hash = h₂.hash) :
-    h₁ = h₂ ∨ Sha256.Collision := by
+    h₁ = h₂ ∨ Sha256.Collides (Codec.encode h₁) (Codec.encode h₂) := by
   by_cases he : h₁ = h₂
   · exact Or.inl he
-  · exact Or.inr ⟨Codec.encode h₁, Codec.encode h₂,
-      fun hc => he (encode_injective hc), congrArg Subtype.val h⟩
+  · exact Or.inr ⟨fun hc => he (encode_injective hc), congrArg Subtype.val h⟩
 
 end BtcVerified

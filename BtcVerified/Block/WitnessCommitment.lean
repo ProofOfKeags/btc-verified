@@ -30,8 +30,8 @@ import BtcVerified.Crypto.Merkle
   Unlike the txid tree, no canonicality condition is demanded of the
   witness tree, and none is needed: the padding ambiguity (CVE-2012-2459)
   needs room to change the leaf count, and in consensus use the
-  transaction count is already pinned by the txid tree — between
-  equal-length lists the root binds outright
+  transaction count must be fixed by an explicit premise — between
+  equal-length lists the root binds up to a collision among their preimages
   (`Merkle.root_binding_of_length_eq`). `Block.witnessRoot_binding` is
   that folklore argument made precise.
 
@@ -40,7 +40,8 @@ import BtcVerified.Crypto.Merkle
   itself — and misses exactly the witnesses; the witness tree binds every
   transaction beyond the coinbase, witnesses included, and misses exactly
   the coinbase's own witness — which is the reserved value, sitting in the
-  commitment preimage. Together they cover every byte of a block. When a
+  commitment preimage. This module proves the conditional claims below,
+  not an unconditional whole-block binding theorem. When a
   commitment is *required* (any block carrying witness data must have one)
   is a consensus guard at the validity layer, exactly as `merkleCommits`
   states the condition and not the rule.
@@ -48,21 +49,23 @@ import BtcVerified.Crypto.Merkle
   Checked claims:
 
   * `witnessCommitment_binding`: equal commitments imply equal witness
-    roots and equal reserved values — or two concrete byte strings
-    witnessing a double-SHA-256 collision; definitionally
+    roots and equal reserved values — or their concatenations collide; definitionally
     `Merkle.combine_binding`.
   * `Block.witnessRoot_binding`: between blocks with equally many
     transactions, equal witness roots imply equal transactions beyond the
-    coinbase, witnesses included — or a concrete collision.
+    coinbase, witnesses included — or a collision between their witness
+    tree or transaction preimages.
   * `Block.witnessCommits_binding`: two blocks satisfying `witnessCommits`
     that record the same commitment and have equally many transactions
-    agree on every transaction beyond the coinbase — or a concrete
-    collision.
+    agree on every transaction beyond the coinbase — or a collision between
+    preimages of their commitments, witness trees, or transactions.
   * `Block.witnessCommits` is decidable, so real blocks are checked
     against it in the golden vectors and the `lake test` fixture.
 -/
 
 namespace BtcVerified
+
+open BtcVerified.Serialize
 
 /-- The BIP141 witness commitment: the double-SHA-256 of the witness merkle
 root followed by the 32-byte witness reserved value. The reserved value is
@@ -79,6 +82,11 @@ bound by the txid tree instead. Degenerate on an empty transaction list (a
 real block has at least its coinbase). -/
 def Block.witnessRoot (b : Block) : Hash256 :=
   Merkle.root (0 :: (b.txs.val.drop 1).map Tx.wtxid)
+
+/-- The SHA-256d inputs used by the witness tree and its non-coinbase wtxids. -/
+def Block.witnessRootPreimages (b : Block) : List (List UInt8) :=
+  Merkle.hashPreimages (0 :: (b.txs.val.drop 1).map Tx.wtxid) ++
+    (b.txs.val.drop 1).map Codec.encode
 
 /-- The witness commitment an output records: when its scriptPubKey opens
 `OP_RETURN`, a 36-byte push, and the BIP141 header `aa21a9ed`, the 32 bytes
@@ -123,6 +131,13 @@ one. -/
 def Block.witnessReservedValue? (b : Block) : Option (Bytes 32) :=
   b.txs.val.head?.bind Tx.witnessReservedValue?
 
+/-- The outer commitment preimage, when a reserved value is present, followed
+by the witness tree and transaction preimages. -/
+def Block.witnessCommitmentPreimages (b : Block) : List (List UInt8) :=
+  (match b.witnessReservedValue? with
+    | none => []
+    | some reserved => [b.witnessRoot.val ++ reserved.val]) ++ b.witnessRootPreimages
+
 /-- The BIP141 witness commitment condition: the coinbase carries the
 32-byte reserved value as its witness, and the commitment it records is
 exactly the double-SHA-256 of this block's witness root followed by that
@@ -146,50 +161,62 @@ instance instDecidableWitnessCommits : DecidablePred Block.witnessCommits := fun
   | none => isFalse (by rintro ⟨r, hr, -⟩; rw [hv] at hr; cases hr)
 
 /-- Equal witness commitments mean equal witness roots and equal reserved
-values — or two concrete byte strings witnessing a double-SHA-256
-collision. The commitment is definitionally a merkle node over the root
+values — or the two root/reserved-value concatenations collide
+under double-SHA-256. The commitment is definitionally a merkle node over the root
 and the reserved value, so this is `Merkle.combine_binding` re-read. -/
 theorem witnessCommitment_binding {r₁ r₂ : Hash256} {v₁ v₂ : Bytes 32}
     (h : witnessCommitment r₁ v₁ = witnessCommitment r₂ v₂) :
-    (r₁ = r₂ ∧ v₁ = v₂) ∨ Sha256.Collision :=
+    (r₁ = r₂ ∧ v₁ = v₂) ∨ Sha256.Collides (r₁.val ++ v₁.val) (r₂.val ++ v₂.val) :=
   Merkle.combine_binding h
 
 /-- Between blocks with equally many transactions, equal witness roots mean
-equal transactions beyond the coinbase, witnesses included — or two
-concrete byte strings witnessing a double-SHA-256 collision. No
-canonicality condition: with the length pinned (by the txid tree, in
-consensus use), the root binds outright — the CVE-2012-2459 ambiguity
-needs room to change the leaf count. -/
+equal transactions beyond the coinbase, witnesses included — or a collision
+between preimages from their witness trees or non-coinbase transactions. No
+canonicality condition is needed under the explicit equal-length hypothesis:
+the CVE-2012-2459 ambiguity needs room to change the leaf count. -/
 theorem Block.witnessRoot_binding {b₁ b₂ : Block}
     (hlen : b₁.txs.val.length = b₂.txs.val.length)
     (hroot : b₁.witnessRoot = b₂.witnessRoot) :
-    b₁.txs.val.drop 1 = b₂.txs.val.drop 1 ∨ Sha256.Collision := by
+    b₁.txs.val.drop 1 = b₂.txs.val.drop 1 ∨
+      Sha256.CollisionBetween b₁.witnessRootPreimages b₂.witnessRootPreimages := by
   unfold Block.witnessRoot at hroot
   have hlen' : ((0 : Hash256) :: (b₁.txs.val.drop 1).map Tx.wtxid).length
       = ((0 : Hash256) :: (b₂.txs.val.drop 1).map Tx.wtxid).length := by
     simp only [List.length_cons, List.length_map, List.length_drop, hlen]
   rcases Merkle.root_binding_of_length_eq hlen' hroot with heq | c
   · simp only [List.cons.injEq, true_and] at heq
-    exact Tx.map_wtxid_binding heq
-  · exact Or.inr c
+    rcases Tx.map_wtxid_binding heq with heq | c
+    · exact Or.inl heq
+    · exact Or.inr (c.mono
+        (by intro x hx; exact List.mem_append_right _ hx)
+        (by intro x hx; exact List.mem_append_right _ hx))
+  · exact Or.inr (c.mono
+      (by intro x hx; exact List.mem_append_left _ hx)
+      (by intro x hx; exact List.mem_append_left _ hx))
 
 /-- Two blocks satisfying the witness-commitment condition that record the
 same commitment and have equally many transactions agree on every
-transaction beyond the coinbase, witnesses included — or two concrete byte
-strings witnessing a double-SHA-256 collision. In consensus use both
-side conditions come from the txid tree: `merkleCommits` binding pins the
-transaction count and the coinbase body, and the recorded commitment is
-part of that body. -/
+transaction beyond the coinbase, witnesses included — or a collision between
+preimages from the compared commitments, witness trees, or transactions. The
+equal-count and equal-recorded-commitment premises are explicit; this theorem
+does not derive them from header equality alone. -/
 theorem Block.witnessCommits_binding {b₁ b₂ : Block}
     (hc₁ : b₁.witnessCommits) (hc₂ : b₂.witnessCommits)
     (hrec : b₁.recordedWitnessCommitment? = b₂.recordedWitnessCommitment?)
     (hlen : b₁.txs.val.length = b₂.txs.val.length) :
-    b₁.txs.val.drop 1 = b₂.txs.val.drop 1 ∨ Sha256.Collision := by
-  obtain ⟨v₁, -, hr₁⟩ := hc₁
-  obtain ⟨v₂, -, hr₂⟩ := hc₂
+    b₁.txs.val.drop 1 = b₂.txs.val.drop 1 ∨
+      Sha256.CollisionBetween b₁.witnessCommitmentPreimages b₂.witnessCommitmentPreimages := by
+  obtain ⟨v₁, hv₁, hr₁⟩ := hc₁
+  obtain ⟨v₂, hv₂, hr₂⟩ := hc₂
   rw [hr₁, hr₂, Option.some.injEq] at hrec
   rcases witnessCommitment_binding hrec with ⟨hroot, -⟩ | c
-  · exact Block.witnessRoot_binding hlen hroot
-  · exact Or.inr c
+  · rcases Block.witnessRoot_binding hlen hroot with heq | c
+    · exact Or.inl heq
+    · exact Or.inr (c.mono
+        (by intro x hx; exact List.mem_append_right _ hx)
+        (by intro x hx; exact List.mem_append_right _ hx))
+  · exact Or.inr (CollisionBetween.of_collides
+      (by simp [Block.witnessCommitmentPreimages, hv₁])
+      (by simp [Block.witnessCommitmentPreimages, hv₂]) c)
 
 end BtcVerified

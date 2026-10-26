@@ -9,14 +9,19 @@ import Tests.GoldenVectors
   A block is public chain data, reconstructible from any Bitcoin node, so
   fixtures are not committed: the test driver fetches each one on first run
   (from an esplora HTTP endpoint, by block hash) and caches it under
-  `Tests/fixtures/`, which is gitignored. The download is authenticated end
-  to end: the decoded header must double-SHA-256 to the requested block
-  hash (so the 80 header bytes carry their proof of work), the merkle
-  commitment pins every transaction's txid to that header, the BIP141
-  witness commitment pins every witness byte to the coinbase the txid tree
-  covers, and the spot-checks additionally pin the embedded transactions
-  they name byte-for-byte. Up to double-SHA-256 collisions, no byte of a
-  fixture can differ from the mainnet block.
+  `Tests/fixtures/`, which is gitignored. The decoded header must hash to the
+  requested block hash. For block 481824, the checks compare header fields and
+  the transaction count with expected values, check the txid and witness
+  commitments, run the transcribed merkle mutation scan, and compare two
+  embedded transactions with the inline byte vectors.
+
+  These are finite checks of the downloaded fixture, not a whole-block
+  uniqueness theorem. Merkle binding requires equal lengths, or nonempty
+  canonical lists of equal enclosing width; witness binding requires equal
+  transaction counts. This fixture checks its expected count, but does not
+  combine those results into a theorem of byte-for-byte equality with the
+  mainnet block. Matching the expected header hash also does not execute a
+  proof-of-work target check or validate all consensus rules.
 
   The one fixture so far is block 481824, the SegWit activation block: 1866
   transactions mixing the legacy and SegWit serializations, the SegWit
@@ -94,19 +99,19 @@ def block481824Checks (b : Block) : Bool :=
   -- Both serialization eras appear in the same block.
   && b.txs.val.any Tx.isSegWit
   && (b.txs.val.any fun tx => !tx.isSegWit)
-  -- The header commits to all 1866 transaction ids through the merkle root,
-  -- and the txid list is canonical. With the header-hash check above, every
-  -- non-witness transaction byte is pinned: txids → merkle root → header →
-  -- proof-of-work hash.
+  -- Check that the decoded txid list is canonical and its merkle root equals
+  -- the header field. The count check above fixes this fixture's length at
+  -- 1866; this condition alone does not establish a general comparison with
+  -- another block whose transaction count or enclosing width may differ.
   && decide b.merkleCommits
-  -- Bitcoin Core's own algorithm accepts the block: run on the real txid list,
-  -- its `mutated` flag is clear — the model agrees with Core, which accepted
-  -- block 481824 into the chain.
+  -- Run the transcribed Core merkle mutation scan on the decoded txid list.
+  -- Its mutated flag must be false; this checks the scan result, not all
+  -- Bitcoin Core block-validity rules.
   && !(Impl.BitcoinCore.computeMerkleRoot (b.txs.val.map Tx.txid)).2
-  -- The BIP141 witness commitment: wtxids → witness root → commitment
-  -- output in the coinbase, whose bytes the txid tree pins. Witness bytes
-  -- are all the txid tree misses, so with `merkleCommits` above every byte
-  -- of the block is now authenticated, up to double-SHA-256 collisions.
+  -- Check the BIP141 witness commitment against the coinbase output and
+  -- reserved value. This is a finite commitment check on the decoded block;
+  -- the binding theorems separately require equal transaction counts and
+  -- locate any collision in the compared blocks' actual hash inputs.
   && decide b.witnessCommits
 
 /-- Where a fixture block is cached locally, by display hash. Gitignored. -/

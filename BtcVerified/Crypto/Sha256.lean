@@ -8,11 +8,11 @@ import BtcVerified.Crypto.Collision
   roots, txids, and block hashes can be evaluated and checked by reduction
   (`decide`/`#eval`/`native_decide`) against real chain data.
 
-  Collision-resistance is **not** stated here. It is unprovable for a concrete
-  hash (an infinite domain into `BitVec 256` has collisions by pigeonhole, so
-  injectivity is provably false and cannot be assumed without inconsistency).
-  Where a soundness proof needs it, it is carried as a hypothesis over an
-  abstract hash — never as an axiom over this function.
+  Concrete hash binding uses specified colliding inputs (`Collides`) or
+  collisions between supplied preimage lists (`CollisionBetween`). The global
+  `Collision` proposition alone cannot express a relevant collision reduction:
+  some collision exists by pigeonhole. No computational security claim or
+  collision-freedom assumption is made about this function.
 
   The implementation works on 32-bit words (`UInt32`) exactly as the standard
   specifies: big-endian word packing, the standard padding, message schedule,
@@ -134,31 +134,34 @@ theorem sha256_length (msg : List UInt8) : (sha256 msg).length = 32 := by
 theorem sha256d_length (msg : List UInt8) : (sha256d msg).length = 32 :=
   sha256_length _
 
-/-- Two distinct byte strings with the same double-SHA-256 digest. Theorems
-about hash commitments conclude with this as a constructive disjunct — never
-assuming its absence as an axiom, which would be inconsistent for a concrete
-hash (an infinite domain into 32 bytes has collisions by pigeonhole). The
-*intractability* of producing a witness is the consumer's hypothesis. -/
+/-- Global existence of a double-SHA-256 collision. This follows from
+pigeonhole and does not by itself express a reduction from compared objects. -/
 abbrev Collision : Prop := BtcVerified.Collision sha256d
 
-/-- Bitcoin's double hashing inherits collision resistance from `sha256`: a
-`sha256d` collision is a `sha256` collision (in the outer call if the inner
-digests differ, in the inner call otherwise), so resistance of `sha256` gives
-resistance of `sha256d = sha256 ∘ sha256`. -/
-theorem collisionResistant_sha256d (h : CollisionResistant sha256) :
-    CollisionResistant sha256d :=
+/-- The two specified distinct byte strings have equal double-SHA-256 digests. -/
+abbrev Collides (a b : List UInt8) : Prop := BtcVerified.Collides sha256d a b
+
+/-- One preimage from each supplied list witnesses a double-SHA-256 collision. -/
+abbrev CollisionBetween (left right : List (List UInt8)) : Prop :=
+  BtcVerified.CollisionBetween sha256d left right
+
+/-- Mathematical collision freedom of SHA-256 would imply collision freedom of
+its double application. These global premises are false for the concrete hash;
+this conditional algebraic fact makes no computational security claim. -/
+theorem collisionFree_sha256d (h : CollisionFree sha256) :
+    CollisionFree sha256d :=
   h.comp h
 
-/-- The converse: a `sha256d` collision forces a `sha256` collision in the inner
-call, so resistance of `sha256d` gives resistance of `sha256`. Together with
-`collisionResistant_sha256d`, the two resistances are equivalent. -/
-theorem collisionResistant_sha256_of_sha256d (h : CollisionResistant sha256d) :
-    CollisionResistant sha256 :=
-  CollisionResistant.of_comp (f := sha256) (g := sha256) h
+/-- Collision freedom of the double application would imply collision freedom
+of SHA-256 itself because any inner collision persists through the outer call. -/
+theorem collisionFree_sha256_of_sha256d (h : CollisionFree sha256d) :
+    CollisionFree sha256 :=
+  CollisionFree.of_comp (f := sha256) (g := sha256) h
 
-/-- Collision resistance of `sha256` and of `sha256d` are equivalent. -/
-theorem collisionResistant_sha256_iff_sha256d :
-    CollisionResistant sha256 ↔ CollisionResistant sha256d :=
-  ⟨collisionResistant_sha256d, collisionResistant_sha256_of_sha256d⟩
+/-- Global collision freedom of SHA-256 is equivalent to that of its double
+application; both properties are false for these concrete finite-output hashes. -/
+theorem collisionFree_sha256_iff_sha256d :
+    CollisionFree sha256 ↔ CollisionFree sha256d :=
+  ⟨collisionFree_sha256d, collisionFree_sha256_of_sha256d⟩
 
 end BtcVerified.Sha256

@@ -55,15 +55,17 @@ import BtcVerified.Block.BlockHash
     the list).
   * `Chain.tip_commits_prefix`: of two chains sharing a tip hash, the one
     with no more headers carries a prefix (tip-first) of the other's header
-    list — or two concrete byte strings collide under double-SHA-256. No
+    list — or a header encoding from each chain collides under double-SHA-256. No
     relation between the anchors is assumed; this is the hypothesis-minimal
     form of tip commitment.
   * `Chain.tip_commits`: two chains of equal length that share a tip hash
-    carry the same header list — or a concrete collision. The tip hash
-    commits to the entire history.
+    carry the same header list — or a header encoding from each chain collides. The length
+    hypothesis remains explicit.
 -/
 
 namespace BtcVerified
+
+open BtcVerified.Serialize
 
 /- `seal` marks `BlockHeader.hash` irreducible for the remainder of this file
 (it is sugar for `attribute [local irreducible]`): the elaborator treats the
@@ -107,6 +109,10 @@ golden vectors and the block tree speak. -/
 def Chain.toList {a t : Hash256} : Chain a t → List BlockHeader
   | .nil => []
   | .extend tip rest => tip :: rest.toList
+
+/-- The serialized headers hashed along this chain segment, tip-first. -/
+def Chain.hashPreimages {a t : Hash256} (c : Chain a t) : List (List UInt8) :=
+  c.toList.map Codec.encode
 
 /-- Stack a chain segment on top of another whose tip hash is the upper
 segment's anchor. The endpoints compose the way the indices dictate, and
@@ -171,8 +177,8 @@ theorem Chain.isChain_toList {a : Hash256} :
 /-! ## The tip-commitment theorem -/
 
 /-- Of two chains sharing a tip hash, the one with no more headers carries a
-prefix (tip-first) of the other's header list — or two concrete byte strings
-witness a double-SHA-256 collision. Peeling the tip (equal hashes give equal
+prefix (tip-first) of the other's header list — or a header encoding from each
+chain collides under double-SHA-256. Peeling the tip (equal hashes give equal
 headers, via `BlockHeader.hash_binding`, or a collision) forces equal
 `prevBlockHash`es, and recursing identifies the chains one header at a time
 until the shorter one runs out. No relation between the anchors is assumed —
@@ -182,7 +188,8 @@ equality without the length bound. -/
 theorem Chain.tip_commits_prefix {a₁ a₂ : Hash256} :
     {t₁ t₂ : Hash256} → (c₁ : Chain a₁ t₁) → (c₂ : Chain a₂ t₂) → t₁ = t₂ →
       c₁.toList.length ≤ c₂.toList.length →
-      c₁.toList <+: c₂.toList ∨ Sha256.Collision
+      c₁.toList <+: c₂.toList ∨
+        Sha256.CollisionBetween c₁.hashPreimages c₂.hashPreimages
   | _, _, .nil, _, _, _ => Or.inl (List.nil_prefix ..)
   | _, _, .extend .., .nil, _, hlen => by
       simp only [Chain.toList, List.length_nil, List.length_cons] at hlen
@@ -194,18 +201,21 @@ theorem Chain.tip_commits_prefix {a₁ a₂ : Hash256} :
           (congrArg BlockHeader.prevBlockHash htip) (by omega) with hpre | hcol
         · exact Or.inl (by simpa only [Chain.toList, List.cons_prefix_cons]
             using ⟨htip, hpre⟩)
-        · exact Or.inr hcol
-      · exact Or.inr hcol
+        · exact Or.inr (hcol.mono
+            (by intro x hx; exact List.mem_cons_of_mem _ hx)
+            (by intro x hx; exact List.mem_cons_of_mem _ hx))
+      · exact Or.inr (CollisionBetween.of_collides (by simp [Chain.hashPreimages, Chain.toList])
+          (by simp [Chain.hashPreimages, Chain.toList]) hcol)
 
 /-- Two chains of equal length that share a tip hash carry the same header
-list — or two concrete byte strings witness a double-SHA-256 collision. The
+list — or a header encoding from each chain collides under double-SHA-256. The
 tip hash commits to the entire history; the equal-length hypothesis is what
 upgrades `Chain.tip_commits_prefix`'s prefix to equality, and it cannot be
 dropped — a strictly shorter chain anchored higher up shares the tip while
 carrying strictly fewer headers. -/
 theorem Chain.tip_commits {a₁ a₂ t₁ t₂ : Hash256} (c₁ : Chain a₁ t₁) (c₂ : Chain a₂ t₂)
     (heq : t₁ = t₂) (hlen : c₁.toList.length = c₂.toList.length) :
-    c₁.toList = c₂.toList ∨ Sha256.Collision :=
+    c₁.toList = c₂.toList ∨ Sha256.CollisionBetween c₁.hashPreimages c₂.hashPreimages :=
   (c₁.tip_commits_prefix c₂ heq (Nat.le_of_eq hlen)).imp (·.eq_of_length hlen) id
 
 end BtcVerified

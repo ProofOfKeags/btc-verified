@@ -79,8 +79,8 @@ import BtcVerified.Crypto.Merkle
   * `canonical_of_not_mutated`: a leaf list Core accepts (`mutated = false`) is
     the spec's `Canonical` — unconditionally.
   * `eq_of_computeMerkleRoot_eq_of_not_mutated`: two nonempty equal-width leaf
-    lists Core accepts with equal roots are equal — or two concrete byte strings
-    collide under double-SHA-256.
+    lists Core accepts with equal roots are equal, or node preimages from the two
+    trees collide under double-SHA-256.
   * `computeMerkleRoot_fst`: the root Core returns is exactly `computeRoot`, on
     every input.
   * `computeRoot_eq_root`: the bottom-up vector fold computes the spec's tree
@@ -480,7 +480,7 @@ theorem canonical_of_not_mutated (xs : List Hash256)
 
 /-- If Bitcoin Core accepts two nonempty leaf lists of equal enclosing width (no
 mutation) and computes the same merkle root for both, the lists are equal — or
-two concrete byte strings collide under double-SHA-256. Core's single fused check
+node preimages from the two trees collide under double-SHA-256. Core's fused check
 recovers the binding `root_binding_of_canonical` provides. -/
 theorem eq_of_computeMerkleRoot_eq_of_not_mutated {xs ys : List Hash256}
     (h0x : xs ≠ []) (h0y : ys ≠ [])
@@ -488,7 +488,7 @@ theorem eq_of_computeMerkleRoot_eq_of_not_mutated {xs ys : List Hash256}
     (hmx : (computeMerkleRoot xs).2 = false)
     (hmy : (computeMerkleRoot ys).2 = false)
     (hroot : (computeMerkleRoot xs).1 = (computeMerkleRoot ys).1) :
-    xs = ys ∨ Sha256.Collision := by
+    xs = ys ∨ Sha256.CollisionBetween (hashPreimages xs) (hashPreimages ys) := by
   have hrx : (computeMerkleRoot xs).1 = root xs := by
     rw [computeMerkleRoot_fst, computeRoot_eq_root]
   have hry : (computeMerkleRoot ys).1 = root ys := by
