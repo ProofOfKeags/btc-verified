@@ -23,4 +23,12 @@ inductive SequenceLock where
   | seconds (delay : Nat)
   deriving DecidableEq
 
+/-- Interpret an input sequence: bit 31 disables the lock, bit 22 selects
+seconds, and the low 16 bits count blocks or units of 512 seconds. -/
+def SequenceLock.ofUInt32 (sequence : UInt32) : SequenceLock :=
+  if sequence &&& 0x80000000 != 0 then .disabled
+  else if sequence &&& 0x00400000 != 0 then
+    .seconds ((sequence &&& 0x0000ffff).toNat * 512)
+  else .blocks (sequence &&& 0x0000ffff).toNat
+
 end BtcVerified.Consensus
