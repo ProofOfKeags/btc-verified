@@ -44,6 +44,28 @@ def TxBody.isHeightLocksSatisfied (body : TxBody) (utxos : UtxoSet)
           coin.provenance.height ctx.height).getD true
   else true
 
+/-- When activation and version enable sequence locks, every present input
+coin satisfies its time component using MTP before its creation block and
+the candidate parent's MTP. Genesis creation uses ancestor height zero. -/
+def TxBody.TimeLocksSatisfied (body : TxBody) (utxos : UtxoSet)
+    (ctx : TxContext) : Prop :=
+  ctx.sequenceLocksActive = true → 2 ≤ body.version.toNat →
+    ∀ input ∈ body.inputs.val, ∀ coin,
+      utxos.lookup input.prevout = some coin →
+        (Consensus.SequenceLock.ofUInt32 input.sequence).TimeSatisfied
+          (ctx.medianTimePastAt (coin.provenance.height - 1)) ctx.medianTimePast
+
+/-- Check every present input's relative time lock against the supplied
+history. Candidate header time and the absolute-lock clock are not consulted. -/
+def TxBody.isTimeLocksSatisfied (body : TxBody) (utxos : UtxoSet)
+    (ctx : TxContext) : Bool :=
+  if ctx.sequenceLocksActive && decide (2 ≤ body.version.toNat) then
+    body.inputs.val.all fun input =>
+      ((utxos.lookup input.prevout).map fun coin =>
+        (Consensus.SequenceLock.ofUInt32 input.sequence).isTimeSatisfied
+          (ctx.medianTimePastAt (coin.provenance.height - 1)) ctx.medianTimePast).getD true
+  else true
+
 /-- The transaction height-lock checker accepts exactly when every present
 input coin meets its height condition under the activation and version gates. -/
 theorem TxBody.isHeightLocksSatisfied_iff {body : TxBody} {utxos : UtxoSet}
