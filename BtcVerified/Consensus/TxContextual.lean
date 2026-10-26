@@ -30,10 +30,10 @@ import BtcVerified.Consensus.SequenceLocks
   tracks proving these checks redundant under the supply invariant once #37
   provides it.
 
-  The height component of BIP68 is enforced here. Time-based relative locks need
-  per-coin median-time-past history that no leaf provides yet ([Bitcoin Core
-  v28.0, `tx_verify.cpp` lines
-  39–109](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L39-L109)).
+  BIP68 height and time locks are enforced using the supplied context. The
+  caller must provide coherent historical median-time-past; constructing and
+  validating that history remains #122
+  ([pinned calculation](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/consensus/tx_verify.cpp#L45-L110)).
 
   `creates_do_not_overwrite` is BIP30's content in current-state vocabulary: a
   transaction may not create an outpoint that *currently* holds an unspent
@@ -54,9 +54,9 @@ import BtcVerified.Consensus.SequenceLocks
     lookup of the outpoint named by the corresponding input.
   * `Tx.spentCoins_length`: the aligned lists have equal length.
   * `Tx.isAdmissible_iff`: the checker accepts a transaction exactly when it
-    satisfies the nine contextual rules — inputs exist, coinbase spends are
+    satisfies the ten contextual rules — inputs exist, coinbase spends are
     mature, input value and fee stay within `maxMoney`, inputs cover outputs,
-    absolute and relative height locks are satisfied, no created
+    absolute and relative height/time locks are satisfied, no created
     outpoint is currently unspent, and every input passes the script judgment.
 -/
 
@@ -197,7 +197,7 @@ theorem Tx.spentCoins_length {tx : Tx} {utxos : UtxoSet}
 /-- Decide the contextual admissibility premises for one non-coinbase transaction
 step over the UTXO set, script validity supplied as a parameter: inputs exist,
 coinbase spends are mature, input value and fee stay within `maxMoney`, inputs
-cover outputs, absolute and relative height locks are satisfied, no created
+cover outputs, absolute and relative height/time locks are satisfied, no created
 outpoint is currently overwritten, and every input passes the script judgment. -/
 def Tx.isAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
     (clock : LockTimeClock) (ctx : TxContext) (tx : Tx) : Bool :=
@@ -213,6 +213,7 @@ def Tx.isAdmissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
         ≤ Consensus.maxMoney)
     && tx.body.isLockTimeSatisfied clock ctx
     && tx.body.isHeightLocksSatisfied utxos ctx
+    && tx.body.isTimeLocksSatisfied utxos ctx
     && tx.body.creates.all (fun entry => (utxos.lookup entry.1).isNone)
     && (List.range tx.body.inputs.val.length).all
         (fun i => scriptOk (tx.spentCoins utxos) i tx)
@@ -259,6 +260,9 @@ structure Tx.Admissible (scriptOk : ScriptCheck) (utxos : UtxoSet)
   /-- Every present input meets its relative height lock when BIP68 is active
   and the unsigned transaction version is at least two. -/
   height_locks_satisfied : tx.body.HeightLocksSatisfied utxos ctx
+  /-- Every present input meets its relative time lock using the supplied
+  historical MTP and the candidate parent's MTP when activation/version enable it. -/
+  time_locks_satisfied : tx.body.TimeLocksSatisfied utxos ctx
   /-- Creating this transaction's outputs does not overwrite any currently
   unspent outpoint — BIP30's content; its historical carve-outs are the
   activation layer's business (#38/#39; [Bitcoin Core v28.0, `validation.cpp`
@@ -280,12 +284,12 @@ theorem Tx.isAdmissible_iff {scriptOk : ScriptCheck} {utxos : UtxoSet}
       ↔ Tx.Admissible scriptOk utxos clock ctx tx := by
   simp only [isAdmissible, Bool.and_eq_true, List.all_eq_true,
     decide_eq_true_eq, TxBody.isLockTimeSatisfied_iff,
-    TxBody.isHeightLocksSatisfied_iff, List.mem_range]
+    TxBody.isHeightLocksSatisfied_iff, TxBody.isTimeLocksSatisfied_iff, List.mem_range]
   constructor
-  · rintro ⟨⟨⟨⟨⟨⟨⟨⟨hmem, hmature⟩, hinputBound⟩, hcover⟩, hfee⟩,
-      hlock⟩, hheight⟩, habsent⟩, hscripts⟩
+  · rintro ⟨⟨⟨⟨⟨⟨⟨⟨⟨hmem, hmature⟩, hinputBound⟩, hcover⟩, hfee⟩,
+      hlock⟩, hheight⟩, htime⟩, habsent⟩, hscripts⟩
     refine ⟨fun o ho => Finmap.lookup_isSome.mp (hmem o ho), ?_,
-      hinputBound, hcover, hfee, hlock, hheight, ?_, fun i hi => hscripts i hi⟩
+      hinputBound, hcover, hfee, hlock, hheight, htime, ?_, fun i hi => hscripts i hi⟩
     · intro o ho coin hcoin
       have hgetD := hmature o ho
       rw [hcoin] at hgetD
@@ -295,10 +299,10 @@ theorem Tx.isAdmissible_iff {scriptOk : ScriptCheck} {utxos : UtxoSet}
       have hnone := habsent entry hentry
       rw [Option.isNone_iff_eq_none, Finmap.lookup_eq_none] at hnone
       exact hnone
-  · rintro ⟨hmem, hmature, hinputBound, hcover, hfee, hlock, hheight, habsent,
+  · rintro ⟨hmem, hmature, hinputBound, hcover, hfee, hlock, hheight, htime, habsent,
       hscripts⟩
-    refine ⟨⟨⟨⟨⟨⟨⟨⟨fun o ho => Finmap.lookup_isSome.mpr (hmem o ho), ?_⟩,
-      hinputBound⟩, hcover⟩, hfee⟩, hlock⟩, hheight⟩, ?_⟩,
+    refine ⟨⟨⟨⟨⟨⟨⟨⟨⟨fun o ho => Finmap.lookup_isSome.mpr (hmem o ho), ?_⟩,
+      hinputBound⟩, hcover⟩, hfee⟩, hlock⟩, hheight⟩, htime⟩, ?_⟩,
       fun i hi => hscripts i hi⟩
     · intro o ho
       cases hcoin : utxos.lookup o with
