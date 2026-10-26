@@ -21,7 +21,7 @@ boundary — accepted block extensions and the state transitions they produce �
 and other implementations or forks can be compared against the same object.
 Second, no premise embeds an activation height: premises take evaluation
 context (the admitting block's height, block time, and median-time-past) plus
-an explicit lock-time-clock choice, and "which rules are in force when" is an
+explicit sequence-lock activation and lock-time-clock choices; their selection is an
 external mapping, a later leaf (#38). Third, enforced premises have named `Prop`
 specifications and executable decisions. An optimized `Bool` checker carries a
 proved equivalence to its specification; derived properties (conservation, the supply
@@ -34,9 +34,9 @@ limit) are theorems only, never runtime checks.
 `sequenceFinal`, `minCoinbaseScriptSigSize`, `maxCoinbaseScriptSigSize`), each citing
 its Core counterpart. `LockTime.lean` interprets
 the raw transaction lock-time field as disabled, an absolute block height, or
-an absolute time; BIP68 relative locks remain the separate sequence-field leaf
-#46. `TxContext.lean` carries the admitting height plus separately named block
-time and median-time-past values. `LockTimeClock` (`LockTimeClock.lean`)
+an absolute time; `SequenceLock.lean` separately interprets relative locks.
+`TxContext.lean` carries the admitting height, named block time and
+median-time-past values, and sequence-lock activation. `LockTimeClock` (`LockTimeClock.lean`)
 selects which one measures
 absolute time locks: BIP113 changed that choice without changing `IsFinalTx`
 ([Bitcoin Core v28.0, `validation.cpp` lines
@@ -184,8 +184,8 @@ vocabulary — recreating a fully-spent outpoint stays legal; the two 2010
 duplicate-coinbase blocks and Core's post-BIP34 skip of the scan are activation
 history ([Bitcoin Core v28.0, `validation.cpp` lines
 2495–2575](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L2495-L2575))
-(#38/#39), not rule content. BIP68 relative lock times need median-time-past
-history no leaf provides yet and are deferred ([Bitcoin Core v28.0,
+(#38/#39), not rule content. BIP68 height locks are enforced here; time locks
+still need historical median-time-past context (#145; [Bitcoin Core v28.0,
 `tx_verify.cpp` lines
 39–109](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L39-L109)).
 
@@ -202,8 +202,8 @@ Checked claims:
 - `Tx.spentCoins_length`: the aligned input and coin lists have equal length.
 - `Tx.isAdmissible_iff`: the contextual checker accepts exactly when inputs
   exist, coinbase spends are mature, cumulative input value and fee remain
-  within `maxMoney`, inputs cover outputs, the absolute lock-time condition is
-  satisfied, no created outpoint is currently unspent, and every input passes
+  within `maxMoney`, inputs cover outputs, absolute and relative height locks
+  are satisfied, no created outpoint is currently unspent, and every input passes
   the script judgment.
 
 Why it matters: the specification record's fields are, by construction, the
