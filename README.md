@@ -63,7 +63,7 @@ statement of what stands.
   coins and the single action every transaction performs on it, with the
   accounting identity the supply-limit theorem will be built on.
 - [`Consensus/`](BtcVerified/Consensus/README.md) — The reusable transaction
-  premises, including relative height locks, and guarded transition step that
+  premises, including relative height and time locks, and guarded transition step that
   block-extension validity composes,
   stated as runnable checks proved to guarantee exactly the facts the ledger
   accounting needs and run against the first Bitcoin payment ever made.

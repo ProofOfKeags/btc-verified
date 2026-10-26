@@ -20,7 +20,7 @@ release-pinned source citation. Implementation-shaped transcriptions belong in
 boundary — accepted block extensions and the state transitions they produce —
 and other implementations or forks can be compared against the same object.
 Second, no premise embeds an activation height: premises take evaluation
-context (the admitting block's height, block time, and median-time-past) plus
+context (the admitting height, block time, and current/historical median-time-past) plus
 explicit sequence-lock activation and lock-time-clock choices; their selection is an
 external mapping, a later leaf (#38). Third, enforced premises have named `Prop`
 specifications and executable decisions. An optimized `Bool` checker carries a
@@ -36,7 +36,9 @@ its Core counterpart. `LockTime.lean` interprets
 the raw transaction lock-time field as disabled, an absolute block height, or
 an absolute time; `SequenceLock.lean` separately interprets relative locks.
 `TxContext.lean` carries the admitting height, named block time and
-median-time-past values, and sequence-lock activation. `LockTimeClock` (`LockTimeClock.lean`)
+median-time-past values, a historical MTP lookup, and sequence-lock activation.
+The caller supplies the lookup; constructing validated history remains #122.
+`LockTimeClock` (`LockTimeClock.lean`)
 selects which one measures
 absolute time locks: BIP113 changed that choice without changing `IsFinalTx`
 ([Bitcoin Core v28.0, `validation.cpp` lines
@@ -135,35 +137,50 @@ are outside this judgment (#37/#38); it does not establish full validity.
 
 An input sequence is interpreted as disabled, a block delay, or a delay in
 seconds. The height condition compares the coin's creation height plus delay
-with the admitting height; time-based locks impose no height condition.
+with the admitting height. The time condition compares historical MTP plus
+the seconds delay with the candidate parent's MTP. Each unit imposes no
+condition on the other axis.
 
 Checked claims:
 
 - `SequenceLock.isHeightSatisfied_iff`: the executable height comparison
   decides the semantic condition.
+- `SequenceLock.isTimeSatisfied_iff`: the executable time comparison decides
+  the semantic condition.
 - `SequenceLock.blocks_heightSatisfied_iff`: the inclusive height threshold
   equals Core's signed last-invalid-height comparison, including at zero.
 - `SequenceLock.blocks_same_height_iff`: a same-block spend satisfies a block
   delay exactly when that delay is zero.
+- `SequenceLock.seconds_timeSatisfied_iff`: the inclusive time threshold
+  equals the signed last-invalid-time comparison, including at zero.
+- `SequenceLock.seconds_same_time_iff`: equal origin/evaluation MTP satisfy a
+  time delay exactly when it is zero.
 
 Why it matters: the semantic units prevent confusing block ages with seconds,
 and the inclusive threshold handles zero without natural-number underflow.
 
 ### `BtcVerified.Consensus.SequenceLocks`
 
-The height-lock premise compares each input with its own UTXO coin. The caller
+The height and time premises compare each input with its own UTXO coin. The caller
 supplies `TxContext.sequenceLocksActive`; the checker also requires unsigned
 version at least two before enforcing relative locks. Missing coins remain
-the separate existence premise's responsibility. Time enforcement is #145;
-deriving activation and historical context remains #132/#122.
+the separate existence premise's responsibility. Time locks use
+`medianTimePastAt (coinHeight - 1)`, clamped to genesis at height zero, and
+compare against `medianTimePast`, independently of candidate header time or
+the absolute-lock clock. Deriving activation and authenticating the supplied
+historical context remains #132/#122.
 
 Checked claims:
 
 - `TxBody.isHeightLocksSatisfied_iff`: the executable transaction check decides
   the per-input height specification with its activation and version gates.
+- `TxBody.isTimeLocksSatisfied_iff`: the executable transaction check decides
+  the per-input time specification against the supplied history.
+- `TxBody.TimeLocksSatisfied.same_block_delay_eq_zero`: an enforced time lock
+  on a same-block spend has zero delay when history agrees with parent MTP.
 
 Why it matters: `Tx.isAdmissible` and `UtxoSet.applyChecked` now enforce the
-height component while retaining their existing accounting guarantees.
+height and time components while retaining their existing accounting guarantees.
 
 ## Contextual transaction premises
 
@@ -184,10 +201,9 @@ vocabulary — recreating a fully-spent outpoint stays legal; the two 2010
 duplicate-coinbase blocks and Core's post-BIP34 skip of the scan are activation
 history ([Bitcoin Core v28.0, `validation.cpp` lines
 2495–2575](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L2495-L2575))
-(#38/#39), not rule content. BIP68 height locks are enforced here; time locks
-still need historical median-time-past context (#145; [Bitcoin Core v28.0,
-`tx_verify.cpp` lines
-39–109](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_verify.cpp#L39-L109)).
+(#38/#39), not rule content. BIP68 height and time locks are enforced against
+the supplied context; constructing coherent historical median-time-past from
+validated headers remains #122.
 
 Checked claims:
 
@@ -202,7 +218,7 @@ Checked claims:
 - `Tx.spentCoins_length`: the aligned input and coin lists have equal length.
 - `Tx.isAdmissible_iff`: the contextual checker accepts exactly when inputs
   exist, coinbase spends are mature, cumulative input value and fee remain
-  within `maxMoney`, inputs cover outputs, absolute and relative height locks
+  within `maxMoney`, inputs cover outputs, absolute and relative height/time locks
   are satisfied, no created outpoint is currently unspent, and every input passes
   the script judgment.
 
