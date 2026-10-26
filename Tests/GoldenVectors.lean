@@ -530,7 +530,8 @@ preceding [block 169 on mempool.space](https://mempool.space/block/000000002a22c
 def block170Context : TxContext :=
   { height := 170
     blockTime := 1231731025
-    medianTimePast := 1231715347 }
+    medianTimePast := 1231715347
+    sequenceLocksActive := false }
 
 -- The semantic lock-time interpretation exposes the selected axis, and the
 -- two named clocks can produce different lock-time satisfaction results.

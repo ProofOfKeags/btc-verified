@@ -5,9 +5,9 @@ import BtcVerified.Consensus.LockTimeClock
   Where and when a transaction is being admitted to the chain: the height of
   the admitting block, its header time, and the preceding chain's
   median-time-past. This is
-  evaluation context, never activation — the contextual rules read these
-  values to decide *this* transaction *here*; "which rules are in force at
-  this height" is the ruleset mapping's business (#38).
+  evaluation context, including whether relative sequence locks are active.
+  The caller supplies that choice; deriving it from network and chain history
+  remains the ruleset mapping's business (#38).
 
   Both clocks BIP113 chose between remain present and named here; which one
   measures an absolute lock is `LockTimeClock`'s business
@@ -31,6 +31,9 @@ structure TxContext where
   ([Bitcoin Core v28.0, `validation.cpp` lines
   4224–4230](https://github.com/bitcoin/bitcoin/blob/v28.0/src/validation.cpp#L4224-L4230)). -/
   medianTimePast : Nat
+  /-- Whether the admitting block enforces BIP68 sequence locks. The caller
+  selects this rule; the transaction version gate is checked separately. -/
+  sequenceLocksActive : Bool
   deriving DecidableEq
 
 /-- Read the named context time selected by the active absolute-lock rule. -/
