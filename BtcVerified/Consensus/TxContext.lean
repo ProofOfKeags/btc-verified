@@ -9,6 +9,10 @@ import BtcVerified.Consensus.LockTimeClock
   The caller supplies that choice; deriving it from network and chain history
   remains the ruleset mapping's business (#38).
 
+  Historical median-time-past is supplied by height for time-based sequence
+  locks. This context does not authenticate that history; the caller must
+  provide the candidate's parent-chain values (#122).
+
   Both clocks BIP113 chose between remain present and named here; which one
   measures an absolute lock is `LockTimeClock`'s business
   (`Consensus/LockTimeClock.lean`), read back through `TxContext.timeFor`.
@@ -16,8 +20,8 @@ import BtcVerified.Consensus.LockTimeClock
 
 namespace BtcVerified
 
-/-- The admitting height, both named clocks, and explicit sequence-lock
-activation supplied to contextual transaction rules. -/
+/-- The admitting height, named clocks, historical median-time-past, and
+explicit sequence-lock activation supplied to contextual transaction rules. -/
 structure TxContext where
   /-- Height of the block admitting the transaction (Core's `nSpendHeight` in
   [`CheckTxInputs`, Bitcoin Core v28.0, `tx_verify.cpp` lines
@@ -34,7 +38,11 @@ structure TxContext where
   /-- Whether the admitting block enforces BIP68 sequence locks. The caller
   selects this rule; the transaction version gate is checked separately. -/
   sequenceLocksActive : Bool
-  deriving DecidableEq
+  /-- Median-time-past at a height in the candidate's ancestor chain. Time
+  locks query the height before a coin's creation, clamped to zero for genesis
+  ([pinned Core](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/consensus/tx_verify.cpp#L79-L94)).
+  The caller supplies coherent history; no default or fallback is assumed. -/
+  medianTimePastAt : Nat → Nat
 
 /-- Read the named context time selected by the active absolute-lock rule. -/
 def TxContext.timeFor (ctx : TxContext) : LockTimeClock → Nat
