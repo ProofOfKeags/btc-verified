@@ -14,6 +14,11 @@ import BtcVerified.Consensus.TxContext
   This leaf supplies the height component. Time locks require historical MTP
   context and are the next increment in #145; this component alone is not a
   complete BIP68 verdict.
+
+  Checked claims:
+
+  * `TxBody.isHeightLocksSatisfied_iff`: the executable height-lock check
+    decides the per-input specification under its activation and version gates.
 -/
 
 namespace BtcVerified
@@ -38,5 +43,24 @@ def TxBody.isHeightLocksSatisfied (body : TxBody) (utxos : UtxoSet)
         (Consensus.SequenceLock.ofUInt32 input.sequence).isHeightSatisfied
           coin.provenance.height ctx.height).getD true
   else true
+
+/-- The transaction height-lock checker accepts exactly when every present
+input coin meets its height condition under the activation and version gates. -/
+theorem TxBody.isHeightLocksSatisfied_iff {body : TxBody} {utxos : UtxoSet}
+    {ctx : TxContext} :
+    body.isHeightLocksSatisfied utxos ctx = true ↔
+      body.HeightLocksSatisfied utxos ctx := by
+  by_cases hactive : ctx.sequenceLocksActive = true
+  · by_cases hversion : 2 ≤ body.version.toNat
+    · simp only [isHeightLocksSatisfied, HeightLocksSatisfied, hactive, hversion,
+        decide_true, Bool.and_self, ↓reduceIte, true_implies, List.all_eq_true]
+      apply forall_congr'
+      intro input
+      apply forall_congr'
+      intro _
+      cases hcoin : utxos.lookup input.prevout <;>
+        simp [Consensus.SequenceLock.isHeightSatisfied_iff]
+    · simp [isHeightLocksSatisfied, HeightLocksSatisfied, hactive, hversion]
+  · simp [isHeightLocksSatisfied, HeightLocksSatisfied, hactive]
 
 end BtcVerified
