@@ -180,6 +180,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.LockTime.isPast_iff
 #assert_axioms BtcVerified.Consensus.LockTime.ofUInt32_past_iff
 #assert_axioms BtcVerified.Consensus.SequenceLock.isHeightSatisfied_iff
+#assert_axioms BtcVerified.Consensus.SequenceLock.isTimeSatisfied_iff
 #assert_axioms BtcVerified.Consensus.SequenceLock.blocks_heightSatisfied_iff
 #assert_axioms BtcVerified.Consensus.SequenceLock.blocks_same_height_iff
 #assert_axioms BtcVerified.TxBody.isHeightLocksSatisfied_iff

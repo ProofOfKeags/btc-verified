@@ -14,6 +14,8 @@ import BtcVerified.Consensus.Limits
 
   * `SequenceLock.isHeightSatisfied_iff`: the height checker decides its
     semantic age condition.
+  * `SequenceLock.isTimeSatisfied_iff`: the time checker decides its
+    semantic age condition.
   * `SequenceLock.blocks_heightSatisfied_iff`: the inclusive age condition
     equals the signed last-invalid-height comparison, including at zero.
   * `SequenceLock.blocks_same_height_iff`: spending at the creation height
@@ -72,6 +74,14 @@ theorem SequenceLock.isHeightSatisfied_iff {lock : SequenceLock}
     lock.isHeightSatisfied birthHeight height = true ↔
       lock.HeightSatisfied birthHeight height := by
   cases lock <;> simp [isHeightSatisfied, HeightSatisfied]
+
+/-- The time checker accepts exactly when the relative time condition holds,
+including the unconstrained disabled and block-based cases. -/
+theorem SequenceLock.isTimeSatisfied_iff {lock : SequenceLock}
+    {birthTime time : Nat} :
+    lock.isTimeSatisfied birthTime time = true ↔
+      lock.TimeSatisfied birthTime time := by
+  cases lock <;> simp [isTimeSatisfied, TimeSatisfied]
 
 /-- The first-valid height condition equals a strict comparison against the
 signed last-invalid height used by Core, even when the first valid height is
