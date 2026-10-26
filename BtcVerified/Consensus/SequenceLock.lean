@@ -31,4 +31,16 @@ def SequenceLock.ofUInt32 (sequence : UInt32) : SequenceLock :=
     .seconds ((sequence &&& 0x0000ffff).toNat * 512)
   else .blocks (sequence &&& 0x0000ffff).toNat
 
+/-- The height component is satisfied once the coin has aged by the block
+delay. Disabled and time-based locks impose no height requirement. -/
+def SequenceLock.HeightSatisfied : SequenceLock → Nat → Nat → Prop
+  | .blocks delay, birthHeight, height => birthHeight + delay ≤ height
+  | _, _, _ => True
+
+/-- Decide the height component using the first valid height, including zero.
+Time-based locks are checked separately by the time component. -/
+def SequenceLock.isHeightSatisfied : SequenceLock → Nat → Nat → Bool
+  | .blocks delay, birthHeight, height => decide (birthHeight + delay ≤ height)
+  | _, _, _ => true
+
 end BtcVerified.Consensus
