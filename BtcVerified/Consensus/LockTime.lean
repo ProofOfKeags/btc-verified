@@ -15,8 +15,8 @@ import BtcVerified.Consensus.Limits
 
   This type describes the transaction's absolute `nLockTime`. BIP68 relative
   lock times interpret each input's sequence field in `SequenceLock.lean`;
-  `SequenceLocks.lean` checks their height component. Time enforcement is
-  the next increment tracked by #145.
+  `SequenceLocks.lean` checks their height and time components against the
+  supplied transaction context.
 -/
 
 namespace BtcVerified.Consensus
