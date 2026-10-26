@@ -131,6 +131,40 @@ specification. The [kernel](../../Kernel/README.md) proves its packed checker
 decides these premises. Block position, height commitments, subsidy, and fees
 are outside this judgment (#37/#38); it does not establish full validity.
 
+### `BtcVerified.Consensus.SequenceLock`
+
+An input sequence is interpreted as disabled, a block delay, or a delay in
+seconds. The height condition compares the coin's creation height plus delay
+with the admitting height; time-based locks impose no height condition.
+
+Checked claims:
+
+- `SequenceLock.isHeightSatisfied_iff`: the executable height comparison
+  decides the semantic condition.
+- `SequenceLock.blocks_heightSatisfied_iff`: the inclusive height threshold
+  equals Core's signed last-invalid-height comparison, including at zero.
+- `SequenceLock.blocks_same_height_iff`: a same-block spend satisfies a block
+  delay exactly when that delay is zero.
+
+Why it matters: the semantic units prevent confusing block ages with seconds,
+and the inclusive threshold handles zero without natural-number underflow.
+
+### `BtcVerified.Consensus.SequenceLocks`
+
+The height-lock premise compares each input with its own UTXO coin. The caller
+supplies `TxContext.sequenceLocksActive`; the checker also requires unsigned
+version at least two before enforcing relative locks. Missing coins remain
+the separate existence premise's responsibility. Time enforcement is #145;
+deriving activation and historical context remains #132/#122.
+
+Checked claims:
+
+- `TxBody.isHeightLocksSatisfied_iff`: the executable transaction check decides
+  the per-input height specification with its activation and version gates.
+
+Why it matters: `Tx.isAdmissible` and `UtxoSet.applyChecked` now enforce the
+height component while retaining their existing accounting guarantees.
+
 ## Contextual transaction premises
 
 `TxContextual.lean`: what a non-coinbase transaction must satisfy relative to the
