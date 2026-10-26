@@ -14,6 +14,10 @@ import BtcVerified.Consensus.Limits
 
   * `SequenceLock.isHeightSatisfied_iff`: the height checker decides its
     semantic age condition.
+  * `SequenceLock.blocks_heightSatisfied_iff`: the inclusive age condition
+    equals the signed last-invalid-height comparison, including at zero.
+  * `SequenceLock.blocks_same_height_iff`: spending at the creation height
+    satisfies a block lock exactly when its delay is zero.
 -/
 
 namespace BtcVerified.Consensus
@@ -55,5 +59,21 @@ theorem SequenceLock.isHeightSatisfied_iff {lock : SequenceLock}
     lock.isHeightSatisfied birthHeight height = true ↔
       lock.HeightSatisfied birthHeight height := by
   cases lock <;> simp [isHeightSatisfied, HeightSatisfied]
+
+/-- The first-valid height condition equals a strict comparison against the
+signed last-invalid height used by Core, even when the first valid height is
+zero ([calculation and evaluation](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/consensus/tx_verify.cpp#L95-L110)). -/
+theorem SequenceLock.blocks_heightSatisfied_iff {delay birthHeight height : Nat} :
+    (SequenceLock.blocks delay).HeightSatisfied birthHeight height ↔
+      (birthHeight : Int) + (delay : Int) - 1 < (height : Int) := by
+  simp only [HeightSatisfied]
+  omega
+
+/-- A coin spent at its creation height satisfies a block delay exactly when
+the delay is zero. -/
+theorem SequenceLock.blocks_same_height_iff {delay height : Nat} :
+    (SequenceLock.blocks delay).HeightSatisfied height height ↔ delay = 0 := by
+  simp only [HeightSatisfied]
+  omega
 
 end BtcVerified.Consensus
