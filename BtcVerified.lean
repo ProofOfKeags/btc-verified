@@ -35,6 +35,7 @@ import BtcVerified.Consensus.LockTime
 import BtcVerified.Consensus.SequenceLock
 import BtcVerified.Consensus.LockTimeClock
 import BtcVerified.Consensus.TxContext
+import BtcVerified.Consensus.SequenceLocks
 import BtcVerified.Consensus.ScriptCheck
 import BtcVerified.Consensus.TxStateless
 import BtcVerified.Consensus.CoinbaseStateless
