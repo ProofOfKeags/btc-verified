@@ -9,6 +9,11 @@ import BtcVerified.Consensus.Limits
 
   The wire interpretation follows the pinned
   [Core sequence constants](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/primitives/transaction.h#L84-L114).
+
+  Checked claims:
+
+  * `SequenceLock.isHeightSatisfied_iff`: the height checker decides its
+    semantic age condition.
 -/
 
 namespace BtcVerified.Consensus
@@ -42,5 +47,13 @@ Time-based locks are checked separately by the time component. -/
 def SequenceLock.isHeightSatisfied : SequenceLock → Nat → Nat → Bool
   | .blocks delay, birthHeight, height => decide (birthHeight + delay ≤ height)
   | _, _, _ => true
+
+/-- The height checker accepts exactly when the relative height condition
+holds, including the unconstrained disabled and time-based cases. -/
+theorem SequenceLock.isHeightSatisfied_iff {lock : SequenceLock}
+    {birthHeight height : Nat} :
+    lock.isHeightSatisfied birthHeight height = true ↔
+      lock.HeightSatisfied birthHeight height := by
+  cases lock <;> simp [isHeightSatisfied, HeightSatisfied]
 
 end BtcVerified.Consensus
