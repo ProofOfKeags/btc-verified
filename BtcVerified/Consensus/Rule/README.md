@@ -1,0 +1,17 @@
+# BtcVerified/Consensus/Rule
+
+### `BtcVerified.Consensus.Rule.Composition`
+
+Conjunction and finite bundles combine verified requirements on the same
+input. `contramap` supplies smaller rules with their own view of that input.
+`Refines` states implication between requirements without equality of functions.
+
+Checked claims:
+
+- `Rule.all_refines_of_mem`: an accepted bundle establishes every member.
+- `Rule.all_append_holds`: appending bundles conjoins their requirements.
+- `Rule.and_check_eq_left_of_refines`: an implied check can be omitted.
+- `Rule.and_atHeight_holds_iff_left`: an inactive addition has no effect.
+
+Why it matters: one deployment can gate a whole bundle while later proofs
+extract the individual named requirements they consume.
