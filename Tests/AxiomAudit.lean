@@ -49,12 +49,36 @@ elab "#assert_axioms " id:ident : command => do
 
 /-! ## Rule composition and activation -/
 
+#assert_axioms BtcVerified.Consensus.Rule.ext
+#assert_axioms BtcVerified.Consensus.instPartialOrderRule
+#assert_axioms BtcVerified.Consensus.instSemilatticeInfRule
+#assert_axioms BtcVerified.Consensus.instOrderTopRule
+#assert_axioms BtcVerified.Consensus.Rule.holds_inf
+#assert_axioms BtcVerified.Consensus.Rule.check_inf
+#assert_axioms BtcVerified.Consensus.Rule.holds_top
+#assert_axioms BtcVerified.Consensus.Rule.check_top
 #assert_axioms BtcVerified.Consensus.Rule.ofDecidable
 #assert_axioms BtcVerified.Consensus.Rule.when
 #assert_axioms BtcVerified.Consensus.Rule.atHeight
 #assert_axioms BtcVerified.Consensus.Rule.atHeight_check_before
 #assert_axioms BtcVerified.Consensus.Rule.atHeight_check_of_le
 #assert_axioms BtcVerified.TxBody.lockTimeRule
+
+#assert_axioms BtcVerified.Consensus.Rule.and
+#assert_axioms BtcVerified.Consensus.Rule.all
+#assert_axioms BtcVerified.Consensus.Rule.contramap
+#assert_axioms BtcVerified.Consensus.Rule.all_le_of_mem
+#assert_axioms BtcVerified.Consensus.Rule.all_nil
+#assert_axioms BtcVerified.Consensus.Rule.all_cons
+#assert_axioms BtcVerified.Consensus.Rule.all_append
+#assert_axioms BtcVerified.Consensus.Rule.map_all
+#assert_axioms BtcVerified.Consensus.Rule.inf_atHeight_holds_iff_left
+#assert_axioms BtcVerified.TxBody.finalityRules
+#assert_axioms BtcVerified.TxBody.lockTimeSatisfied_blockTime_of_medianTimePast
+#assert_axioms BtcVerified.TxBody.finalityRules_holds_before
+#assert_axioms BtcVerified.TxBody.finalityRules_holds_of_le
+#assert_axioms BtcVerified.TxBody.finalityRules_check_before
+#assert_axioms BtcVerified.TxBody.finalityRules_check_of_le
 
 /-! ## Serialization -/
 

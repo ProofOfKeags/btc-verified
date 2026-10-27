@@ -45,3 +45,5 @@ import BtcVerified.Consensus.ApplyChecked
 import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle
 import BtcVerified.Packed.Codec
+import BtcVerified.Consensus.Rule.Composition
+import BtcVerified.Consensus.Activation.Finality
