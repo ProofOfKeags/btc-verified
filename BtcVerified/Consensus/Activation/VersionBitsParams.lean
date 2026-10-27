@@ -27,4 +27,10 @@ structure VersionBitsParams where
   /-- Minimum height of the first block of an active period. -/
   minActivationHeight : Nat
 
+/-- A raw header version signals only when its top three bits are 001 and its
+selected deployment bit is set; negative signed header versions do not signal
+([pinned Core](https://github.com/bitcoin/bitcoin/blob/fc6923cec5b440b611700f6629d8c6a61c6f11bd/src/versionbits_impl.h#L77-L81)). -/
+def VersionBitsParams.signals (params : VersionBitsParams) (version : UInt32) : Bool :=
+  (version &&& 0xe0000000) == 0x20000000 && version.toNat.testBit params.bit.val
+
 end BtcVerified.Consensus
