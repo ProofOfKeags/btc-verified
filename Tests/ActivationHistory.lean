@@ -40,5 +40,8 @@ private def failingBranch := linked commonHistory.1
 #guard (startBoundary.extend successfulBranch.2).progress.state == .active
 #guard (startBoundary.extend failingBranch.2).progress.state == .failed
 #guard (startBoundary.extend successfulBranch.2).progress.nextHeight == 12
+#guard (startBoundary.extend failingBranch.2).progress.nextHeight == 12
+#guard ((VersionBitsBoundary.initial params).extend
+  (successfulBranch.2.append commonHistory.2)).progress.state == .active
 
 end Tests.ActivationHistory
