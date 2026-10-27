@@ -3,9 +3,9 @@ import Tests.TransactionFixtures
 /-!
   # Combined requirements and clock refinement examples
 
-  Exercise shared activation, context projection, and cumulative absolute
-  finality. The incoherent-clock counterexample demonstrates why the
-  refinement theorem explicitly requires clock order.
+  Exercise standard lattice laws, context projection, shared activation,
+  and cumulative absolute finality. The incoherent-clock counterexample
+  demonstrates why the refinement theorem explicitly requires clock order.
 -/
 
 namespace Tests.ActivationBundles
@@ -16,6 +16,25 @@ set_option linter.hashCommand false
 
 private def lowerBound : Rule Nat := .ofDecidable fun amount => 3 ≤ amount
 private def upperBound : Rule Nat := .ofDecidable fun amount => amount ≤ 10
+
+-- Standard algebra removes redundant checks and preserves rules under projection.
+example : (lowerBound ⊓ upperBound) ⊓ lowerBound = lowerBound ⊓ upperBound :=
+  inf_eq_left.mpr inf_le_left
+
+example (amount : Nat) : ((lowerBound ⊓ upperBound) ⊓ lowerBound).check amount =
+    (lowerBound ⊓ upperBound).check amount := by
+  rw [inf_eq_left.mpr inf_le_left]
+
+example : Rule.contramap (Prod.snd : Nat × Nat → Nat) (lowerBound ⊓ upperBound) =
+    Rule.contramap Prod.snd lowerBound ⊓ Rule.contramap Prod.snd upperBound :=
+  map_inf _ _ _
+
+example : Rule.contramap (Prod.snd : Nat × Nat → Nat) ⊤ = ⊤ := map_top _
+
+example {left right : Rule Nat} (h : left ≤ right) :
+    Rule.contramap (Prod.snd : Nat × Nat → Nat) left ≤ Rule.contramap Prod.snd right :=
+  OrderHomClass.monotone (Rule.contramap Prod.snd) h
+
 private def deployed : Rule (Nat × Nat) :=
   let contextualRule := Rule.contramap Prod.snd (Rule.all [lowerBound, upperBound])
   contextualRule.atHeight Prod.fst 100
