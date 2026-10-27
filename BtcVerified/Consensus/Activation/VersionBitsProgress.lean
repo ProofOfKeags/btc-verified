@@ -9,6 +9,11 @@ import BtcVerified.Consensus.Activation.VersionBitsTransition
   Core's backwards cache shortcut additionally relies on timestamp-valid ancestry;
   no equivalence with that optimized algorithm is claimed for arbitrary headers.
 
+  Checked claims:
+
+  * `VersionBitsProgress.consume_append`: consuming concatenated headers is sequential consumption.
+  * `VersionBitsProgress.nextHeight_consume`: each consumed header advances the next height once.
+  * `VersionBitsProgress.recentTimes_length_advance`: each step retains at most eleven timestamps.
 -/
 
 namespace BtcVerified.Consensus
@@ -73,5 +78,13 @@ theorem VersionBitsProgress.nextHeight_consume (params : VersionBitsParams)
     rw [ih]
     change progress.nextHeight + 1 + headers.length = progress.nextHeight + (headers.length + 1)
     omega
+
+/-- After consuming a header, the retained MTP window contains at most eleven timestamps. -/
+theorem VersionBitsProgress.recentTimes_length_advance (params : VersionBitsParams)
+    (progress : VersionBitsProgress) (header : BlockHeader) :
+    (progress.advance params header).recentTimes.length ≤ 11 := by
+  change ((header.time :: progress.recentTimes).take 11).length ≤ 11
+  rw [List.length_take]
+  exact Nat.min_le_left _ _
 
 end BtcVerified.Consensus
