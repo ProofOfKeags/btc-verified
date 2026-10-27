@@ -32,5 +32,11 @@ private def afterSecond := afterFirst.consume params signalingPeriod
 #guard VersionBitsProgress.initial.state == .defined
 #guard (VersionBitsProgress.initial.consume params (firstPeriod.take 3)).state == .defined
 #guard afterFirst.state == .started
+#guard afterFirst.nextHeight == 4
+#guard afterFirst.periodSignals == 0
+#guard (afterFirst.consume params (signalingPeriod.take 2)).periodSignals == 2
+#guard afterSecond.state == .lockedIn
+#guard afterSecond.periodSignals == 0
+#guard (afterSecond.consume params waitingPeriod).state == .active
 
 end Tests.ActivationVersionBits
