@@ -34,4 +34,6 @@ private def deployed :=
 private def finalBody : TxBody :=
   { lockedBody with inputs := ⟨[{ ordinaryInput with sequence := 0xffffffff }], by decide⟩ }
 
+#guard deployed.check (context 100, finalBody)
+
 end Tests.ActivationHeight
