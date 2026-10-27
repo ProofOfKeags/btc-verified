@@ -76,4 +76,25 @@ theorem all_append_check (left right : List (Rule α)) (x : α) :
     (all (left ++ right)).check x = ((all left).check x && (all right).check x) := by
   simp [all]
 
+/-- A rule that implies another is unchanged semantically by adding it. -/
+theorem and_holds_iff_left_of_refines {stronger weaker : Rule α}
+    (h : stronger.Refines weaker) (x : α) :
+    (and stronger weaker).Holds x ↔ stronger.Holds x :=
+  ⟨And.left, fun accepted => ⟨accepted, h x accepted⟩⟩
+
+/-- An implied requirement can be omitted without changing acceptance. -/
+theorem and_check_eq_left_of_refines {stronger weaker : Rule α}
+    (h : stronger.Refines weaker) (x : α) :
+    (and stronger weaker).check x = stronger.check x := by
+  apply Bool.eq_iff_iff.mpr
+  rw [(and stronger weaker).check_iff, stronger.check_iff]
+  exact and_holds_iff_left_of_refines h x
+
+/-- A bundle is unchanged semantically by adding a requirement it implies. -/
+theorem all_cons_holds_iff_of_refines {rules : List (Rule α)} {rule : Rule α}
+    (h : (all rules).Refines rule) (x : α) :
+    (all (rule :: rules)).Holds x ↔ (all rules).Holds x := by
+  rw [all_cons_holds]
+  exact ⟨And.right, fun accepted => ⟨h x accepted, accepted⟩⟩
+
 end BtcVerified.Consensus.Rule
