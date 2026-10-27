@@ -54,3 +54,20 @@ Checked claims:
 Why it matters: applicability has a named state and an explicit transition
 rule. Period observations are inputs here; no supplied observation is silently
 claimed to be authenticated chain history.
+
+### `BtcVerified.Consensus.Activation.Temporary`
+
+`Rule.during` uses an inclusive time window; reversed endpoints select no
+inputs. `Rule.inStates` selects exactly the listed deployment phases. Both
+are checked implications and can nest around the same requirement.
+
+Checked claims:
+
+- `Rule.during_check_iff`: enforcement occurs exactly within the window.
+- `Rule.check_during_of_reversed`: an empty window imposes no obligation.
+- `Rule.inStates_check_iff`: enforcement occurs exactly in a listed phase.
+
+Why it matters: a permanent conditional predicate can express a temporary
+obligation. Its expiry does not require deleting it from the ruleset.
+Synthetic signaling examples exercise these selectors without claiming to
+reproduce every detail of the historical BIP91 or BIP148 clients.

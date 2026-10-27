@@ -11,8 +11,11 @@ import BtcVerified.Consensus.Activation.VersionBitsState
 
   * `Rule.during_check_iff` and `Rule.inStates_check_iff`: each selector enforces
     precisely the requirement on its specified domain.
-  * The `check_during_*` and `check_inStates_*` laws identify the exact selected
-    decision and show that an inapplicable obligation accepts unconditionally.
+  * `Rule.check_during_of_mem` and `Rule.check_during_of_not_mem`: the window
+    selects the requirement's decision or imposes no obligation.
+  * `Rule.check_inStates_of_mem` and `Rule.check_inStates_of_not_mem`: a listed
+    state selects the requirement's decision; other states impose no obligation.
+  * `Rule.check_during_of_reversed`: reversed endpoints impose no obligation.
 -/
 
 namespace BtcVerified.Consensus
