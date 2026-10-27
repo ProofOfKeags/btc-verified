@@ -42,5 +42,12 @@ private def inStarted : Rule Input := Rule.inStates (fun input => input.2.1) [.s
 private def temporary : Rule Input := Rule.during Prod.fst 1501545600 1510704000 inStarted
 
 -- Inclusive first boundary; prefix and selected bit are independent requirements.
+#guard temporary.check (1501545599, .started, header 0)
+#guard temporary.check (1501545600, .started, header 0x20000002)
+#guard !temporary.check (1501545600, .started, header 0x20000000)
+#guard !temporary.check (1501545600, .started, header 0x40000002)
+-- Inclusive last boundary, followed by cessation even for a non-signaling header.
+#guard temporary.check (1510704000, .started, header 0x20000002)
+#guard !temporary.check (1510704000, .started, header 0x20000000)
 
 end Tests.TemporaryExamples
