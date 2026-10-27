@@ -36,13 +36,35 @@ The [activation leaves](Activation/README.md) use that boundary to select
 requirements, starting with established activation heights. Existing named
 transaction predicates remain available to downstream proofs.
 
+For a fixed input type, rules form a partial order: `stronger ≤ weaker` means
+that satisfying the stronger requirement implies the weaker one. Conjunction
+is meet (`⊓`); top (`⊤`) accepts every input. The
+[composition leaves](Rule/README.md) use these standard mathlib structures for
+finite bundles and context projection.
+
+`Rule.ext` identifies rules whose requirements are pointwise equivalent:
+`check_iff` then determines the same Boolean result for every input. This is
+extensional equality of rules and checkers; it does not assert equal runtime
+cost or evaluation order.
+
+Downstream code needing categorical language can import
+`Mathlib.CategoryTheory.Category.Preorder` to obtain the standard thin category
+from this order. The rule layer needs no separate category hierarchy or
+category import.
+
 Checked claims:
 
 - `Rule.ofDecidable`: the packaged checker decides the supplied predicate.
 - `Rule.when`: conditional enforcement retains checker/specification agreement.
+- `Rule.ext`: equivalent requirements determine equal checked rules.
+- `instPartialOrderRule`, `instSemilatticeInfRule`, and `instOrderTopRule`:
+  implication, conjunction, and universal acceptance satisfy the standard
+  order laws.
+- `Rule.check_inf` and `Rule.check_top`: meet uses Boolean conjunction and
+  top's checker always accepts.
 
-Why it matters: the applicability of a requirement can change without changing
-its statement or the proofs that consume it.
+Why it matters: applicability can change without changing a requirement's
+statement, while standard algebraic laws compose the rules and their proofs.
 
 ## Existing transaction requirements
 
