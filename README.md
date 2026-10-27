@@ -63,9 +63,9 @@ statement of what stands.
   coins and the single action every transaction performs on it, with the
   accounting identity the supply-limit theorem will be built on.
 - [`Consensus/`](BtcVerified/Consensus/README.md) — The reusable transaction
-  premises and guarded transition step that block-extension validity composes,
-  stated as runnable checks proved to guarantee exactly the facts the ledger
-  accounting needs and run against the first Bitcoin payment ever made.
+  requirements, height-activated checks, and guarded transition step that
+  block-extension validity composes, with proofs connecting executable
+  decisions to the facts the ledger accounting needs.
 - [`Impl/`](BtcVerified/Impl/README.md) — Functions transcribed from Bitcoin
   Core's own source code and proved to satisfy the specification, starting
   with its merkle-root computation.
