@@ -21,4 +21,25 @@ def Rule.inStates (state : α → VersionBitsState) (states : List VersionBitsSt
     (requirement : Rule α) : Rule α :=
   Rule.when (Rule.ofDecidable fun input => state input ∈ states) requirement
 
+/-- A windowed checker enforces its requirement exactly within its inclusive window. -/
+theorem Rule.during_check_iff (clock : α → Nat) (first last : Nat)
+    (requirement : Rule α) (input : α) :
+    (Rule.during clock first last requirement).check input = true ↔
+      (first ≤ clock input ∧ clock input ≤ last → requirement.Holds input) :=
+  (Rule.during clock first last requirement).check_iff input
+
+/-- Within its window, a checker returns exactly the requirement's decision. -/
+theorem Rule.check_during_of_mem {clock : α → Nat} {first last : Nat}
+    {requirement : Rule α} {input : α}
+    (h : first ≤ clock input ∧ clock input ≤ last) :
+    (Rule.during clock first last requirement).check input = requirement.check input := by
+  simp [during, when, ofDecidable, h]
+
+/-- Outside its window, an obligation imposes no requirement on the input. -/
+theorem Rule.check_during_of_not_mem {clock : α → Nat} {first last : Nat}
+    {requirement : Rule α} {input : α}
+    (h : ¬ (first ≤ clock input ∧ clock input ≤ last)) :
+    (Rule.during clock first last requirement).check input = true :=
+  (during_check_iff clock first last requirement input).mpr fun bounds => (h bounds).elim
+
 end BtcVerified.Consensus
