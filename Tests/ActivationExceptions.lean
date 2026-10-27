@@ -44,5 +44,19 @@ private def checkRequirements (input : Input) : Bool :=
   (repeatedCoinbase.unless freshness).check input && otherRequirement.check input
 
 -- Both exact repeats suspend freshness; no height-only exception is allowed.
+#guard checkRequirements (91842, firstRepeat, false, true)
+#guard checkRequirements (91880, secondRepeat, false, true)
+#guard !checkRequirements (91842, 0, false, true)
+#guard !checkRequirements (91843, firstRepeat, false, true)
+
+-- Even an exact repeat cannot waive an unrelated failing requirement.
+#guard !checkRequirements (91842, firstRepeat, false, false)
+-- Away from the exception, satisfying freshness and the other rule suffices.
+#guard checkRequirements (91843, 0, true, true)
+
+private def selected : Rule Input :=
+  repeatedCoinbase.choose otherRequirement freshness
+
+-- The chosen alternative is the only obligation, in either direction.
 
 end Tests.ExceptionExamples
