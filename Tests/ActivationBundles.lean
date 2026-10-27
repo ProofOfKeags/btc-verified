@@ -29,5 +29,11 @@ private def context (height : Nat) : TxContext := ⟨height, 500000200, 50000005
 
 #guard (TxBody.finalityRules 100).check (context 99, lockedBody)
 #guard !(TxBody.finalityRules 100).check (context 100, lockedBody)
+#guard (TxBody.finalityRules 100).check
+  ({ context 100 with medianTimePast := 500000101 }, lockedBody)
+-- Reversing the clocks invalidates an unconditional refinement claim.
+private def unordered : TxContext := ⟨100, 500000050, 500000200⟩
+#guard lockedBody.isLockTimeSatisfied .medianTimePast unordered
+#guard !(TxBody.finalityRules 100).check (unordered, lockedBody)
 
 end Tests.ActivationBundles
