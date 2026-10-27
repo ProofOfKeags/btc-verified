@@ -7,3 +7,4 @@ import Tests.TransactionRules
 import Tests.ActivationHeight
 import Tests.ActivationTransitions
 import Tests.ActivationVersionBits
+import Tests.ActivationHistory
