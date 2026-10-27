@@ -44,3 +44,4 @@ import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle
 import BtcVerified.Packed.Codec
 import BtcVerified.Consensus.Activation.Height
+import BtcVerified.Consensus.Activation.LockTime
