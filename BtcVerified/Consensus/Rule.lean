@@ -12,6 +12,7 @@ import Mathlib.Order.Lattice
   * `Rule.ofDecidable`: its checker decides the supplied predicate.
   * `Rule.when`: its checker decides conditional enforcement.
   * `Rule.ext`: equivalent requirements determine equal checked rules.
+  * `instPartialOrderRule`: implication orders rules, with stronger rules below weaker ones.
 -/
 
 namespace BtcVerified.Consensus
@@ -39,6 +40,10 @@ structure Rule (α : Type*) where
   cases holds_eq
   cases check_eq
   rfl
+
+/-- Order rules by implication between their requirements. -/
+instance instPartialOrderRule : PartialOrder (Rule α) :=
+  PartialOrder.lift Rule.Holds fun _ _ h => Rule.ext fun input => by rw [h]
 
 /-- Package a decidable predicate as an executable rule. -/
 def Rule.ofDecidable (predicate : α → Prop) [DecidablePred predicate] : Rule α where
