@@ -16,6 +16,7 @@ import Mathlib.Order.BoundedOrder.Basic
   * `instPartialOrderRule`: implication orders rules, with stronger rules below weaker ones.
   * `instSemilatticeInfRule`: conjunction is the meet of two requirements.
   * `instOrderTopRule`: the greatest rule accepts every input.
+  * `Rule.check_inf`, `Rule.check_top`: meet and top retain their executable checks.
 -/
 
 namespace BtcVerified.Consensus
@@ -80,5 +81,19 @@ instance instSemilatticeInfRule : SemilatticeInf (Rule α) where
 instance instOrderTopRule : OrderTop (Rule α) where
   top := Rule.ofDecidable fun _ => True
   le_top _ _ _ := True.intro
+
+/-- A meet holds exactly when both requirements hold. -/
+@[simp] theorem Rule.holds_inf (left right : Rule α) (input : α) :
+    (left ⊓ right).Holds input ↔ left.Holds input ∧ right.Holds input := Iff.rfl
+
+/-- A meet checks both of its operands. -/
+@[simp] theorem Rule.check_inf (left right : Rule α) (input : α) :
+    (left ⊓ right).check input = (left.check input && right.check input) := rfl
+
+/-- Every input satisfies the top rule. -/
+@[simp] theorem Rule.holds_top (input : α) : (⊤ : Rule α).Holds input := trivial
+
+/-- The top rule's checker always accepts. -/
+@[simp] theorem Rule.check_top (input : α) : (⊤ : Rule α).check input = true := rfl
 
 end BtcVerified.Consensus
