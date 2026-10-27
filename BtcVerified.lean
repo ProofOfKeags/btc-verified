@@ -48,3 +48,4 @@ import BtcVerified.Packed.Codec
 import BtcVerified.Consensus.Activation.VersionBitsParams
 import BtcVerified.Consensus.Activation.VersionBitsState
 import BtcVerified.Consensus.Activation.VersionBitsTransition
+import BtcVerified.Consensus.Activation.Temporary
