@@ -40,4 +40,25 @@ theorem TxBody.finalityRules_holds_before (firstHeight : Nat) (body : TxBody)
   simp [finalityRules, Consensus.Rule.and, Consensus.Rule.atHeight,
     Consensus.Rule.when, Consensus.Rule.ofDecidable, lockTimeRule, Nat.not_le.mpr before]
 
+/-- After activation, the combined requirement is exactly MTP finality under clock order. -/
+theorem TxBody.finalityRules_holds_of_le (firstHeight : Nat) (body : TxBody)
+    (ctx : TxContext) (active : firstHeight ≤ ctx.height)
+    (clockOrder : ctx.medianTimePast ≤ ctx.blockTime) :
+    (finalityRules firstHeight).Holds (ctx, body) ↔
+      body.LockTimeSatisfied .medianTimePast ctx := by
+  change (body.LockTimeSatisfied .blockTime ctx ∧
+    (firstHeight ≤ ctx.height → body.LockTimeSatisfied .medianTimePast ctx)) ↔ _
+  exact ⟨fun accepted => accepted.2 active, fun accepted =>
+    ⟨lockTimeSatisfied_blockTime_of_medianTimePast body ctx clockOrder accepted,
+      fun _ => accepted⟩⟩
+
+/-- Before activation, the combined checker returns the block-time checker's result. -/
+theorem TxBody.finalityRules_check_before (firstHeight : Nat) (body : TxBody)
+    (ctx : TxContext) (before : ctx.height < firstHeight) :
+    (finalityRules firstHeight).check (ctx, body) =
+      body.isLockTimeSatisfied .blockTime ctx := by
+  apply Bool.eq_iff_iff.mpr
+  rw [(finalityRules firstHeight).check_iff, isLockTimeSatisfied_iff]
+  exact finalityRules_holds_before firstHeight body ctx before
+
 end BtcVerified
