@@ -52,4 +52,28 @@ theorem and_refines_right (left right : Rule α) :
     (and left right).Refines right :=
   fun _ h => h.2
 
+/-- A bundle implies each rule occurring in it. -/
+theorem all_refines_of_mem {rules : List (Rule α)} {rule : Rule α}
+    (h : rule ∈ rules) : (all rules).Refines rule :=
+  fun _ accepted => accepted rule h
+
+/-- Every input satisfies the empty bundle. -/
+@[simp] theorem all_nil_holds (x : α) : (all []).Holds x := by
+  simp [all]
+
+/-- A prepended bundle holds exactly when its new rule and old bundle hold. -/
+@[simp] theorem all_cons_holds (rule : Rule α) (rules : List (Rule α)) (x : α) :
+    (all (rule :: rules)).Holds x ↔ rule.Holds x ∧ (all rules).Holds x := by
+  simp [all]
+
+/-- Appending bundles requires exactly the requirements of both bundles. -/
+theorem all_append_holds (left right : List (Rule α)) (x : α) :
+    (all (left ++ right)).Holds x ↔ (all left).Holds x ∧ (all right).Holds x := by
+  simp [all, or_imp, forall_and]
+
+/-- Appended bundles accept exactly when each separate bundle accepts. -/
+theorem all_append_check (left right : List (Rule α)) (x : α) :
+    (all (left ++ right)).check x = ((all left).check x && (all right).check x) := by
+  simp [all]
+
 end BtcVerified.Consensus.Rule
