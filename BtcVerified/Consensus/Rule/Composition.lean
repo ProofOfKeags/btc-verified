@@ -1,11 +1,12 @@
 import BtcVerified.Consensus.Activation.Height
 import Mathlib.Order.Hom.BoundedLattice
 /-!
-  # Composition of consensus requirements
+  # Finite bundles and context projection
 
-  Bundles share an input domain and require every member. Projection supplies
-  a smaller rule with exactly the context it reads. The standard implication
-  order places stronger requirements below weaker ones.
+  Rules use the standard implication order, conjunction meet, and accepting
+  top. Finite bundles retain `List.all` as their checker. Context projection
+  preserves meets and top, so mathlib supplies its algebraic and monotonicity
+  laws; no separate refinement relation is needed.
 
   Checked claims:
 
