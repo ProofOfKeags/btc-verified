@@ -34,26 +34,6 @@ def Refines (stronger weaker : Rule α) : Prop :=
 
 /-! ## Behavioral laws -/
 
-/-- Every rule implies itself. -/
-theorem refines_refl (rule : Rule α) : rule.Refines rule :=
-  fun _ h => h
-
-/-- Rule implication is transitive. -/
-theorem Refines.trans {first second third : Rule α}
-    (h₁ : first.Refines second) (h₂ : second.Refines third) :
-    first.Refines third :=
-  fun x h => h₂ x (h₁ x h)
-
-/-- A conjunction implies its left rule. -/
-theorem and_refines_left (left right : Rule α) :
-    (and left right).Refines left :=
-  fun _ h => h.1
-
-/-- A conjunction implies its right rule. -/
-theorem and_refines_right (left right : Rule α) :
-    (and left right).Refines right :=
-  fun _ h => h.2
-
 /-- A bundle implies each rule occurring in it. -/
 theorem all_refines_of_mem {rules : List (Rule α)} {rule : Rule α}
     (h : rule ∈ rules) : (all rules).Refines rule :=
