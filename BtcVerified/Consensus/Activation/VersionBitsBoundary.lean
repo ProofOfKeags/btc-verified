@@ -11,7 +11,8 @@ import BtcVerified.Consensus.Activation.VersionBitsProgress
   Checked claims:
 
   * `VersionBitsBoundary.extend_append`: segment continuation composes exactly.
-  * `VersionBitsBoundary.summarizes_extend`: continuing a correct summary preserves its relation to the prefix.
+  * `VersionBitsBoundary.summarizes_extend`: continuing a correct summary preserves
+    its relation to the prefix.
 -/
 
 namespace BtcVerified.Consensus
@@ -42,7 +43,8 @@ def VersionBitsBoundary.extend (boundary : VersionBitsBoundary) {tip : Hash256}
 This predicate distinguishes an explicit assumption from a supplied witness of it. -/
 def VersionBitsBoundary.Summarizes (boundary : VersionBitsBoundary)
     (historyPrefix : Chain 0 boundary.anchor) : Prop :=
-  boundary.progress = VersionBitsProgress.initial.consume boundary.params historyPrefix.toList.reverse
+  boundary.progress =
+    VersionBitsProgress.initial.consume boundary.params historyPrefix.toList.reverse
 
 /-- Continuing over two linked segments agrees with continuing once over their
 concatenation, retaining the deployment parameters and final anchor. -/

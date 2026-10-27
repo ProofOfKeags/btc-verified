@@ -49,7 +49,8 @@ def VersionBitsProgress.advance (params : VersionBitsParams) (progress : Version
   let signals := progress.periodSignals + if params.signals header.version then 1 else 0
   let boundary := height % params.period = 0
   { nextHeight := height
-    state := if boundary then progress.state.atPeriodEnd params height (medianTimePast times) signals
+    state :=
+      if boundary then progress.state.atPeriodEnd params height (medianTimePast times) signals
       else progress.state
     periodSignals := if boundary then 0 else signals
     recentTimes := times }
