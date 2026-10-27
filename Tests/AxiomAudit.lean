@@ -71,7 +71,7 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.Rule.all_nil
 #assert_axioms BtcVerified.Consensus.Rule.all_cons
 #assert_axioms BtcVerified.Consensus.Rule.all_append
-#assert_axioms BtcVerified.Consensus.Rule.contramap_all_holds
+#assert_axioms BtcVerified.Consensus.Rule.map_all
 #assert_axioms BtcVerified.Consensus.Rule.and_when_holds_iff_left
 #assert_axioms BtcVerified.Consensus.Rule.and_atHeight_holds_iff_left
 #assert_axioms BtcVerified.TxBody.finalityRules

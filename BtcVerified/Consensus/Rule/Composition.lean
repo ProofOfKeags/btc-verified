@@ -11,6 +11,7 @@ import Mathlib.Order.Hom.BoundedLattice
 
   * `Rule.all_le_of_mem`: accepting a bundle establishes each member.
   * `Rule.all_append`: appending bundles conjoins their requirements.
+  * `Rule.map_all`: finite-meet homomorphisms preserve executable bundles.
   * `Rule.and_atHeight_holds_iff_left`: an inactive addition has no effect.
 -/
 
@@ -58,11 +59,12 @@ theorem all_append (left right : List (Rule α)) :
   intro input
   simp [all, or_imp, forall_and]
 
-/-- Projecting context for a bundle equals projecting it for every member. -/
-theorem contramap_all_holds (project : β → α) (rules : List (Rule α)) (x : β) :
-    (contramap project (all rules)).Holds x ↔
-      (all (rules.map (contramap project))).Holds x := by
-  simp [contramap, all]
+/-- Any map preserving finite meets and top commutes with executable bundles. -/
+theorem map_all (f : InfTopHom (Rule α) (Rule β)) (rules : List (Rule α)) :
+    f (all rules) = all (rules.map f) := by
+  induction rules with
+  | nil => simp
+  | cons rule rules ih => simp [ih]
 
 /-- An inactive guarded conjunct leaves the other rule's requirement unchanged. -/
 theorem and_when_holds_iff_left (left condition right : Rule α) (x : α)
