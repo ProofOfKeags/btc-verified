@@ -54,4 +54,24 @@ def VersionBitsProgress.consume (params : VersionBitsParams) (progress : Version
     (headers : List BlockHeader) : VersionBitsProgress :=
   headers.foldl (advance params) progress
 
+/-- Consuming two consecutive header lists agrees with consuming their concatenation. -/
+theorem VersionBitsProgress.consume_append (params : VersionBitsParams)
+    (progress : VersionBitsProgress) (first second : List BlockHeader) :
+    progress.consume params (first ++ second) =
+      (progress.consume params first).consume params second := by
+  simp [consume, List.foldl_append]
+
+/-- Consuming headers advances the next height by exactly their number. -/
+theorem VersionBitsProgress.nextHeight_consume (params : VersionBitsParams)
+    (progress : VersionBitsProgress) (headers : List BlockHeader) :
+    (progress.consume params headers).nextHeight = progress.nextHeight + headers.length := by
+  induction headers generalizing progress with
+  | nil => simp [consume]
+  | cons header headers ih =>
+    change ((progress.advance params header).consume params headers).nextHeight =
+      progress.nextHeight + (headers.length + 1)
+    rw [ih]
+    change progress.nextHeight + 1 + headers.length = progress.nextHeight + (headers.length + 1)
+    omega
+
 end BtcVerified.Consensus
