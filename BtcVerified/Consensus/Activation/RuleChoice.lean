@@ -7,6 +7,12 @@ import BtcVerified.Consensus.Rule
   that replacement preserves or strengthens the original meaning; such a
   relation must be proved for the particular requirements and input domain.
 
+  Checked claims:
+
+  * `Rule.choose_holds_iff_of_condition` and `Rule.choose_holds_iff_of_not_condition`:
+    the selected requirement supplies the whole semantic obligation.
+  * `Rule.check_choose_of_condition` and `Rule.check_choose_of_not_condition`:
+    the checker returns exactly the selected requirement's decision.
 -/
 
 namespace BtcVerified.Consensus
@@ -37,5 +43,15 @@ theorem Rule.check_choose_of_condition {condition yes no : Rule α}
     {input : α} (h : condition.Holds input) :
     (condition.choose yes no).check input = yes.check input := by
   simp [choose, (condition.check_iff input).mpr h]
+
+/-- A failed condition selects exactly the second requirement's checker. -/
+theorem Rule.check_choose_of_not_condition {condition yes no : Rule α}
+    {input : α} (h : ¬ condition.Holds input) :
+    (condition.choose yes no).check input = no.check input := by
+  have hfalse : condition.check input = false := by
+    cases hc : condition.check input with
+    | false => rfl
+    | true => exact False.elim (h ((condition.check_iff input).mp hc))
+  simp [choose, hfalse]
 
 end BtcVerified.Consensus
