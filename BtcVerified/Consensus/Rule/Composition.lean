@@ -1,4 +1,5 @@
 import BtcVerified.Consensus.Activation.Height
+import Mathlib.Order.Hom.BoundedLattice
 /-!
   # Composition of consensus requirements
 
@@ -21,11 +22,14 @@ def all (rules : List (Rule α)) : Rule α where
   check x := rules.all fun rule => rule.check x
   check_iff x := by simp [List.all_eq_true, Rule.check_iff]
 
-/-- Supply a rule with the part of the context it needs. -/
-def contramap (project : β → α) (rule : Rule α) : Rule β where
-  Holds x := rule.Holds (project x)
-  check x := rule.check (project x)
-  check_iff x := rule.check_iff (project x)
+/-- Project inputs into a rule's context, preserving conjunction and the accepting rule. -/
+def contramap (project : β → α) : InfTopHom (Rule α) (Rule β) where
+  toFun rule :=
+    { Holds := fun input => rule.Holds (project input)
+      check := fun input => rule.check (project input)
+      check_iff := fun input => rule.check_iff (project input) }
+  map_inf' _ _ := rfl
+  map_top' := rfl
 
 /-! ## Behavioral laws -/
 
