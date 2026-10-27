@@ -35,4 +35,23 @@ The ordering follows [pinned Core](https://github.com/bitcoin/bitcoin/blob/fc692
 def VersionBitsProgress.medianTimePast (times : List UInt32) : Nat :=
   ((times.map UInt32.toNat).mergeSort (· ≤ ·))[times.length / 2]?.getD 0
 
+/-- Consume one chronological header, deriving its signal and the new MTP window;
+only a completed period changes the state or clears the signal count. -/
+def VersionBitsProgress.advance (params : VersionBitsParams) (progress : VersionBitsProgress)
+    (header : BlockHeader) : VersionBitsProgress :=
+  let height := progress.nextHeight + 1
+  let times := (header.time :: progress.recentTimes).take 11
+  let signals := progress.periodSignals + if params.signals header.version then 1 else 0
+  let boundary := height % params.period = 0
+  { nextHeight := height
+    state := if boundary then progress.state.atPeriodEnd params height (medianTimePast times) signals
+      else progress.state
+    periodSignals := if boundary then 0 else signals
+    recentTimes := times }
+
+/-- Consume headers oldest first, preserving the explicitly supplied starting summary. -/
+def VersionBitsProgress.consume (params : VersionBitsParams) (progress : VersionBitsProgress)
+    (headers : List BlockHeader) : VersionBitsProgress :=
+  headers.foldl (advance params) progress
+
 end BtcVerified.Consensus
