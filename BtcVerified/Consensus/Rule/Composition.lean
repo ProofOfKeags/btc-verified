@@ -9,7 +9,7 @@ import BtcVerified.Consensus.Activation.Height
   Checked claims:
 
   * `Rule.all_le_of_mem`: accepting a bundle establishes each member.
-  * `Rule.all_append_holds`: appending bundles conjoins their requirements.
+  * `Rule.all_append`: appending bundles conjoins their requirements.
   * `Rule.and_atHeight_holds_iff_left`: an inactive addition has no effect.
 -/
 
@@ -47,15 +47,12 @@ theorem all_le_of_mem {rules : List (Rule α)} {rule : Rule α}
   intro input
   simp [all]
 
-/-- Appending bundles requires exactly the requirements of both bundles. -/
-theorem all_append_holds (left right : List (Rule α)) (x : α) :
-    (all (left ++ right)).Holds x ↔ (all left).Holds x ∧ (all right).Holds x := by
+/-- Appending bundles takes the meet of their requirements. -/
+theorem all_append (left right : List (Rule α)) :
+    all (left ++ right) = all left ⊓ all right := by
+  apply Rule.ext
+  intro input
   simp [all, or_imp, forall_and]
-
-/-- Appended bundles accept exactly when each separate bundle accepts. -/
-theorem all_append_check (left right : List (Rule α)) (x : α) :
-    (all (left ++ right)).check x = ((all left).check x && (all right).check x) := by
-  simp [all]
 
 /-- Projecting context for a bundle equals projecting it for every member. -/
 theorem contramap_all_holds (project : β → α) (rules : List (Rule α)) (x : β) :
