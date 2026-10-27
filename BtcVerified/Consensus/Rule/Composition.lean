@@ -6,6 +6,12 @@ import BtcVerified.Consensus.Activation.Height
   a smaller rule with exactly the context it reads. Implication is semantic;
   no equality or registry of predicate-valued rule records is required.
 
+  Checked claims:
+
+  * `Rule.all_refines_of_mem`: accepting a bundle establishes each member.
+  * `Rule.all_append_holds`: appending bundles conjoins their requirements.
+  * `Rule.and_check_eq_left_of_refines`: an implied check can be omitted.
+  * `Rule.and_atHeight_holds_iff_left`: an inactive addition has no effect.
 -/
 
 namespace BtcVerified.Consensus.Rule
@@ -96,5 +102,29 @@ theorem all_cons_holds_iff_of_refines {rules : List (Rule α)} {rule : Rule α}
     (all (rule :: rules)).Holds x ↔ (all rules).Holds x := by
   rw [all_cons_holds]
   exact ⟨And.right, fun accepted => ⟨h x accepted, accepted⟩⟩
+
+/-- Projecting contexts preserves implication between rules. -/
+theorem Refines.contramap {stronger weaker : Rule α}
+    (h : stronger.Refines weaker) (project : β → α) :
+    (contramap project stronger).Refines (contramap project weaker) :=
+  fun x accepted => h (project x) accepted
+
+/-- Projecting context for a bundle equals projecting it for every member. -/
+theorem contramap_all_holds (project : β → α) (rules : List (Rule α)) (x : β) :
+    (contramap project (all rules)).Holds x ↔
+      (all (rules.map (contramap project))).Holds x := by
+  simp [contramap, all]
+
+/-- An inactive guarded conjunct leaves the other rule's requirement unchanged. -/
+theorem and_when_holds_iff_left (left condition right : Rule α) (x : α)
+    (inactive : ¬condition.Holds x) :
+    (and left (when condition right)).Holds x ↔ left.Holds x := by
+  simp [and, when, inactive]
+
+/-- A scheduled conjunct leaves the other rule unchanged before activation. -/
+theorem and_atHeight_holds_iff_left (height : α → Nat) (firstHeight : Nat)
+    (left right : Rule α) (x : α) (before : height x < firstHeight) :
+    (and left (atHeight height firstHeight right)).Holds x ↔ left.Holds x := by
+  exact and_when_holds_iff_left left _ right x (Nat.not_le_of_lt before)
 
 end BtcVerified.Consensus.Rule
