@@ -4,3 +4,4 @@ import Tests.Bench
 import Tests.AxiomAudit
 import Tests.ModuleAudit
 import Tests.TransactionRules
+import Tests.ActivationHeight

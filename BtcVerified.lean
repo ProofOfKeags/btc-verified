@@ -31,6 +31,8 @@ import BtcVerified.Block.WitnessCommitment
 import BtcVerified.Block.BlockHash
 import BtcVerified.Block.Chain
 import BtcVerified.Consensus.Limits
+import BtcVerified.Consensus.Rule
+import BtcVerified.Consensus.Activation.Height
 import BtcVerified.Consensus.LockTime
 import BtcVerified.Consensus.LockTimeClock
 import BtcVerified.Consensus.TxContext
@@ -38,6 +40,7 @@ import BtcVerified.Consensus.ScriptCheck
 import BtcVerified.Consensus.TxStateless
 import BtcVerified.Consensus.CoinbaseStateless
 import BtcVerified.Consensus.TxContextual
+import BtcVerified.Consensus.Activation.LockTime
 import BtcVerified.Consensus.ApplyChecked
 import BtcVerified.BitVM.BitCommitment
 import BtcVerified.Impl.BitcoinCore.Merkle
