@@ -42,4 +42,25 @@ theorem Rule.check_during_of_not_mem {clock : α → Nat} {first last : Nat}
     (Rule.during clock first last requirement).check input = true :=
   (during_check_iff clock first last requirement input).mpr fun bounds => (h bounds).elim
 
+/-- Reversed window endpoints leave the requirement unenforced on every input. -/
+theorem Rule.check_during_of_reversed {clock : α → Nat} {first last : Nat}
+    {requirement : Rule α} (h : last < first) (input : α) :
+    (Rule.during clock first last requirement).check input = true :=
+  check_during_of_not_mem fun bounds =>
+    (Nat.not_le_of_lt h) (Nat.le_trans bounds.1 bounds.2)
+
+/-- A state-selected checker enforces its requirement exactly in a listed state. -/
+theorem Rule.inStates_check_iff (state : α → VersionBitsState)
+    (states : List VersionBitsState) (requirement : Rule α) (input : α) :
+    (Rule.inStates state states requirement).check input = true ↔
+      (state input ∈ states → requirement.Holds input) :=
+  (Rule.inStates state states requirement).check_iff input
+
+/-- In a listed state, the checker returns exactly the requirement's decision. -/
+theorem Rule.check_inStates_of_mem {state : α → VersionBitsState}
+    {states : List VersionBitsState} {requirement : Rule α} {input : α}
+    (h : state input ∈ states) :
+    (Rule.inStates state states requirement).check input = requirement.check input := by
+  simp [inStates, when, ofDecidable, h]
+
 end BtcVerified.Consensus
