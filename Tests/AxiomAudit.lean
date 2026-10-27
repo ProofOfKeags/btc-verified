@@ -47,6 +47,11 @@ elab "#assert_axioms " id:ident : command => do
   unless bad.isEmpty do
     throwError "{name} depends on disallowed axioms: {bad.toList}"
 
+#assert_axioms BtcVerified.Consensus.Rule.atHeight
+#assert_axioms BtcVerified.Consensus.Rule.atHeight_check_before
+#assert_axioms BtcVerified.Consensus.Rule.atHeight_check_of_le
+#assert_axioms BtcVerified.TxBody.lockTimeRule
+
 /-! ## Serialization -/
 
 #assert_axioms BtcVerified.Serialize.encode_injective
