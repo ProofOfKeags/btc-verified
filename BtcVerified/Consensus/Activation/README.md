@@ -52,3 +52,22 @@ Checked claims:
 
 Why it matters: stronger rules can subsume older checks with explicit
 hypotheses; arbitrary `TxContext` values do not establish clock order.
+
+### Versionbits states and period transitions
+
+`VersionBitsState`, `VersionBitsParams`, and `VersionBitsTransition` model one
+timed deployment using the pinned Core forward transition table. Threshold
+attainment precedes timeout; defined checks only start time. This ordering is
+not a claim to implement every historical variant of BIP9. Constant active or
+inactive choices can be assembled directly without sentinel timestamp values.
+
+Checked claims:
+
+- `VersionBitsState.enforce_check_iff`: only an active deployment imposes its
+  selected requirement.
+- `VersionBitsState.atPeriodEnd_active` and `atPeriodEnd_failed`: terminal
+  states remain terminal in subsequent periods.
+
+Why it matters: applicability has a named state and an explicit transition
+rule. Period observations are inputs here; no supplied observation is silently
+claimed to be authenticated chain history.

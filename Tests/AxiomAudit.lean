@@ -80,6 +80,13 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.TxBody.finalityRules_check_before
 #assert_axioms BtcVerified.TxBody.finalityRules_check_of_le
 
+#assert_axioms BtcVerified.Consensus.VersionBitsParams.signals
+#assert_axioms BtcVerified.Consensus.VersionBitsState.enforce
+#assert_axioms BtcVerified.Consensus.VersionBitsState.enforce_check_iff
+#assert_axioms BtcVerified.Consensus.VersionBitsState.atPeriodEnd
+#assert_axioms BtcVerified.Consensus.VersionBitsState.atPeriodEnd_active
+#assert_axioms BtcVerified.Consensus.VersionBitsState.atPeriodEnd_failed
+
 /-! ## Serialization -/
 
 #assert_axioms BtcVerified.Serialize.encode_injective

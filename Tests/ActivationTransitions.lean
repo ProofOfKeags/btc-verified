@@ -1,0 +1,48 @@
+import BtcVerified.Consensus.Activation.VersionBitsTransition
+/-!
+  # Versionbits transition boundaries
+
+  Synthetic four-block periods exercise the pinned transition table, including
+  signaling prefixes, start/timeout equality, threshold precedence, delayed
+  activation, and enforcement only in the active state.
+-/
+
+namespace Tests.ActivationTransitions
+
+open BtcVerified.Consensus
+
+set_option linter.hashCommand false
+
+private def params : VersionBitsParams :=
+  ⟨⟨2, by decide⟩, 4, by decide, 3, by decide, 10, 20, 0⟩
+
+#guard params.signals 0x20000004
+#guard params.signals 0x30000004
+#guard !params.signals 0x00000004
+#guard !params.signals 0xa0000004
+#guard !params.signals 0x60000004
+#guard !params.signals 0x20000000
+
+#guard VersionBitsState.defined.atPeriodEnd params 4 9 4 == .defined
+#guard VersionBitsState.defined.atPeriodEnd params 4 10 4 == .started
+#guard VersionBitsState.defined.atPeriodEnd params 4 20 4 == .started
+#guard VersionBitsState.started.atPeriodEnd params 8 20 3 == .lockedIn
+#guard VersionBitsState.started.atPeriodEnd params 8 20 2 == .failed
+#guard VersionBitsState.started.atPeriodEnd params 8 19 2 == .started
+#guard VersionBitsState.lockedIn.atPeriodEnd
+  { params with minActivationHeight := 13 } 12 100 0 == .lockedIn
+#guard VersionBitsState.lockedIn.atPeriodEnd
+  { params with minActivationHeight := 13 } 16 100 0 == .active
+#guard VersionBitsState.active.atPeriodEnd params 100 100 0 == .active
+#guard VersionBitsState.failed.atPeriodEnd params 100 100 4 == .failed
+
+#guard VersionBitsState.started.atPeriodEnd
+  { params with threshold := 0, thresholdBound := by decide } 8 20 0 == .lockedIn
+
+private def requirement : Rule Nat := Rule.ofDecidable fun value => value = 7
+#guard (VersionBitsState.active.enforce requirement).check 7
+#guard !(VersionBitsState.active.enforce requirement).check 6
+#guard ([.defined, .started, .lockedIn, .failed] : List VersionBitsState).all fun state =>
+  (state.enforce requirement).check 6
+
+end Tests.ActivationTransitions
