@@ -51,6 +51,7 @@ elab "#assert_axioms " id:ident : command => do
 
 #assert_axioms BtcVerified.Consensus.Rule.ext
 #assert_axioms BtcVerified.Consensus.instPartialOrderRule
+#assert_axioms BtcVerified.Consensus.instSemilatticeInfRule
 #assert_axioms BtcVerified.Consensus.Rule.ofDecidable
 #assert_axioms BtcVerified.Consensus.Rule.when
 #assert_axioms BtcVerified.Consensus.Rule.atHeight

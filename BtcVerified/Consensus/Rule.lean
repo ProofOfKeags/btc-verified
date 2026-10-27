@@ -13,6 +13,7 @@ import Mathlib.Order.Lattice
   * `Rule.when`: its checker decides conditional enforcement.
   * `Rule.ext`: equivalent requirements determine equal checked rules.
   * `instPartialOrderRule`: implication orders rules, with stronger rules below weaker ones.
+  * `instSemilatticeInfRule`: conjunction is the meet of two requirements.
 -/
 
 namespace BtcVerified.Consensus
@@ -64,5 +65,13 @@ def Rule.and (left right : Rule α) : Rule α where
   Holds x := left.Holds x ∧ right.Holds x
   check x := left.check x && right.check x
   check_iff x := by simp [left.check_iff, right.check_iff]
+
+/-- Conjunction is the greatest rule that implies both operands. -/
+instance instSemilatticeInfRule : SemilatticeInf (Rule α) where
+  __ := instPartialOrderRule
+  inf := Rule.and
+  inf_le_left _ _ _ h := h.1
+  inf_le_right _ _ _ h := h.2
+  le_inf _ _ _ left right input h := ⟨left input h, right input h⟩
 
 end BtcVerified.Consensus
