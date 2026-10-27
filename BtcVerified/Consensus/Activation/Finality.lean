@@ -10,9 +10,13 @@ import BtcVerified.Consensus.Rule.Composition
   ordered; arbitrary `TxContext` values do not establish that invariant.
 
   Checked claims:
-  * Median-time-past finality implies block-time finality under clock order.
-  * Before activation the bundle is exactly block-time finality.
-  * From activation the bundle is exactly MTP finality under clock order.
+
+  * `TxBody.lockTimeSatisfied_blockTime_of_medianTimePast`: MTP finality implies
+    block-time finality under clock order.
+  * `TxBody.finalityRules_holds_before`: before activation the bundle is exactly
+    block-time finality.
+  * `TxBody.finalityRules_holds_of_le`: at or after activation the bundle is
+    exactly MTP finality under clock order.
 -/
 
 namespace BtcVerified
