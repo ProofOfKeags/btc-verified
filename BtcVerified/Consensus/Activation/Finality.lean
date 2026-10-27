@@ -17,11 +17,14 @@ import BtcVerified.Consensus.Rule.Composition
 
 namespace BtcVerified
 
+/-! ## Definitions -/
 
 /-- Require block-time finality and, from the threshold, MTP finality. -/
 def TxBody.finalityRules (firstHeight : Nat) : Consensus.Rule (TxContext × TxBody) :=
   (lockTimeRule .blockTime).and
     ((lockTimeRule .medianTimePast).atHeight (fun input => input.1.height) firstHeight)
+
+/-! ## Behavioral laws -/
 
 /-- MTP finality implies block-time finality when MTP is no later than block time. -/
 theorem TxBody.lockTimeSatisfied_blockTime_of_medianTimePast

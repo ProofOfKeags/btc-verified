@@ -38,6 +38,8 @@ def contramap (project : β → α) (rule : Rule α) : Rule β where
 def Refines (stronger weaker : Rule α) : Prop :=
   ∀ x, stronger.Holds x → weaker.Holds x
 
+/-! ## Behavioral laws -/
+
 /-- Every rule implies itself. -/
 theorem refines_refl (rule : Rule α) : rule.Refines rule :=
   fun _ h => h
