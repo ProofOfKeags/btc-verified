@@ -58,5 +58,9 @@ private def selected : Rule Input :=
   repeatedCoinbase.choose otherRequirement freshness
 
 -- The chosen alternative is the only obligation, in either direction.
+#guard selected.check (91842, firstRepeat, false, true)
+#guard !selected.check (91842, firstRepeat, true, false)
+#guard selected.check (91843, 0, true, false)
+#guard !selected.check (91843, 0, false, true)
 
 end Tests.ExceptionExamples
