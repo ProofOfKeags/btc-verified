@@ -56,6 +56,17 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.Rule.atHeight_check_of_le
 #assert_axioms BtcVerified.TxBody.lockTimeRule
 
+#assert_axioms BtcVerified.Consensus.Rule.unless
+#assert_axioms BtcVerified.Consensus.Rule.unless_holds_of_exception
+#assert_axioms BtcVerified.Consensus.Rule.unless_holds_iff_of_not_exception
+#assert_axioms BtcVerified.Consensus.Rule.check_unless_of_exception
+#assert_axioms BtcVerified.Consensus.Rule.check_unless_of_not_exception
+#assert_axioms BtcVerified.Consensus.Rule.choose
+#assert_axioms BtcVerified.Consensus.Rule.choose_holds_iff_of_condition
+#assert_axioms BtcVerified.Consensus.Rule.choose_holds_iff_of_not_condition
+#assert_axioms BtcVerified.Consensus.Rule.check_choose_of_condition
+#assert_axioms BtcVerified.Consensus.Rule.check_choose_of_not_condition
+
 /-! ## Serialization -/
 
 #assert_axioms BtcVerified.Serialize.encode_injective
