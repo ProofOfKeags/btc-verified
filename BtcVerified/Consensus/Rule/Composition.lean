@@ -12,7 +12,7 @@ import Mathlib.Order.Hom.BoundedLattice
   * `Rule.all_le_of_mem`: accepting a bundle establishes each member.
   * `Rule.all_append`: appending bundles conjoins their requirements.
   * `Rule.map_all`: finite-meet homomorphisms preserve executable bundles.
-  * `Rule.and_atHeight_holds_iff_left`: an inactive addition has no effect.
+  * `Rule.inf_atHeight_holds_iff_left`: an inactive addition has no effect.
 -/
 
 namespace BtcVerified.Consensus.Rule
@@ -66,16 +66,13 @@ theorem map_all (f : InfTopHom (Rule α) (Rule β)) (rules : List (Rule α)) :
   | nil => simp
   | cons rule rules ih => simp [ih]
 
-/-- An inactive guarded conjunct leaves the other rule's requirement unchanged. -/
-theorem and_when_holds_iff_left (left condition right : Rule α) (x : α)
-    (inactive : ¬condition.Holds x) :
-    (and left (when condition right)).Holds x ↔ left.Holds x := by
-  simp [and, when, inactive]
-
-/-- A scheduled conjunct leaves the other rule unchanged before activation. -/
-theorem and_atHeight_holds_iff_left (height : α → Nat) (firstHeight : Nat)
-    (left right : Rule α) (x : α) (before : height x < firstHeight) :
-    (and left (atHeight height firstHeight right)).Holds x ↔ left.Holds x := by
-  exact and_when_holds_iff_left left _ right x (Nat.not_le_of_lt before)
+/-- Before activation, adjoining a scheduled rule leaves the existing requirement unchanged. -/
+theorem inf_atHeight_holds_iff_left (height : α → Nat) (firstHeight : Nat)
+    (left right : Rule α) (input : α) (before : height input < firstHeight) :
+    (left ⊓ right.atHeight height firstHeight).Holds input ↔ left.Holds input := by
+  have inactive : (right.atHeight height firstHeight).Holds input :=
+    ((right.atHeight height firstHeight).check_iff input).mp
+      (atHeight_check_before height firstHeight right input before)
+  simp [inactive]
 
 end BtcVerified.Consensus.Rule
