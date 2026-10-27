@@ -50,3 +50,5 @@ import BtcVerified.Consensus.Activation.Finality
 import BtcVerified.Consensus.Activation.VersionBitsParams
 import BtcVerified.Consensus.Activation.VersionBitsState
 import BtcVerified.Consensus.Activation.VersionBitsTransition
+import BtcVerified.Consensus.Activation.VersionBitsProgress
+import BtcVerified.Consensus.Activation.VersionBitsBoundary

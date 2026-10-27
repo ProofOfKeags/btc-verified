@@ -71,3 +71,29 @@ Checked claims:
 Why it matters: applicability has a named state and an explicit transition
 rule. Period observations are inputs here; no supplied observation is silently
 claimed to be authenticated chain history.
+
+### Header history and assumed-prefix continuation
+
+`VersionBitsProgress` folds chronological headers into absolute height,
+period signal count, deployment state and the latest eleven timestamps.
+`VersionBitsBoundary` binds this summary to parameters and a prefix tip hash;
+its extension consumes a `Chain` anchored at that hash. Parameters remain
+fixed throughout continuation. Candidate validation uses the result after
+consuming its parent, before consuming the candidate itself.
+
+Checked claims:
+
+- `VersionBitsProgress.consume_append`: split and combined folds agree.
+- `VersionBitsProgress.nextHeight_consume`: each header advances height once.
+- `VersionBitsProgress.recentTimes_length_advance`: the window is bounded.
+- `VersionBitsBoundary.extend_append`: linked segment continuation composes.
+- `VersionBitsBoundary.summarizes_extend`: a correct prefix summary stays
+  correct when continued over a linked segment.
+
+Why it matters: an established prefix may be assumed without replaying it,
+while future activation is computed from the chosen branch. `Summarizes`
+records the stronger relationship when a prefix computation is available.
+The seed's state, count, height and timestamp window are explicit assumptions.
+Neither linkage nor these theorems establish genesis, proof of work, valid
+header times, or full consensus. Core's backwards cache optimization relies
+on additional timestamp-validity assumptions; it is not modeled here.
