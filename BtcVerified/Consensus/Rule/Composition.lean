@@ -34,13 +34,17 @@ theorem all_le_of_mem {rules : List (Rule α)} {rule : Rule α}
     (h : rule ∈ rules) : all rules ≤ rule :=
   fun _ accepted => accepted rule h
 
-/-- Every input satisfies the empty bundle. -/
-@[simp] theorem all_nil_holds (x : α) : (all []).Holds x := by
+/-- The empty bundle is the rule accepting every input. -/
+@[simp] theorem all_nil : all ([] : List (Rule α)) = ⊤ := by
+  apply Rule.ext
+  intro input
   simp [all]
 
-/-- A prepended bundle holds exactly when its new rule and old bundle hold. -/
-@[simp] theorem all_cons_holds (rule : Rule α) (rules : List (Rule α)) (x : α) :
-    (all (rule :: rules)).Holds x ↔ rule.Holds x ∧ (all rules).Holds x := by
+/-- Prepending a requirement takes its meet with the existing bundle. -/
+@[simp] theorem all_cons (rule : Rule α) (rules : List (Rule α)) :
+    all (rule :: rules) = rule ⊓ all rules := by
+  apply Rule.ext
+  intro input
   simp [all]
 
 /-- Appending bundles requires exactly the requirements of both bundles. -/
