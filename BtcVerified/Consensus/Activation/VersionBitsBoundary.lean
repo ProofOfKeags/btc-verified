@@ -34,4 +34,10 @@ def VersionBitsBoundary.extend (boundary : VersionBitsBoundary) {tip : Hash256}
     anchor := tip
     progress := boundary.progress.consume boundary.params segment.toList.reverse }
 
+/-- The assumed summary is exactly the model's computation over the given prefix.
+This predicate distinguishes an explicit assumption from a supplied witness of it. -/
+def VersionBitsBoundary.Summarizes (boundary : VersionBitsBoundary)
+    (historyPrefix : Chain 0 boundary.anchor) : Prop :=
+  boundary.progress = VersionBitsProgress.initial.consume boundary.params historyPrefix.toList.reverse
+
 end BtcVerified.Consensus
