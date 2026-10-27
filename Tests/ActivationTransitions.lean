@@ -29,5 +29,17 @@ private def params : VersionBitsParams :=
 #guard VersionBitsState.started.atPeriodEnd params 8 20 3 == .lockedIn
 #guard VersionBitsState.started.atPeriodEnd params 8 20 2 == .failed
 #guard VersionBitsState.started.atPeriodEnd params 8 19 2 == .started
+#guard VersionBitsState.lockedIn.atPeriodEnd
+  { params with minActivationHeight := 13 } 12 100 0 == .lockedIn
+#guard VersionBitsState.lockedIn.atPeriodEnd
+  { params with minActivationHeight := 13 } 16 100 0 == .active
+#guard VersionBitsState.active.atPeriodEnd params 100 100 0 == .active
+#guard VersionBitsState.failed.atPeriodEnd params 100 100 4 == .failed
+
+#guard VersionBitsState.started.atPeriodEnd
+  { params with threshold := 0, thresholdBound := by decide } 8 20 0 == .lockedIn
+
+private def requirement : Rule Nat := Rule.ofDecidable fun value => value = 7
+#guard (VersionBitsState.active.enforce requirement).check 7
 
 end Tests.ActivationTransitions
