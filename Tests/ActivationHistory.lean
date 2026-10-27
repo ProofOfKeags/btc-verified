@@ -34,4 +34,11 @@ private def successfulBranch := linked commonHistory.1
 private def failingBranch := linked commonHistory.1
   ([22, 23].map (header 0x20000000) ++ waitingPeriod)
 
+#guard startBoundary.progress.state == .started
+#guard startBoundary.progress.nextHeight == 6
+#guard startBoundary.progress.periodSignals == 2
+#guard (startBoundary.extend successfulBranch.2).progress.state == .active
+#guard (startBoundary.extend failingBranch.2).progress.state == .failed
+#guard (startBoundary.extend successfulBranch.2).progress.nextHeight == 12
+
 end Tests.ActivationHistory
