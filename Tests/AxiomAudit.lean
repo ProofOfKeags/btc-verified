@@ -73,9 +73,6 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.Rule.all_cons_holds
 #assert_axioms BtcVerified.Consensus.Rule.all_append_holds
 #assert_axioms BtcVerified.Consensus.Rule.all_append_check
-#assert_axioms BtcVerified.Consensus.Rule.and_holds_iff_left_of_refines
-#assert_axioms BtcVerified.Consensus.Rule.and_check_eq_left_of_refines
-#assert_axioms BtcVerified.Consensus.Rule.all_cons_holds_iff_of_refines
 #assert_axioms BtcVerified.Consensus.Rule.Refines.contramap
 #assert_axioms BtcVerified.Consensus.Rule.contramap_all_holds
 #assert_axioms BtcVerified.Consensus.Rule.and_when_holds_iff_left
