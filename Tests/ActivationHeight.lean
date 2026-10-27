@@ -24,4 +24,14 @@ private def context (height : Nat) : TxContext :=
 private def deployed :=
   (TxBody.lockTimeRule .medianTimePast).atHeight (fun input => input.1.height) 100
 
+#guard (TxBody.lockTimeRule .blockTime).check (context 100, lockedBody)
+#guard !(TxBody.lockTimeRule .medianTimePast).check (context 100, lockedBody)
+#guard deployed.check (context 99, lockedBody)
+#guard !deployed.check (context 100, lockedBody)
+#guard !deployed.check (context 101, lockedBody)
+#guard deployed.check ({ context 100 with medianTimePast := 500000101 }, lockedBody)
+-- The transaction's intrinsic final-sequence override still applies after activation.
+private def finalBody : TxBody :=
+  { lockedBody with inputs := ⟨[{ ordinaryInput with sequence := 0xffffffff }], by decide⟩ }
+
 end Tests.ActivationHeight
