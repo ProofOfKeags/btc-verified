@@ -1,4 +1,4 @@
-import Mathlib.Data.Bool.Basic
+import Mathlib.Order.Lattice
 /-!
   # Executable consensus requirements
 
@@ -11,6 +11,7 @@ import Mathlib.Data.Bool.Basic
 
   * `Rule.ofDecidable`: its checker decides the supplied predicate.
   * `Rule.when`: its checker decides conditional enforcement.
+  * `Rule.ext`: equivalent requirements determine equal checked rules.
 -/
 
 namespace BtcVerified.Consensus
@@ -23,6 +24,21 @@ structure Rule (α : Type*) where
   check : α → Bool
   /-- The checker accepts exactly the inputs satisfying the requirement. -/
   check_iff : ∀ input, check input = true ↔ Holds input
+
+/-- Pointwise equivalent requirements determine equal checked rules. -/
+@[ext] theorem Rule.ext {left right : Rule α}
+    (h : ∀ input, left.Holds input ↔ right.Holds input) : left = right := by
+  have holds_eq : left.Holds = right.Holds := funext fun input => propext (h input)
+  have check_eq : left.check = right.check := by
+    funext input
+    apply Bool.eq_iff_iff.mpr
+    rw [left.check_iff, right.check_iff]
+    exact h input
+  cases left
+  cases right
+  cases holds_eq
+  cases check_eq
+  rfl
 
 /-- Package a decidable predicate as an executable rule. -/
 def Rule.ofDecidable (predicate : α → Prop) [DecidablePred predicate] : Rule α where
