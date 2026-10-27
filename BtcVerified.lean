@@ -31,6 +31,7 @@ import BtcVerified.Block.WitnessCommitment
 import BtcVerified.Block.BlockHash
 import BtcVerified.Block.Chain
 import BtcVerified.Consensus.Limits
+import BtcVerified.Consensus.Rule
 import BtcVerified.Consensus.LockTime
 import BtcVerified.Consensus.LockTimeClock
 import BtcVerified.Consensus.TxContext
