@@ -5,4 +5,5 @@ import Tests.AxiomAudit
 import Tests.ModuleAudit
 import Tests.TransactionRules
 import Tests.ActivationHeight
+import Tests.ActivationBundles
 import Tests.ActivationExceptions

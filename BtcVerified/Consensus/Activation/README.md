@@ -36,6 +36,23 @@ Why it matters: the height gate already applies to a real contextual rule.
 The adapter does not authenticate the supplied clocks or choose a network's
 activation history.
 
+### `BtcVerified.Consensus.Activation.Finality`
+
+The finality bundle always enforces block-time finality and adds MTP finality
+at a supplied height. It demonstrates cumulative refinement using real rules.
+
+Checked claims:
+
+- `TxBody.lockTimeSatisfied_blockTime_of_medianTimePast`: MTP finality implies
+  block-time finality when the supplied clocks are ordered.
+- `TxBody.finalityRules_check_before`: before activation the checker is the
+  existing block-time checker.
+- `TxBody.finalityRules_check_of_le`: after activation it is the MTP checker,
+  assuming MTP is no later than block time.
+
+Why it matters: stronger rules can subsume older checks with explicit
+hypotheses; arbitrary `TxContext` values do not establish clock order.
+
 ### Exceptions and explicit replacement
 
 `Rule.unless` suspends one requirement for a checked exception. `Rule.choose`
