@@ -23,4 +23,11 @@ private def params : VersionBitsParams :=
 #guard !params.signals 0x60000004
 #guard !params.signals 0x20000000
 
+#guard VersionBitsState.defined.atPeriodEnd params 4 9 4 == .defined
+#guard VersionBitsState.defined.atPeriodEnd params 4 10 4 == .started
+#guard VersionBitsState.defined.atPeriodEnd params 4 20 4 == .started
+#guard VersionBitsState.started.atPeriodEnd params 8 20 3 == .lockedIn
+#guard VersionBitsState.started.atPeriodEnd params 8 20 2 == .failed
+#guard VersionBitsState.started.atPeriodEnd params 8 19 2 == .started
+
 end Tests.ActivationTransitions
