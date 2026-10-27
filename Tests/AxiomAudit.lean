@@ -56,6 +56,33 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.Rule.atHeight_check_of_le
 #assert_axioms BtcVerified.TxBody.lockTimeRule
 
+#assert_axioms BtcVerified.Consensus.Rule.and
+#assert_axioms BtcVerified.Consensus.Rule.all
+#assert_axioms BtcVerified.Consensus.Rule.contramap
+#assert_axioms BtcVerified.Consensus.Rule.Refines
+#assert_axioms BtcVerified.Consensus.Rule.refines_refl
+#assert_axioms BtcVerified.Consensus.Rule.Refines.trans
+#assert_axioms BtcVerified.Consensus.Rule.and_refines_left
+#assert_axioms BtcVerified.Consensus.Rule.and_refines_right
+#assert_axioms BtcVerified.Consensus.Rule.all_refines_of_mem
+#assert_axioms BtcVerified.Consensus.Rule.all_nil_holds
+#assert_axioms BtcVerified.Consensus.Rule.all_cons_holds
+#assert_axioms BtcVerified.Consensus.Rule.all_append_holds
+#assert_axioms BtcVerified.Consensus.Rule.all_append_check
+#assert_axioms BtcVerified.Consensus.Rule.and_holds_iff_left_of_refines
+#assert_axioms BtcVerified.Consensus.Rule.and_check_eq_left_of_refines
+#assert_axioms BtcVerified.Consensus.Rule.all_cons_holds_iff_of_refines
+#assert_axioms BtcVerified.Consensus.Rule.Refines.contramap
+#assert_axioms BtcVerified.Consensus.Rule.contramap_all_holds
+#assert_axioms BtcVerified.Consensus.Rule.and_when_holds_iff_left
+#assert_axioms BtcVerified.Consensus.Rule.and_atHeight_holds_iff_left
+#assert_axioms BtcVerified.TxBody.finalityRules
+#assert_axioms BtcVerified.TxBody.lockTimeSatisfied_blockTime_of_medianTimePast
+#assert_axioms BtcVerified.TxBody.finalityRules_holds_before
+#assert_axioms BtcVerified.TxBody.finalityRules_holds_of_le
+#assert_axioms BtcVerified.TxBody.finalityRules_check_before
+#assert_axioms BtcVerified.TxBody.finalityRules_check_of_le
+
 /-! ## Serialization -/
 
 #assert_axioms BtcVerified.Serialize.encode_injective
