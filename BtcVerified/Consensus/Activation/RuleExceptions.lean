@@ -18,4 +18,22 @@ def Rule.unless (exception requirement : Rule α) : Rule α where
     rw [← exception.check_iff input, ← requirement.check_iff input]
     cases exception.check input <;> simp
 
+/-- An applicable exception discharges precisely the selected requirement. -/
+theorem Rule.unless_holds_of_exception {exception requirement : Rule α}
+    {input : α} (h : exception.Holds input) :
+    (exception.unless requirement).Holds input := by
+  simp [Rule.unless, h]
+
+/-- Outside its exception, a suspended requirement keeps its original meaning. -/
+theorem Rule.unless_holds_iff_of_not_exception {exception requirement : Rule α}
+    {input : α} (h : ¬ exception.Holds input) :
+    (exception.unless requirement).Holds input ↔ requirement.Holds input := by
+  simp [Rule.unless, h]
+
+/-- The checker accepts its selected requirement when the exception applies. -/
+theorem Rule.check_unless_of_exception {exception requirement : Rule α}
+    {input : α} (h : exception.Holds input) :
+    (exception.unless requirement).check input = true := by
+  simp [Rule.unless, (exception.check_iff input).mpr h]
+
 end BtcVerified.Consensus
