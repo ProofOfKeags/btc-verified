@@ -21,13 +21,30 @@ boundary â€” accepted block extensions and the state transitions they produce â€
 and other implementations or forks can be compared against the same object.
 Second, no premise embeds an activation height: premises take evaluation
 context (the admitting block's height, block time, and median-time-past) plus
-an explicit lock-time-clock choice, and "which rules are in force when" is an
-external mapping, a later leaf (#38). Third, enforced premises have named `Prop`
+an explicit lock-time-clock choice. The activation leaves assemble applicability
+outside those premises; a complete network ruleset remains separate (#38).
+Third, enforced premises have named `Prop`
 specifications and executable decisions. An optimized `Bool` checker carries a
 proved equivalence to its specification; derived properties (conservation, the supply
 limit) are theorems only, never runtime checks.
 
 ## The shape of a rule
+
+`Rule.lean` packages an independently stated requirement with its checker and
+an equivalence proof. `Rule.when` composes applicability with enforcement.
+The [activation leaves](Activation/README.md) use that boundary to select
+requirements, starting with established activation heights. Existing named
+transaction predicates remain available to downstream proofs.
+
+Checked claims:
+
+- `Rule.ofDecidable`: the packaged checker decides the supplied predicate.
+- `Rule.when`: conditional enforcement retains checker/specification agreement.
+
+Why it matters: the applicability of a requirement can change without changing
+its statement or the proofs that consume it.
+
+## Existing transaction requirements
 
 `Limits.lean` holds the numeric constants (`maxMoney`, `coinbaseMaturity`,
 `maxStrippedTransactionSize`, `maxBlockWeight`, `witnessScaleFactor`, `lockTimeThreshold`,
