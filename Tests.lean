@@ -7,3 +7,4 @@ import Tests.TransactionRules
 import Tests.ActivationHeight
 import Tests.ActivationBundles
 import Tests.ActivationTransitions
+import Tests.ActivationTemporary

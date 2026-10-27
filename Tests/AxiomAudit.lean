@@ -87,6 +87,16 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.VersionBitsState.atPeriodEnd_active
 #assert_axioms BtcVerified.Consensus.VersionBitsState.atPeriodEnd_failed
 
+#assert_axioms BtcVerified.Consensus.Rule.during
+#assert_axioms BtcVerified.Consensus.Rule.inStates
+#assert_axioms BtcVerified.Consensus.Rule.during_check_iff
+#assert_axioms BtcVerified.Consensus.Rule.check_during_of_mem
+#assert_axioms BtcVerified.Consensus.Rule.check_during_of_not_mem
+#assert_axioms BtcVerified.Consensus.Rule.check_during_of_reversed
+#assert_axioms BtcVerified.Consensus.Rule.inStates_check_iff
+#assert_axioms BtcVerified.Consensus.Rule.check_inStates_of_mem
+#assert_axioms BtcVerified.Consensus.Rule.check_inStates_of_not_mem
+
 /-! ## Serialization -/
 
 #assert_axioms BtcVerified.Serialize.encode_injective
