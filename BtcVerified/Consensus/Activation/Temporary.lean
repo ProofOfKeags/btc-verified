@@ -7,6 +7,12 @@ import BtcVerified.Consensus.Activation.VersionBitsState
   empty. The caller supplies the clock and deployment state explicitly.
   These selectors do not compute history or establish a deployment's rules.
 
+  Checked claims:
+
+  * `Rule.during_check_iff` and `Rule.inStates_check_iff`: each selector enforces
+    precisely the requirement on its specified domain.
+  * The `check_during_*` and `check_inStates_*` laws identify the exact selected
+    decision and show that an inapplicable obligation accepts unconditionally.
 -/
 
 namespace BtcVerified.Consensus
@@ -61,6 +67,13 @@ theorem Rule.check_inStates_of_mem {state : α → VersionBitsState}
     {states : List VersionBitsState} {requirement : Rule α} {input : α}
     (h : state input ∈ states) :
     (Rule.inStates state states requirement).check input = requirement.check input := by
+  simp [inStates, when, ofDecidable, h]
+
+/-- A state absent from the list leaves the requirement unenforced. -/
+theorem Rule.check_inStates_of_not_mem {state : α → VersionBitsState}
+    {states : List VersionBitsState} {requirement : Rule α} {input : α}
+    (h : state input ∉ states) :
+    (Rule.inStates state states requirement).check input = true := by
   simp [inStates, when, ofDecidable, h]
 
 end BtcVerified.Consensus
