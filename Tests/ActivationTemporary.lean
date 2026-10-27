@@ -49,5 +49,14 @@ private def temporary : Rule Input := Rule.during Prod.fst 1501545600 1510704000
 -- Inclusive last boundary, followed by cessation even for a non-signaling header.
 #guard temporary.check (1510704000, .started, header 0x20000002)
 #guard !temporary.check (1510704000, .started, header 0x20000000)
+#guard temporary.check (1510704001, .started, header 0)
+-- State selection independently ends enforcement after lock-in.
+#guard temporary.check (1501545600, .lockedIn, header 0)
+#guard temporary.check (1501545600, .active, header 0)
+#guard temporary.check (1501545600, .failed, header 0)
+-- Neither a reversed time window nor an empty phase set enforces its requirement.
+#guard (Rule.during Prod.fst 10 9 signals).check (9, .started, header 0)
+#guard (Rule.inStates (fun input : Input => input.2.1) [] signals).check
+  (1501545600, .started, header 0)
 
 end Tests.TemporaryExamples
