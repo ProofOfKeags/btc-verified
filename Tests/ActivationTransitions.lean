@@ -41,5 +41,8 @@ private def params : VersionBitsParams :=
 
 private def requirement : Rule Nat := Rule.ofDecidable fun value => value = 7
 #guard (VersionBitsState.active.enforce requirement).check 7
+#guard !(VersionBitsState.active.enforce requirement).check 6
+#guard ([.defined, .started, .lockedIn, .failed] : List VersionBitsState).all fun state =>
+  (state.enforce requirement).check 6
 
 end Tests.ActivationTransitions
