@@ -25,7 +25,7 @@ namespace BtcVerified
 
 /-- Require block-time finality and, from the threshold, MTP finality. -/
 def TxBody.finalityRules (firstHeight : Nat) : Consensus.Rule (TxContext × TxBody) :=
-  (lockTimeRule .blockTime).and
+  lockTimeRule .blockTime ⊓
     ((lockTimeRule .medianTimePast).atHeight (fun input => input.1.height) firstHeight)
 
 /-! ## Behavioral laws -/
@@ -48,8 +48,8 @@ theorem TxBody.finalityRules_holds_before (firstHeight : Nat) (body : TxBody)
     (ctx : TxContext) (before : ctx.height < firstHeight) :
     (finalityRules firstHeight).Holds (ctx, body) ↔
       body.LockTimeSatisfied .blockTime ctx := by
-  simp [finalityRules, Consensus.Rule.and, Consensus.Rule.atHeight,
-    Consensus.Rule.when, Consensus.Rule.ofDecidable, lockTimeRule, Nat.not_le.mpr before]
+  exact Consensus.Rule.inf_atHeight_holds_iff_left (fun input => input.1.height)
+    firstHeight (lockTimeRule .blockTime) (lockTimeRule .medianTimePast) (ctx, body) before
 
 /-- After activation, the combined requirement is exactly MTP finality under clock order. -/
 theorem TxBody.finalityRules_holds_of_le (firstHeight : Nat) (body : TxBody)
