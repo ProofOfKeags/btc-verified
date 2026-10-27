@@ -63,6 +63,19 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.VersionBitsState.atPeriodEnd_active
 #assert_axioms BtcVerified.Consensus.VersionBitsState.atPeriodEnd_failed
 
+#assert_axioms BtcVerified.Consensus.VersionBitsProgress.initial
+#assert_axioms BtcVerified.Consensus.VersionBitsProgress.medianTimePast
+#assert_axioms BtcVerified.Consensus.VersionBitsProgress.advance
+#assert_axioms BtcVerified.Consensus.VersionBitsProgress.consume
+#assert_axioms BtcVerified.Consensus.VersionBitsProgress.consume_append
+#assert_axioms BtcVerified.Consensus.VersionBitsProgress.nextHeight_consume
+#assert_axioms BtcVerified.Consensus.VersionBitsProgress.recentTimes_length_advance
+#assert_axioms BtcVerified.Consensus.VersionBitsBoundary.initial
+#assert_axioms BtcVerified.Consensus.VersionBitsBoundary.extend
+#assert_axioms BtcVerified.Consensus.VersionBitsBoundary.Summarizes
+#assert_axioms BtcVerified.Consensus.VersionBitsBoundary.extend_append
+#assert_axioms BtcVerified.Consensus.VersionBitsBoundary.summarizes_extend
+
 /-! ## Serialization -/
 
 #assert_axioms BtcVerified.Serialize.encode_injective
