@@ -67,13 +67,11 @@ elab "#assert_axioms " id:ident : command => do
 #assert_axioms BtcVerified.Consensus.Rule.and
 #assert_axioms BtcVerified.Consensus.Rule.all
 #assert_axioms BtcVerified.Consensus.Rule.contramap
-#assert_axioms BtcVerified.Consensus.Rule.Refines
-#assert_axioms BtcVerified.Consensus.Rule.all_refines_of_mem
+#assert_axioms BtcVerified.Consensus.Rule.all_le_of_mem
 #assert_axioms BtcVerified.Consensus.Rule.all_nil_holds
 #assert_axioms BtcVerified.Consensus.Rule.all_cons_holds
 #assert_axioms BtcVerified.Consensus.Rule.all_append_holds
 #assert_axioms BtcVerified.Consensus.Rule.all_append_check
-#assert_axioms BtcVerified.Consensus.Rule.Refines.contramap
 #assert_axioms BtcVerified.Consensus.Rule.contramap_all_holds
 #assert_axioms BtcVerified.Consensus.Rule.and_when_holds_iff_left
 #assert_axioms BtcVerified.Consensus.Rule.and_atHeight_holds_iff_left

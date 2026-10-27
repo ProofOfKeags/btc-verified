@@ -4,11 +4,11 @@
 
 Conjunction and finite bundles combine verified requirements on the same
 input. `contramap` supplies smaller rules with their own view of that input.
-`Refines` states implication between requirements without equality of functions.
+`stronger ≤ weaker` states implication using mathlib's partial order.
 
 Checked claims:
 
-- `Rule.all_refines_of_mem`: an accepted bundle establishes every member.
+- `Rule.all_le_of_mem`: an accepted bundle establishes every member.
 - `Rule.all_append_holds`: appending bundles conjoins their requirements.
 - `Rule.and_atHeight_holds_iff_left`: an inactive addition has no effect.
 

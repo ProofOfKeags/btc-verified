@@ -3,12 +3,12 @@ import BtcVerified.Consensus.Activation.Height
   # Composition of consensus requirements
 
   Bundles share an input domain and require every member. Projection supplies
-  a smaller rule with exactly the context it reads. Implication is semantic;
-  no equality or registry of predicate-valued rule records is required.
+  a smaller rule with exactly the context it reads. The standard implication
+  order places stronger requirements below weaker ones.
 
   Checked claims:
 
-  * `Rule.all_refines_of_mem`: accepting a bundle establishes each member.
+  * `Rule.all_le_of_mem`: accepting a bundle establishes each member.
   * `Rule.all_append_holds`: appending bundles conjoins their requirements.
   * `Rule.and_atHeight_holds_iff_left`: an inactive addition has no effect.
 -/
@@ -27,15 +27,11 @@ def contramap (project : β → α) (rule : Rule α) : Rule β where
   check x := rule.check (project x)
   check_iff x := rule.check_iff (project x)
 
-/-- Every input satisfying the stronger rule satisfies the weaker rule. -/
-def Refines (stronger weaker : Rule α) : Prop :=
-  ∀ x, stronger.Holds x → weaker.Holds x
-
 /-! ## Behavioral laws -/
 
 /-- A bundle implies each rule occurring in it. -/
-theorem all_refines_of_mem {rules : List (Rule α)} {rule : Rule α}
-    (h : rule ∈ rules) : (all rules).Refines rule :=
+theorem all_le_of_mem {rules : List (Rule α)} {rule : Rule α}
+    (h : rule ∈ rules) : all rules ≤ rule :=
   fun _ accepted => accepted rule h
 
 /-- Every input satisfies the empty bundle. -/
@@ -56,12 +52,6 @@ theorem all_append_holds (left right : List (Rule α)) (x : α) :
 theorem all_append_check (left right : List (Rule α)) (x : α) :
     (all (left ++ right)).check x = ((all left).check x && (all right).check x) := by
   simp [all]
-
-/-- Projecting contexts preserves implication between rules. -/
-theorem Refines.contramap {stronger weaker : Rule α}
-    (h : stronger.Refines weaker) (project : β → α) :
-    (contramap project stronger).Refines (contramap project weaker) :=
-  fun x accepted => h (project x) accepted
 
 /-- Projecting context for a bundle equals projecting it for every member. -/
 theorem contramap_all_holds (project : β → α) (rules : List (Rule α)) (x : β) :
