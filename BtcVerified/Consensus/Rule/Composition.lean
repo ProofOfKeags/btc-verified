@@ -16,12 +16,6 @@ import BtcVerified.Consensus.Activation.Height
 
 namespace BtcVerified.Consensus.Rule
 
-/-- Require both rules on the same candidate and context. -/
-def and (left right : Rule α) : Rule α where
-  Holds x := left.Holds x ∧ right.Holds x
-  check x := left.check x && right.check x
-  check_iff x := by simp [left.check_iff, right.check_iff]
-
 /-- Require every rule in a finite bundle, accepting the empty bundle. -/
 def all (rules : List (Rule α)) : Rule α where
   Holds x := ∀ rule ∈ rules, rule.Holds x

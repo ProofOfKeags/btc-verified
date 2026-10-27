@@ -38,4 +38,10 @@ def Rule.when (applicable requirement : Rule α) : Rule α where
     rw [← applicable.check_iff input, ← requirement.check_iff input]
     cases applicable.check input <;> simp
 
+/-- Require both rules on the same candidate and context. -/
+def Rule.and (left right : Rule α) : Rule α where
+  Holds x := left.Holds x ∧ right.Holds x
+  check x := left.check x && right.check x
+  check_iff x := by simp [left.check_iff, right.check_iff]
+
 end BtcVerified.Consensus
