@@ -1,4 +1,5 @@
 import Mathlib.Order.Lattice
+import Mathlib.Order.BoundedOrder.Basic
 /-!
   # Executable consensus requirements
 
@@ -14,6 +15,7 @@ import Mathlib.Order.Lattice
   * `Rule.ext`: equivalent requirements determine equal checked rules.
   * `instPartialOrderRule`: implication orders rules, with stronger rules below weaker ones.
   * `instSemilatticeInfRule`: conjunction is the meet of two requirements.
+  * `instOrderTopRule`: the greatest rule accepts every input.
 -/
 
 namespace BtcVerified.Consensus
@@ -73,5 +75,10 @@ instance instSemilatticeInfRule : SemilatticeInf (Rule α) where
   inf_le_left _ _ _ h := h.1
   inf_le_right _ _ _ h := h.2
   le_inf _ _ _ left right input h := ⟨left input h, right input h⟩
+
+/-- The greatest rule accepts every input. -/
+instance instOrderTopRule : OrderTop (Rule α) where
+  top := Rule.ofDecidable fun _ => True
+  le_top _ _ _ := True.intro
 
 end BtcVerified.Consensus
