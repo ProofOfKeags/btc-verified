@@ -47,6 +47,10 @@ elab "#assert_axioms " id:ident : command => do
   unless bad.isEmpty do
     throwError "{name} depends on disallowed axioms: {bad.toList}"
 
+/-! ## Rule composition and activation -/
+
+#assert_axioms BtcVerified.Consensus.Rule.ofDecidable
+#assert_axioms BtcVerified.Consensus.Rule.when
 #assert_axioms BtcVerified.Consensus.Rule.atHeight
 #assert_axioms BtcVerified.Consensus.Rule.atHeight_check_before
 #assert_axioms BtcVerified.Consensus.Rule.atHeight_check_of_le
