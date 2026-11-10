@@ -614,6 +614,61 @@ def block170Context : TxContext :=
 -- well-formed.
 #guard checksOut firstSegwitSpendHex fun tx => tx.isWellFormed
 
+/-! ## An outputless payment parses, then fails the output premise
+
+  The first payment with only its outputs removed. Output nonemptiness is a
+  transaction premise, not syntax: Bitcoin Core parses the empty output vector
+  and rejects the transaction afterwards, in `CheckTransaction`, as
+  `bad-txns-vout-empty` ([Bitcoin Core v28.0, `tx_check.cpp` lines
+  16–17](https://github.com/bitcoin/bitcoin/blob/v28.0/src/consensus/tx_check.cpp#L16-L17)).
+  So the decoder must accept these bytes. Every other premise still passes over
+  the funded set at block 170, and the guarded step rejects the transaction for
+  its missing outputs alone. Removing the outputs invalidates the payment's
+  `SIGHASH_ALL` signature; the always-true script judgment deliberately sets
+  script validity aside.
+-/
+
+/-- The first Bitcoin payment's bytes with only its outputs removed: the output
+count `02` and both outputs become the count `00`. Version, input, and lock
+time are unchanged. -/
+def firstPaymentWithoutOutputsHex : String :=
+  "0100000001c997a5e56e104102fa209c6a852dd90660a20b2d9c352423edce25\
+   857fcd3704000000004847304402204e45e16932b8af514961a1d3a1a25fdf3f\
+   4f7732e9d624c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd1290\
+   9d831cc56cbbac4622082221a8768d1d0901ffffffff0000000000"
+
+-- The bytes decode completely and re-encode exactly, to the payment with only
+-- its outputs removed.
+#guard match hexBytes? firstBitcoinPaymentHex >>= Codec.decode (α := Tx) with
+  | some (.legacy body inputsNonempty, _) =>
+    checksOut firstPaymentWithoutOutputsHex fun tx =>
+      tx == .legacy { body with outputs := ⟨[], by simp⟩ } inputsNonempty
+  | _ => false
+
+-- Of the six transaction-local premises, only output nonemptiness fails.
+#guard match hexBytes? firstPaymentWithoutOutputsHex >>= Codec.decode (α := Tx) with
+  | some (tx, _) =>
+    decide tx.InputsNonempty
+    && !decide tx.OutputsNonempty
+    && decide tx.AllInputOutpointsDistinct
+    && decide tx.AllInputOutpointsNeNull
+    && decide tx.TotalOutputValueLeMaxMoney
+    && decide tx.StrippedSizeLeMaxStrippedTransactionSize
+    && !tx.isWellFormed
+  | none => false
+
+-- The contextual premises pass over the funded set: the matured 50 BTC coin
+-- covers zero outputs. The guarded non-coinbase transaction step still rejects.
+#guard match hexBytes? block9CoinbaseHex >>= Codec.decode (α := Tx),
+    hexBytes? firstPaymentWithoutOutputsHex >>= Codec.decode (α := Tx) with
+  | some (coinbase, _), some (tx, _) =>
+    let utxos : UtxoSet := UtxoSet.create ∅
+      (coinbase.body.creates.map fun entry => (entry.1, ⟨entry.2, ⟨9, true⟩⟩))
+    tx.isAdmissible (fun _ _ _ => true) utxos .blockTime block170Context
+    && (UtxoSet.applyChecked (fun _ _ _ => true) utxos .blockTime
+          block170Context tx).isNone
+  | _, _ => false
+
 /-! ## The witness commitment
 
   Output recognition and extraction on the real SegWit activation coinbase
