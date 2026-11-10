@@ -469,9 +469,10 @@ def block1HeaderHex : String :=
 -- validity instead).
 #guard Merkle.canonicalCheck ([1, 1, 2, 3] : List Hash256)
 
--- Bitcoin Core's `ComputeMerkleRoot`, run on the same vectors. The root always
--- matches the spec root, and the `mutated` flag fires on exactly the
--- materialized-padding lists — distinct leaves never trip it.
+-- Bitcoin Core's `ComputeMerkleRoot`, run on the same vectors. The root
+-- matches the spec root. The `mutated` flag detects actual adjacent
+-- equal pairs before padding: materialized padding is one cause, while
+-- distinct leaves do not trigger it and honest duplicate leaves can.
 #guard (Impl.BitcoinCore.computeMerkleRoot ([1, 2, 3] : List Hash256)).1
   == Merkle.root ([1, 2, 3] : List Hash256)
 #guard !(Impl.BitcoinCore.computeMerkleRoot ([1, 2, 3] : List Hash256)).2
