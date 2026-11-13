@@ -55,15 +55,17 @@ import BtcVerified.Block.BlockHash
     the list).
   * `Chain.tip_commits_prefix`: of two chains sharing a tip hash, the one
     with no more headers carries a prefix (tip-first) of the other's header
-    list — or two concrete byte strings collide under double-SHA-256. No
-    relation between the anchors is assumed; this is the hypothesis-minimal
-    form of tip commitment.
+    list — or header encodings at the same depth from the tip collide under
+    double-SHA-256. No relation between the anchors is assumed; this is the
+    hypothesis-minimal form of tip commitment.
   * `Chain.tip_commits`: two chains of equal length that share a tip hash
-    carry the same header list — or a concrete collision. The tip hash
-    commits to the entire history.
+    carry the same header list — or header encodings at the same depth from
+    the tip collide. The tip hash commits to the entire history.
 -/
 
 namespace BtcVerified
+
+open BtcVerified.Serialize
 
 /- `seal` marks `BlockHeader.hash` irreducible for the remainder of this file
 (it is sugar for `attribute [local irreducible]`): the elaborator treats the
@@ -171,9 +173,9 @@ theorem Chain.isChain_toList {a : Hash256} :
 /-! ## The tip-commitment theorem -/
 
 /-- Of two chains sharing a tip hash, the one with no more headers carries a
-prefix (tip-first) of the other's header list — or two concrete byte strings
-witness a double-SHA-256 collision. Peeling the tip (equal hashes give equal
-headers, via `BlockHeader.hash_binding`, or a collision) forces equal
+prefix (tip-first) of the other's header list — or header encodings at the same
+depth from the tip collide under double-SHA-256. Peeling the tip (equal hashes
+give equal headers, via `BlockHeader.hash_binding`, or a collision) forces equal
 `prevBlockHash`es, and recursing identifies the chains one header at a time
 until the shorter one runs out. No relation between the anchors is assumed —
 a shorter chain anchored higher up the same history sees exactly a prefix of
@@ -181,8 +183,11 @@ the longer one, which is also why a shared tip cannot force outright
 equality without the length bound. -/
 theorem Chain.tip_commits_prefix {a₁ a₂ : Hash256} :
     {t₁ t₂ : Hash256} → (c₁ : Chain a₁ t₁) → (c₂ : Chain a₂ t₂) → t₁ = t₂ →
-      c₁.toList.length ≤ c₂.toList.length →
-      c₁.toList <+: c₂.toList ∨ Sha256.Collision
+      (hlen : c₁.toList.length ≤ c₂.toList.length) →
+      c₁.toList <+: c₂.toList ∨
+        CollisionAt Sha256.sha256d
+          (fun i : Fin c₁.toList.length => Codec.encode c₁.toList[i])
+          (fun i => Codec.encode c₂.toList[i.castLE hlen])
   | _, _, .nil, _, _, _ => Or.inl (List.nil_prefix ..)
   | _, _, .extend .., .nil, _, hlen => by
       simp only [Chain.toList, List.length_nil, List.length_cons] at hlen
@@ -194,18 +199,25 @@ theorem Chain.tip_commits_prefix {a₁ a₂ : Hash256} :
           (congrArg BlockHeader.prevBlockHash htip) (by omega) with hpre | hcol
         · exact Or.inl (by simpa only [Chain.toList, List.cons_prefix_cons]
             using ⟨htip, hpre⟩)
-        · exact Or.inr hcol
-      · exact Or.inr hcol
+        · obtain ⟨i, hcol⟩ := hcol
+          exact Or.inr ⟨i.succ, hcol⟩
+      · exact Or.inr ⟨⟨0, by simp [Chain.toList]⟩, hcol⟩
 
 /-- Two chains of equal length that share a tip hash carry the same header
-list — or two concrete byte strings witness a double-SHA-256 collision. The
-tip hash commits to the entire history; the equal-length hypothesis is what
-upgrades `Chain.tip_commits_prefix`'s prefix to equality, and it cannot be
-dropped — a strictly shorter chain anchored higher up shares the tip while
+list — or header encodings at the same depth from the tip collide under
+double-SHA-256. The tip hash commits to the entire history; the equal-length
+hypothesis is what upgrades `Chain.tip_commits_prefix`'s prefix to equality, and
+it cannot be dropped — a strictly shorter chain anchored higher up shares the tip while
 carrying strictly fewer headers. -/
 theorem Chain.tip_commits {a₁ a₂ t₁ t₂ : Hash256} (c₁ : Chain a₁ t₁) (c₂ : Chain a₂ t₂)
     (heq : t₁ = t₂) (hlen : c₁.toList.length = c₂.toList.length) :
-    c₁.toList = c₂.toList ∨ Sha256.Collision :=
-  (c₁.tip_commits_prefix c₂ heq (Nat.le_of_eq hlen)).imp (·.eq_of_length hlen) id
+    c₁.toList = c₂.toList ∨
+      CollisionAt Sha256.sha256d
+        (fun i : Fin c₁.toList.length => Codec.encode c₁.toList[i])
+        (fun i => Codec.encode c₂.toList[i.cast hlen]) := by
+  rcases c₁.tip_commits_prefix c₂ heq (Nat.le_of_eq hlen) with hpre | hcol
+  · exact Or.inl (hpre.eq_of_length hlen)
+  · obtain ⟨i, hcol⟩ := hcol
+    exact Or.inr ⟨i, hcol⟩
 
 end BtcVerified

@@ -134,12 +134,8 @@ theorem sha256_length (msg : List UInt8) : (sha256 msg).length = 32 := by
 theorem sha256d_length (msg : List UInt8) : (sha256d msg).length = 32 :=
   sha256_length _
 
-/-- Two distinct byte strings with the same double-SHA-256 digest. Theorems
-about hash commitments conclude with this as a constructive disjunct — never
-assuming its absence as an axiom, which would be inconsistent for a concrete
-hash (an infinite domain into 32 bytes has collisions by pigeonhole). The
-*intractability* of producing a witness is the consumer's hypothesis. -/
-abbrev Collision : Prop := BtcVerified.Collision sha256d
+/-- The two specified distinct byte strings have equal double-SHA-256 digests. -/
+abbrev Collision (a b : List UInt8) : Prop := BtcVerified.Collision sha256d a b
 
 /-- Bitcoin's double hashing inherits collision resistance from `sha256`: a
 `sha256d` collision is a `sha256` collision (in the outer call if the inner
@@ -149,8 +145,8 @@ theorem collisionResistant_sha256d (h : CollisionResistant sha256) :
     CollisionResistant sha256d :=
   h.comp h
 
-/-- The converse: a `sha256d` collision forces a `sha256` collision in the inner
-call, so resistance of `sha256d` gives resistance of `sha256`. Together with
+/-- The converse: a `sha256` collision in the inner call forces a `sha256d`
+collision, so resistance of `sha256d` gives resistance of `sha256`. Together with
 `collisionResistant_sha256d`, the two resistances are equivalent. -/
 theorem collisionResistant_sha256_of_sha256d (h : CollisionResistant sha256d) :
     CollisionResistant sha256 :=
