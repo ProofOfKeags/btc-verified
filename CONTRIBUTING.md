@@ -78,9 +78,8 @@ Commit messages are imperative-mood with a body explaining the why; see
 
 Use the Codex app or CLI for an explicitly selected issue or change. Codex
 reads `AGENTS.md` for repository conventions and discovers checked-in skills
-under `.agents/skills/`. Invoke `$proof-leaf` when adding or landing a proof
-leaf. Use a focused branch, run the applicable checks, and submit a reviewable
-pull request.
+under `.agents/skills/`. Use a focused branch, run the applicable checks, and
+submit a reviewable pull request.
 
 The `CI` GitHub Actions workflow remains responsible for deterministic build,
 test, lint, and conformance checks. Opening or labeling an issue does not

@@ -170,9 +170,6 @@ types live in `Packed/Codec.lean`.
    not a claims list; update it if the leaf changes what the directory can
    claim.
 
-The `$proof-leaf` skill in `.agents/skills/proof-leaf/SKILL.md` walks through
-this checklist.
-
 ## Deferring work
 
 A deferral is not "done" until it is a tracked GitHub issue. When you set work
