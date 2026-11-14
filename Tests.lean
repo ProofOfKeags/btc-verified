@@ -6,3 +6,4 @@ import Tests.ModuleAudit
 import Tests.TransactionRules
 import Tests.ActivationHeight
 import Tests.ActivationBundles
+import Tests.ActivationTransitions
