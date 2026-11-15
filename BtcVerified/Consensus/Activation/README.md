@@ -52,3 +52,21 @@ Checked claims:
 
 Why it matters: stronger rules can subsume older checks with explicit
 hypotheses; arbitrary `TxContext` values do not establish clock order.
+
+### Exceptions and explicit replacement
+
+`Rule.unless` suspends one requirement for a checked exception. `Rule.choose`
+selects one of two requirements. Neither operation implicitly waives other
+requirements, and replacement carries no automatic refinement claim.
+
+Checked claims:
+
+- `Rule.check_unless_of_exception` and `check_unless_of_not_exception`: the
+  exception affects exactly the requirement to which it is applied.
+- `Rule.check_choose_of_condition` and `check_choose_of_not_condition`: only
+  the selected requirement supplies the decision.
+
+Why it matters: rare historical exceptions and non-refining replacements
+stay explicit at assembly boundaries. The BIP30 identity examples distinguish
+exact height/hash matches from height-only matches; their supplied freshness
+results test selection, not the UTXO implementation or complete validity.
