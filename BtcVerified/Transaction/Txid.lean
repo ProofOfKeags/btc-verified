@@ -15,17 +15,17 @@ import BtcVerified.Crypto.Hash256
   The binding theorems here are exactly that observation: equal txids
   mean equal bodies, and equal wtxids mean equal transactions, or in either
   case there are two concrete byte strings witnessing a double-SHA-256
-  collision (`Sha256.Collision`). The collision appears as a constructed
-  disjunct, never as an assumed-absent axiom.
+  collision between the encodings of the compared objects. The collision
+  appears as a constructed disjunct, never as an assumed-absent axiom.
 
   Checked claims:
 
-  * `Tx.txid_binding`: equal txids imply equal witness-free bodies, or a
-    concrete `sha256d` collision.
+  * `Tx.txid_binding`: equal txids imply equal witness-free bodies, or their
+    two encodings collide under `sha256d`.
   * `Tx.wtxid_binding`: equal wtxids imply equal transactions (witnesses
-    included), or a concrete `sha256d` collision.
-  * `Tx.map_wtxid_binding`: equal wtxid *lists* imply equal transaction
-    lists — the form the witness commitment lifts through the merkle layer.
+    included), or their two full encodings collide.
+  * `Tx.map_wtxid_binding`: equal wtxid lists imply equal transaction lists,
+    or a collision between transaction encodings at the same list index.
   * `Tx.wtxid_legacy`: a legacy transaction's wtxid is its txid.
 -/
 
@@ -60,30 +60,32 @@ its txid. -/
 theorem Tx.wtxid_empty (version lockTime : UInt32) :
     (Tx.empty version lockTime).wtxid = (Tx.empty version lockTime).txid := rfl
 
-/-- Equal txids mean equal witness-free bodies — or two concrete byte strings
-witnessing a double-SHA-256 collision. -/
+/-- Equal txids mean equal witness-free bodies — or their two serialized bodies
+colliding under double-SHA-256. -/
 theorem Tx.txid_binding {t₁ t₂ : Tx} (h : t₁.txid = t₂.txid) :
-    t₁.body = t₂.body ∨ Sha256.Collision := by
+    t₁.body = t₂.body ∨ Sha256.Collision (Codec.encode t₁.body) (Codec.encode t₂.body) := by
   by_cases hb : t₁.body = t₂.body
   · exact Or.inl hb
-  · exact Or.inr ⟨Codec.encode t₁.body, Codec.encode t₂.body,
-      fun he => hb (encode_injective he), congrArg Subtype.val h⟩
+  · exact Or.inr ⟨fun he => hb (encode_injective he), congrArg Subtype.val h⟩
 
-/-- Equal wtxids mean equal transactions, witnesses included — or two
-concrete byte strings witnessing a double-SHA-256 collision. -/
+/-- Equal wtxids mean equal transactions, witnesses included — or their two
+full transaction encodings colliding under double-SHA-256. -/
 theorem Tx.wtxid_binding {t₁ t₂ : Tx} (h : t₁.wtxid = t₂.wtxid) :
-    t₁ = t₂ ∨ Sha256.Collision := by
+    t₁ = t₂ ∨ Sha256.Collision (Codec.encode t₁) (Codec.encode t₂) := by
   by_cases ht : t₁ = t₂
   · exact Or.inl ht
-  · exact Or.inr ⟨Codec.encode t₁, Codec.encode t₂,
-      fun he => ht (encode_injective he), congrArg Subtype.val h⟩
+  · exact Or.inr ⟨fun he => ht (encode_injective he), congrArg Subtype.val h⟩
 
 /-- Equal wtxid lists mean equal transaction lists, witnesses included — or
-two concrete byte strings witnessing a double-SHA-256 collision.
+encodings at the same list index collide under double-SHA-256.
 `Tx.wtxid_binding` lifted pointwise, in the form the witness commitment's
 binding theorem carries through the merkle layer. -/
 theorem Tx.map_wtxid_binding {l₁ l₂ : List Tx}
-    (h : l₁.map Tx.wtxid = l₂.map Tx.wtxid) : l₁ = l₂ ∨ Sha256.Collision := by
+    (h : l₁.map Tx.wtxid = l₂.map Tx.wtxid) :
+    l₁ = l₂ ∨ CollisionAt Sha256.sha256d
+      (fun i : Fin l₁.length => Codec.encode l₁[i])
+      (fun i => Codec.encode l₂[i.cast (by
+        simpa only [List.length_map] using congrArg List.length h)]) := by
   induction l₁ generalizing l₂ with
   | nil =>
     cases l₂ with
@@ -93,11 +95,12 @@ theorem Tx.map_wtxid_binding {l₁ l₂ : List Tx}
     cases l₂ with
     | nil => exact absurd h (by simp)
     | cons t₂ r₂ =>
-      simp only [List.map_cons, List.cons.injEq] at h
-      rcases Tx.wtxid_binding h.1 with ht | c
-      · rcases ih h.2 with hr | c
+      have h' : t₁.wtxid = t₂.wtxid ∧ r₁.map Tx.wtxid = r₂.map Tx.wtxid := by
+        simpa only [List.map_cons, List.cons.injEq] using h
+      rcases Tx.wtxid_binding h'.1 with ht | c
+      · rcases ih h'.2 with hr | ⟨i, c⟩
         · exact Or.inl (by rw [ht, hr])
-        · exact Or.inr c
-      · exact Or.inr c
+        · exact Or.inr ⟨i.succ, by simpa using c⟩
+      · exact Or.inr ⟨⟨0, by simp⟩, by simpa using c⟩
 
 end BtcVerified

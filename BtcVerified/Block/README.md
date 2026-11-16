@@ -69,14 +69,18 @@ equal-length lists the merkle root binds outright.
 Checked claims:
 
 - `witnessCommitment_binding`: equal commitments imply equal witness roots
-  and equal reserved values — or a concrete double-SHA-256 collision;
+  and equal reserved values — or the two root-and-reserved-value inputs
+  collide under double-SHA-256;
   definitionally `Merkle.combine_binding`.
 - `Block.witnessRoot_binding`: between blocks with equally many
   transactions, equal witness roots imply equal transactions beyond the
-  coinbase, witnesses included — or a concrete collision.
+  coinbase, witnesses included — or a collision at a common witness-tree
+  path or non-coinbase transaction index.
 - `Block.witnessCommits_binding`: two blocks satisfying the condition that
   record the same commitment and have equally many transactions agree on
-  every transaction beyond the coinbase — or a concrete collision.
+  every transaction beyond the coinbase — or a collision at the outer
+  commitment, a common witness-tree path, or a common non-coinbase transaction
+  index.
 - Golden vectors: the SegWit activation coinbase's real commitment output
   and reserved value, the recognition rules (minimum length, exact header,
   trailing bytes, last-match-wins), and `witnessCommits` itself over all
@@ -114,9 +118,8 @@ the genesis header's own `prevBlockHash`), not a special case. This is the
 
 Checked claims:
 
-- `BlockHeader.hash_binding`: the block hash is a binding commitment to the
-  header — equal block hashes mean equal headers, or a concrete
-  double-SHA-256 collision, the same shape as `Merkle.root_binding_of_length_eq`.
+- `BlockHeader.hash_binding`: equal block hashes mean equal headers, or
+  their two 80-byte encodings collide under double-SHA-256.
 - `Chain.toList_append`: stacking chain segments concatenates their header
   lists — composition is compatible with the plain-list view.
 - `Chain.isChain_toList`: a chain's list-of-headers view satisfies `IsChain`,
@@ -125,10 +128,12 @@ Checked claims:
   (`Chain.tipHash_toList` recovers the tip index from the list).
 - `Chain.tip_commits_prefix`: of two chains sharing a tip hash, the one with
   no more headers carries a prefix (tip-first) of the other's header list —
-  or a concrete collision. Nothing relates the anchors: a shorter chain
+  or a collision between header encodings at the same depth from the tip,
+  within the shorter chain. Nothing relates the anchors: a shorter chain
   anchored higher up the same history is exactly this prefix situation.
 - `Chain.tip_commits`: two chains of equal length sharing a tip hash carry
-  the same header list — or a concrete collision. The tip hash commits to
+  the same header list — or a collision between header encodings at the same
+  depth from the tip. The tip hash commits to
   the entire history, proved in the same peel-and-recurse,
   collision-disjunct style as `Merkle.root_binding_of_length_eq`.
 - Golden vector: block 1's raw 80 header bytes decode, re-encode, and hash
